@@ -1,0 +1,31 @@
+{
+  "name": "tasks-service",
+  "version": "1.0.0",
+  "description": "Microservicio de gestión de tareas para Smart Home con PostgreSQL",
+  "main": "dist/app.js",
+  "scripts": {
+    "start": "node dist/app.js",
+    "dev": "nodemon src/app.ts",
+    "build": "tsc",
+    "build:watch": "tsc --watch",
+    "db:init": "node dist/config/initDb.js"
+  },
+  "keywords": ["microservice", "tasks", "smart-home", "nodejs", "typescript", "postgresql"],
+  "author": "Smart Home Team",
+  "license": "MIT",
+  "dependencies": {
+    "express": "^4.18.2",
+    "cors": "^2.8.5",
+    "pg": "^8.11.3",
+    "dotenv": "^16.3.1"
+  },
+  "devDependencies": {
+    "@types/express": "^4.17.17",
+    "@types/cors": "^2.8.13",
+    "@types/node": "^20.5.0",
+    "@types/pg": "^8.10.2",
+    "typescript": "^5.1.6",
+    "ts-node": "^10.9.1",
+    "nodemon": "^3.0.1"
+  }
+}
