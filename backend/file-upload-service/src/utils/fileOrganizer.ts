@@ -29,7 +29,7 @@ export class FileOrganizer {
     private getFileCategory(extension: string): string {
         const ext = extension.toLowerCase().replace('.', '');
         
-        const categories = {
+        const categories: Record<string, string[]> = {
             images: ['jpg', 'jpeg', 'png', 'gif', 'bmp', 'webp', 'svg', 'ico'],
             documents: ['pdf', 'doc', 'docx', 'txt', 'rtf', 'odt', 'xls', 'xlsx', 'ppt', 'pptx'],
             videos: ['mp4', 'avi', 'mov', 'wmv', 'flv', 'webm', 'mkv', '3gp'],
