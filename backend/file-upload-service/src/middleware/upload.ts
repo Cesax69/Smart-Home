@@ -5,7 +5,10 @@ import { Request } from 'express';
 // Configuración de almacenamiento
 const storage = multer.diskStorage({
   destination: (req: Request, file: Express.Multer.File, cb: Function) => {
-    cb(null, 'uploads/');
+    // Para Google Drive, usamos directorio temporal
+    const storageType = process.env.STORAGE_TYPE || 'local';
+    const uploadDir = storageType === 'google_drive' ? 'temp/' : 'uploads/';
+    cb(null, uploadDir);
   },
   filename: (req: Request, file: Express.Multer.File, cb: Function) => {
     // Generar nombre único con timestamp y extensión original

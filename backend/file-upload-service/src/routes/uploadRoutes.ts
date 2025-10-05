@@ -20,4 +20,26 @@ router.post('/upload',
  */
 router.get('/health', UploadController.healthCheck);
 
+/**
+ * Rutas específicas para Google Drive (solo disponibles cuando STORAGE_TYPE=google_drive)
+ */
+
+/**
+ * GET /drive/files
+ * Listar archivos de Google Drive
+ */
+router.get('/drive/files', UploadController.listDriveFiles);
+
+/**
+ * GET /drive/files/:fileId
+ * Obtener información de un archivo específico de Google Drive
+ */
+router.get('/drive/files/:fileId', UploadController.getDriveFileInfo);
+
+/**
+ * DELETE /drive/files/:fileId
+ * Eliminar archivo de Google Drive
+ */
+router.delete('/drive/files/:fileId', UploadController.deleteDriveFile);
+
 export { router as uploadRoutes };
