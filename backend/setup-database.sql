@@ -168,7 +168,7 @@ CREATE INDEX IF NOT EXISTS idx_task_files_storage_type ON tasks_schema.task_file
 INSERT INTO users_schema.family_roles (role_name, description, permissions) 
 VALUES 
     ('Jefe del hogar', 'Administrador principal de la casa con todos los permisos', '{"admin": true, "create_tasks": true, "assign_tasks": true, "manage_users": true, "view_all": true}'),
-    ('Miembro', 'Miembro de la familia con permisos limitados', '{"admin": false, "create_tasks": true, "assign_tasks": false, "manage_users": false, "view_all": false}')
+    ('Miembro', 'Miembro de la familia con permisos limitados', '{"admin": false, "create_tasks": false, "assign_tasks": false, "manage_users": false, "view_all": false}')
 ON CONFLICT (role_name) DO NOTHING;
 
 -- Insertar sub-roles para miembros
