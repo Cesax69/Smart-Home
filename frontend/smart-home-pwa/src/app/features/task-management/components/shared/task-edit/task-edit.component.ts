@@ -1,4 +1,4 @@
-import { Component, OnInit, signal } from '@angular/core';
+import { Component, OnInit, signal, Inject } from '@angular/core';
 import { Router, ActivatedRoute } from '@angular/router';
 import { FormBuilder, FormGroup, Validators, ReactiveFormsModule } from '@angular/forms';
 import { CommonModule } from '@angular/common';
@@ -8,10 +8,15 @@ import { MatInputModule } from '@angular/material/input';
 import { MatButtonModule } from '@angular/material/button';
 import { MatIconModule } from '@angular/material/icon';
 import { MatSelectModule } from '@angular/material/select';
+import { MatChipsModule } from '@angular/material/chips';
 import { MatDatepickerModule } from '@angular/material/datepicker';
 import { MatNativeDateModule } from '@angular/material/core';
 import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
 import { MatSnackBar, MatSnackBarModule } from '@angular/material/snack-bar';
+import { MAT_DIALOG_DATA, MatDialogRef } from '@angular/material/dialog';
+import { HttpClientModule, HttpClient } from '@angular/common/http';
+import { of } from 'rxjs';
+import { environment } from '../../../../../../environments/environment';
 import { TaskService } from '../../../services/task.service';
 import { AuthService } from '../../../../../services/auth.service';
 import { Task, CreateTaskRequest, UpdateTaskRequest } from '../../../models/task.model';
@@ -23,12 +28,14 @@ import { User } from '../../../../../models/user.model';
   imports: [
     CommonModule,
     ReactiveFormsModule,
+    HttpClientModule,
     MatCardModule,
     MatFormFieldModule,
     MatInputModule,
     MatButtonModule,
     MatIconModule,
     MatSelectModule,
+    MatChipsModule,
     MatDatepickerModule,
     MatNativeDateModule,
     MatProgressSpinnerModule,
@@ -83,6 +90,27 @@ import { User } from '../../../../../models/user.model';
               </div>
 
               <div class="form-row">
+                <div class="full-width file-upload-row">
+                  <label class="file-label">Archivos de la tarea</label>
+                  <input type="file" multiple (change)="onFilesSelected($event)" />
+                  <div class="file-previews" *ngIf="filePreviews().length > 0">
+                    @for (preview of filePreviews(); track preview.name) {
+                      <div class="file-item">
+                        <mat-icon>attach_file</mat-icon>
+                        <span>{{ preview.name }}</span>
+                      </div>
+                    }
+                  </div>
+                  @if (task()?.fileUrl) {
+                    <div class="current-file">
+                      <mat-icon>link</mat-icon>
+                      <a [href]="task()?.fileUrl" target="_blank">Archivo actual</a>
+                    </div>
+                  }
+                </div>
+              </div>
+
+              <div class="form-row">
                 <mat-form-field appearance="outline">
                   <mat-label>Prioridad</mat-label>
                   <mat-select formControlName="priority">
@@ -107,7 +135,7 @@ import { User } from '../../../../../models/user.model';
               <div class="form-row">
                 <mat-form-field appearance="outline">
                   <mat-label>Asignar a</mat-label>
-                  <mat-select formControlName="assignedTo">
+                  <mat-select formControlName="assignedTo" multiple>
                     @for (user of familyMembers(); track user.id) {
                       <mat-option [value]="user.id">
                         {{ user.firstName }} {{ user.lastName }} ({{ getRoleLabel(user.role) }})
@@ -118,6 +146,11 @@ import { User } from '../../../../../models/user.model';
                   @if (editForm.get('assignedTo')?.hasError('required') && editForm.get('assignedTo')?.touched) {
                     <mat-error>Debes asignar la tarea a alguien</mat-error>
                   }
+                  <mat-chip-set aria-label="Usuarios asignados" class="assigned-chip-list">
+                    @for (member of getSelectedMembers(); track member.id) {
+                      <mat-chip>{{ member.name }}</mat-chip>
+                    }
+                  </mat-chip-set>
                 </mat-form-field>
 
                 <mat-form-field appearance="outline">
@@ -242,6 +275,16 @@ import { User } from '../../../../../models/user.model';
       margin: 0 -24px -24px -24px;
     }
 
+    .file-upload-row {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+    .file-label { font-weight: 600; color: #444; }
+    .file-previews { display: flex; flex-wrap: wrap; gap: 8px; }
+    .file-item { display: flex; gap: 6px; align-items: center; padding: 4px 8px; background: #f7f7f7; border-radius: 6px; }
+    .current-file { display: flex; gap: 6px; align-items: center; color: #555; }
+
     .error-card {
       text-align: center;
     }
@@ -295,6 +338,7 @@ export class TaskEditComponent implements OnInit {
   isLoading = signal(true);
   isSubmitting = signal(false);
   taskId: number | null = null;
+  filePreviews = signal<{ file: File; name: string; size: number; type: string }[]>([]);
 
   constructor(
     private fb: FormBuilder,
@@ -302,21 +346,26 @@ export class TaskEditComponent implements OnInit {
     private route: ActivatedRoute,
     private taskService: TaskService,
     private authService: AuthService,
-    private snackBar: MatSnackBar
+    private snackBar: MatSnackBar,
+    private http: HttpClient,
+    private dialogRef?: MatDialogRef<TaskEditComponent>,
+    @Inject(MAT_DIALOG_DATA) public data?: any
   ) {
     this.editForm = this.fb.group({
       title: ['', [Validators.required, Validators.minLength(3)]],
       description: [''],
       priority: ['medium', Validators.required],
       status: ['pending', Validators.required],
-      assignedTo: ['', Validators.required],
+      assignedTo: [[], Validators.required],
       dueDate: ['']
     });
   }
 
   ngOnInit() {
     this.route.params.subscribe(params => {
-      this.taskId = +params['id'];
+      const routeId = params['id'] ? +params['id'] : null;
+      const modalId = this.data?.taskId ? Number(this.data.taskId) : null;
+      this.taskId = routeId || modalId;
       if (this.taskId) {
         this.loadTask();
         this.loadFamilyMembers();
@@ -357,14 +406,55 @@ export class TaskEditComponent implements OnInit {
   }
 
   populateForm(task: Task) {
+    const assignedIds = Array.isArray(task.assignedUserIds) && task.assignedUserIds.length > 0
+      ? task.assignedUserIds
+      : (task.assignedTo ? [task.assignedTo] : []);
     this.editForm.patchValue({
       title: task.title,
       description: task.description || '',
       priority: task.priority,
       status: task.status,
-      assignedTo: task.assignedTo,
+      assignedTo: assignedIds,
       dueDate: task.dueDate ? new Date(task.dueDate) : null
     });
+  }
+
+  onFilesSelected(event: Event): void {
+    const input = event.target as HTMLInputElement;
+    const files = Array.from(input.files || []);
+    const previews = files.map(f => ({ file: f, name: f.name, size: f.size, type: f.type }));
+    this.filePreviews.set(previews);
+  }
+
+  private extractDriveFileId(url: string | undefined): string | null {
+    if (!url) return null;
+    try {
+      // Patterns comunes: https://drive.google.com/file/d/{id}/view
+      const fileMatch = url.match(/\/file\/d\/([^/]+)/);
+      if (fileMatch && fileMatch[1]) return fileMatch[1];
+      // Otro: https://drive.google.com/uc?id={id}&export=download
+      const urlObj = new URL(url);
+      const idParam = urlObj.searchParams.get('id');
+      if (idParam) return idParam;
+    } catch {}
+    return null;
+  }
+
+  private deleteExistingFileIfAny(url: string | undefined) {
+    const fileId = this.extractDriveFileId(url);
+    if (!fileId) return null;
+    const deleteUrl = `${environment.services.fileUpload}/files/drive/files/${fileId}`;
+    return this.http.delete<any>(deleteUrl);
+  }
+
+  private uploadSelectedFiles(title: string) {
+    const previews = this.filePreviews();
+    if (!previews.length) return null;
+    const formData = new FormData();
+    previews.forEach(p => formData.append('file', p.file));
+    if (title) formData.append('taskTitle', title);
+    const uploadUrl = `${environment.services.fileUpload}/files/upload`;
+    return this.http.post<any>(uploadUrl, formData);
   }
 
   onSubmit() {
@@ -372,32 +462,88 @@ export class TaskEditComponent implements OnInit {
       this.isSubmitting.set(true);
 
       const formValue = this.editForm.value;
-      const updateRequest: UpdateTaskRequest = {
+      const selectedIds: number[] = Array.isArray(formValue.assignedTo) ? formValue.assignedTo : (formValue.assignedTo ? [formValue.assignedTo] : []);
+      const baseUpdate: UpdateTaskRequest = {
         title: formValue.title,
         description: formValue.description || undefined,
         priority: formValue.priority,
         status: formValue.status,
-        assignedTo: formValue.assignedTo,
-        dueDate: formValue.dueDate ? formValue.dueDate.toISOString() : undefined
+        assignedUserIds: selectedIds.length > 0 ? selectedIds : undefined,
+        assignedTo: selectedIds.length === 1 ? selectedIds[0] : undefined,
+        dueDate: formValue.dueDate ? formValue.dueDate.toISOString() as any : undefined
+      } as any;
+
+      const currentFileUrl = this.task()?.fileUrl;
+      const hasNewFiles = (this.filePreviews()?.length || 0) > 0;
+
+      // Flujo: si hay nuevos archivos -> borrar antiguo (si existe) y subir nuevos
+      let delete$ = hasNewFiles ? this.deleteExistingFileIfAny(currentFileUrl) : null;
+      let upload$ = hasNewFiles ? this.uploadSelectedFiles(baseUpdate.title || '') : null;
+
+      const proceedUpdate = (fileUrl?: string) => {
+        const updateRequest: UpdateTaskRequest = { ...baseUpdate };
+        if (fileUrl) {
+          (updateRequest as any).fileUrl = fileUrl;
+        }
+        this.taskService.updateTask(this.taskId!, updateRequest).subscribe({
+          next: (updatedTask: any) => {
+            this.snackBar.open('Tarea actualizada exitosamente 🎉', 'Cerrar', {
+              duration: 3000,
+              panelClass: ['success-snackbar']
+            });
+            // Si está en modal, cerrar. Si no, navegar atrás
+            if (this.dialogRef) {
+              this.dialogRef.close(updatedTask);
+            } else {
+              this.router.navigate(['/tasks']);
+            }
+          },
+          error: (error: any) => {
+            console.error('Error updating task:', error);
+            this.snackBar.open('Error al actualizar la tarea 😞', 'Cerrar', {
+              duration: 3000,
+              panelClass: ['error-snackbar']
+            });
+            this.isSubmitting.set(false);
+          }
+        });
       };
 
-      this.taskService.updateTask(this.taskId, updateRequest).subscribe({
-        next: (updatedTask: any) => {
-          this.snackBar.open('Tarea actualizada exitosamente 🎉', 'Cerrar', {
-            duration: 3000,
-            panelClass: ['success-snackbar']
-          });
-          this.router.navigate(['/tasks']);
-        },
-        error: (error: any) => {
-          console.error('Error updating task:', error);
-          this.snackBar.open('Error al actualizar la tarea 😞', 'Cerrar', {
-            duration: 3000,
-            panelClass: ['error-snackbar']
-          });
-          this.isSubmitting.set(false);
-        }
-      });
+      if (hasNewFiles) {
+        // Encadenar: borrar -> subir -> actualizar
+        (delete$ || of(null)).subscribe({
+          next: () => {
+            upload$!.subscribe({
+              next: (res: any) => {
+                const url = res?.fileUrl || (Array.isArray(res?.uploaded) ? res.uploaded[0]?.fileUrl : null);
+                proceedUpdate(url || undefined);
+              },
+              error: (err: any) => {
+                console.error('Error subiendo archivo nuevo:', err);
+                this.snackBar.open('No se pudo subir el nuevo archivo', 'Cerrar', { duration: 3000, panelClass: ['error-snackbar'] });
+                this.isSubmitting.set(false);
+              }
+            });
+          },
+          error: (err: any) => {
+            console.warn('No se pudo borrar el archivo anterior (continuo):', err);
+            // Aun si falla el borrado, intento subir y actualizar
+            upload$!.subscribe({
+              next: (res: any) => {
+                const url = res?.fileUrl || (Array.isArray(res?.uploaded) ? res.uploaded[0]?.fileUrl : null);
+                proceedUpdate(url || undefined);
+              },
+              error: (err2: any) => {
+                console.error('Error subiendo archivo nuevo:', err2);
+                this.snackBar.open('No se pudo subir el nuevo archivo', 'Cerrar', { duration: 3000, panelClass: ['error-snackbar'] });
+                this.isSubmitting.set(false);
+              }
+            });
+          }
+        });
+      } else {
+        proceedUpdate();
+      }
     }
   }
 
@@ -412,6 +558,22 @@ export class TaskEditComponent implements OnInit {
   }
 
   goBack() {
-    this.router.navigate(['/tasks']);
+    if (this.dialogRef) {
+      this.dialogRef.close();
+    } else {
+      this.router.navigate(['/tasks']);
+    }
+  }
+
+  getSelectedMembers(): { id: number; name: string }[] {
+    const selectedIds: number[] = this.editForm.value.assignedTo || [];
+    const membersMap = new Map<number, string>();
+    this.familyMembers().forEach(m => {
+      const name = [m.firstName, m.lastName].filter(Boolean).join(' ').trim() || (m as any).username || m.email;
+      if (m.id != null) membersMap.set(m.id, name);
+    });
+    return (selectedIds || [])
+      .map((id: number) => ({ id, name: membersMap.get(id) || `Usuario ${id}` }))
+      .filter(item => !!item.name);
   }
 }

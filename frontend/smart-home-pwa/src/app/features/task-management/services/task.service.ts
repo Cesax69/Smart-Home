@@ -1,7 +1,7 @@
-import { Injectable, inject } from '@angular/core';
+import { Injectable, inject, signal } from '@angular/core';
 import { HttpClient, HttpParams } from '@angular/common/http';
 import { Observable, map, catchError, of } from 'rxjs';
-import { Task, CreateTaskRequest, UpdateTaskRequest, TaskStats } from '../models/task.model';
+import { Task, CreateTaskRequest, UpdateTaskRequest, TaskStats, TaskFile } from '../models/task.model';
 import { environment } from '../../../../environments/environment';
 import { AuthService } from '../../../services/auth.service';
 import { MatSnackBar } from '@angular/material/snack-bar';
@@ -15,6 +15,16 @@ export class TaskService {
   constructor(private http: HttpClient) {}
   private authService = inject(AuthService);
   private snackBar = inject(MatSnackBar);
+
+  // Estado reactivo con Signals (Angular)
+  /** Lista de tareas cargadas recientemente */
+  public tasks = signal<Task[]>([]);
+  /** Total de tareas para la última consulta */
+  public total = signal<number>(0);
+  /** Estado de carga general de operaciones de tareas */
+  public isLoading = signal<boolean>(false);
+  /** Última tarea creada exitosamente */
+  public lastCreatedTask = signal<Task | null>(null);
 
   // Manejo centralizado de errores
   private handleError<T>(operation = 'operación', result?: T) {
@@ -97,11 +107,13 @@ export class TaskService {
       status: this.mapStatusToFrontend(task.status),
       priority: this.mapPriorityToFrontend(task.priority),
       assignedTo: task.assignedUserId ?? task.assigned_to ?? task.assignedUserId,
+      assignedUserIds: task.assignedUserIds ?? task.assigned_user_ids ?? ((task.assignedUserId ?? task.assigned_to) ? [task.assignedUserId ?? task.assigned_to] : undefined),
       assignedBy: task.createdById ?? task.assignedBy ?? task.user_id,
       dueDate: task.dueDate ?? task.due_date ?? undefined,
       createdAt: task.createdAt ?? task.created_at,
       updatedAt: task.updatedAt ?? task.updated_at,
-      completedAt: task.completedAt ?? task.completed_at ?? undefined
+      completedAt: task.completedAt ?? task.completed_at ?? undefined,
+      fileUrl: task.fileUrl ?? task.file_url ?? undefined
     } as Task;
   }
 
@@ -128,14 +140,22 @@ export class TaskService {
       });
     }
 
+    this.isLoading.set(true);
     return this.http.get<any>(`${this.API_URL}/tasks`, { params }).pipe(
       map((res: any) => {
         const list: any[] = res?.data ?? res?.tasks ?? [];
         const mapped = Array.isArray(list) ? list.map(t => this.mapTaskToFrontend(t)) : [];
         const total = typeof res?.total === 'number' ? res.total : mapped.length;
+        // Actualizar señales
+        this.tasks.set(mapped);
+        this.total.set(total);
+        this.isLoading.set(false);
         return { tasks: mapped, total };
       }),
-      catchError(this.handleError<{ tasks: Task[], total: number }>('obtener tareas', { tasks: [], total: 0 }))
+      catchError(err => {
+        this.isLoading.set(false);
+        return this.handleError<{ tasks: Task[], total: number }>('obtener tareas', { tasks: [], total: 0 })(err);
+      })
     );
   }
 
@@ -149,15 +169,38 @@ export class TaskService {
 
   // Crear nueva tarea
   createTask(task: CreateTaskRequest): Observable<Task> {
+    this.isLoading.set(true);
     return this.http.post<any>(`${this.API_URL}/tasks`, task).pipe(
-      map((res: any) => this.mapTaskToFrontend(res?.data ?? res)),
-      catchError(this.handleError<Task>('crear tarea'))
+      map((res: any) => {
+        const created = this.mapTaskToFrontend(res?.data ?? res);
+        this.lastCreatedTask.set(created);
+        // Opcional: añadir a la lista actual
+        const current = this.tasks();
+        if (Array.isArray(current)) {
+          this.tasks.set([created, ...current]);
+          this.total.set((this.total() || 0) + 1);
+        }
+        this.isLoading.set(false);
+        return created;
+      }),
+      catchError(err => {
+        this.isLoading.set(false);
+        return this.handleError<Task>('crear tarea')(err);
+      })
     );
   }
 
   // Actualizar tarea
   updateTask(id: number, updates: UpdateTaskRequest): Observable<Task> {
     const payload = { ...updates } as any;
+    // Normalizar asignaciones: assignedTo -> assignedUserId/Ids
+    if (Array.isArray(payload.assignedTo) && payload.assignedTo.length > 0) {
+      payload.assignedUserIds = payload.assignedTo;
+      delete payload.assignedTo;
+    } else if (typeof payload.assignedTo === 'number') {
+      payload.assignedUserId = payload.assignedTo;
+      delete payload.assignedTo;
+    }
     if (payload.status) {
       payload.status = this.mapStatusToBackend(payload.status);
     }
@@ -197,6 +240,71 @@ export class TaskService {
         return Array.isArray(list) ? list.map(t => this.mapTaskToFrontend(t)) : [];
       }),
       catchError(this.handleError<Task[]>('obtener mis tareas', []))
+    );
+  }
+
+  // ===== Archivos de tarea =====
+  /** Listar archivos asociados a una tarea */
+  getTaskFiles(taskId: number): Observable<TaskFile[]> {
+    return this.http.get<any>(`${this.API_URL}/tasks/${taskId}/files`).pipe(
+      map((res: any) => {
+        const list: any[] = res?.data ?? res ?? [];
+        return Array.isArray(list)
+          ? list.map(f => ({
+              id: f.id,
+              taskId: f.task_id,
+              fileName: f.file_name,
+              filePath: f.file_path,
+              fileUrl: f.file_url,
+              fileSize: f.file_size,
+              fileType: f.file_type,
+              mimeType: f.mime_type,
+              uploadedBy: f.uploaded_by,
+              storageType: f.storage_type,
+              googleDriveId: f.google_drive_id,
+              isImage: f.is_image,
+              thumbnailPath: f.thumbnail_path,
+              createdAt: f.created_at
+            } as TaskFile))
+          : [];
+      }),
+      catchError(this.handleError<TaskFile[]>('listar archivos de tarea', []))
+    );
+  }
+
+  /** Registrar archivos subidos para una tarea en la BD */
+  registerTaskFiles(taskId: number, uploadedFiles: any[]): Observable<TaskFile[]> {
+    return this.http.post<any>(`${this.API_URL}/tasks/${taskId}/files`, { files: uploadedFiles }).pipe(
+      map((res: any) => {
+        const list: any[] = res?.data ?? res ?? [];
+        return Array.isArray(list)
+          ? list.map(f => ({
+              id: f.id,
+              taskId: f.task_id,
+              fileName: f.file_name,
+              filePath: f.file_path,
+              fileUrl: f.file_url,
+              fileSize: f.file_size,
+              fileType: f.file_type,
+              mimeType: f.mime_type,
+              uploadedBy: f.uploaded_by,
+              storageType: f.storage_type,
+              googleDriveId: f.google_drive_id,
+              isImage: f.is_image,
+              thumbnailPath: f.thumbnail_path,
+              createdAt: f.created_at
+            } as TaskFile))
+          : [];
+      }),
+      catchError(this.handleError<TaskFile[]>('registrar archivos de tarea', []))
+    );
+  }
+
+  /** Eliminar registro de archivo asociado a una tarea */
+  deleteTaskFile(fileRecordId: number): Observable<void> {
+    return this.http.delete<any>(`${this.API_URL}/tasks/files/${fileRecordId}`).pipe(
+      map(() => void 0),
+      catchError(this.handleError<void>('eliminar archivo de tarea'))
     );
   }
 

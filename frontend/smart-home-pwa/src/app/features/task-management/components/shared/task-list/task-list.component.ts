@@ -21,6 +21,7 @@ import { Task } from '../../../models/task.model';
 import { User } from '../../../../../models/user.model';
 import { ConfirmDialogComponent } from '../../../../../components/confirm-dialog/confirm-dialog.component';
 import { TaskCreateComponent } from '../../admin/task-create/task-create.component';
+import { TaskEditComponent } from '../task-edit/task-edit.component';
 
 @Component({
   selector: 'app-task-list',
@@ -48,6 +49,7 @@ export class TaskListComponent implements OnInit {
   filteredTasks = signal<Task[]>([]);
   currentUser = signal<any>(null);
   isLoading = signal(true);
+  private memberNameMap = new Map<number, string>();
 
   searchTerm = '';
   statusFilter = '';
@@ -64,6 +66,13 @@ export class TaskListComponent implements OnInit {
   ngOnInit(): void {
     this.loadTasks();
     this.currentUser.set(this.authService.getCurrentUser());
+    // Cargar miembros para mostrar nombres
+    this.authService.getFamilyMembers().subscribe({
+      next: (members: User[]) => {
+        members.forEach(m => this.memberNameMap.set(m.id, `${m.firstName ?? ''} ${m.lastName ?? ''}`.trim() || m.username || `Usuario ${m.id}`));
+      },
+      error: () => {}
+    });
   }
 
   loadTasks(): void {
@@ -111,9 +120,28 @@ export class TaskListComponent implements OnInit {
     this.applyFilters();
   }
 
+  reloadTasks(): void {
+    this.loadTasks();
+    this.snackBar.open('Tareas recargadas', 'Cerrar', { duration: 2000 });
+  }
+
   canManageTask(task: Task): boolean {
     const user = this.currentUser();
-    return user && (user.role === 'head_of_household' || task.assignedTo === user.id);
+    return !!user && (user.role === 'head_of_household' || this.isAssignedToMe(task));
+  }
+
+  openEditTask(task: Task): void {
+    const dialogRef = this.dialog.open(TaskEditComponent, {
+      width: '760px',
+      maxWidth: '95vw',
+      data: { taskId: task.id }
+    });
+    dialogRef.afterClosed().subscribe(result => {
+      if (result) {
+        this.snackBar.open('Tarea actualizada', 'Cerrar', { duration: 2000 });
+        this.reloadTasks();
+      }
+    });
   }
 
   getTaskCardClass(task: Task): string {
@@ -138,9 +166,19 @@ export class TaskListComponent implements OnInit {
     return labels[status as keyof typeof labels] || status;
   }
 
-  getAssignedUserName(task: Task): string {
-    // Aquí deberías obtener el nombre del usuario asignado
-    return `Usuario ${task.assignedTo}`;
+  getAssignedUsers(task: Task): number[] {
+    return task.assignedUserIds ?? (task.assignedTo ? [task.assignedTo] : []);
+  }
+
+  getUserName(userId: number): string {
+    return this.memberNameMap.get(userId) || `Usuario ${userId}`;
+  }
+
+  isAssignedToMe(task: Task): boolean {
+    const me = this.currentUser();
+    if (!me) return false;
+    const ids = this.getAssignedUsers(task);
+    return ids.includes(me.id);
   }
 
   isOverdue(task: Task): boolean {

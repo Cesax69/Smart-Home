@@ -5,9 +5,8 @@ import { Request } from 'express';
 // Configuración de almacenamiento
 const storage = multer.diskStorage({
   destination: (req: Request, file: Express.Multer.File, cb: Function) => {
-    // Para Google Drive, usamos directorio temporal
-    const storageType = process.env.STORAGE_TYPE || 'local';
-    const uploadDir = storageType === 'google_drive' ? 'temp/' : 'uploads/';
+    // Usar siempre directorio temporal. El servicio sube a Google Drive.
+    const uploadDir = 'temp/';
     cb(null, uploadDir);
   },
   filename: (req: Request, file: Express.Multer.File, cb: Function) => {
@@ -46,7 +45,7 @@ export const upload = multer({
   fileFilter: fileFilter,
   limits: {
     fileSize: 10 * 1024 * 1024, // 10MB máximo
-    files: 1 // Solo un archivo por request
+    files: 10 // Permitir hasta 10 archivos por request
   }
 });
 
@@ -62,7 +61,7 @@ export const handleMulterError = (error: any, req: Request, res: any, next: Func
       case 'LIMIT_FILE_COUNT':
         return res.status(400).json({
           success: false,
-          message: 'Demasiados archivos. Solo se permite un archivo por request'
+          message: 'Demasiados archivos. Límite máximo por request excedido'
         });
       case 'LIMIT_UNEXPECTED_FILE':
         return res.status(400).json({

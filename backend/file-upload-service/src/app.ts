@@ -1,6 +1,5 @@
 import express from 'express';
 import cors from 'cors';
-import path from 'path';
 import { routes } from './routes';
 import dotenv from 'dotenv';
 
@@ -13,11 +12,10 @@ class App {
 
   constructor() {
     this.app = express();
-    this.port = parseInt(process.env.PORT || '3003');
+    this.port = parseInt(process.env.PORT || '3004');
     
     this.initializeMiddlewares();
     this.initializeRoutes();
-    this.initializeStaticFiles();
     this.initializeErrorHandling();
   }
 
@@ -58,51 +56,7 @@ class App {
     this.app.use('/', routes);
   }
 
-  /**
-   * Configurar servicio de archivos estáticos
-   * Los archivos en /uploads serán accesibles en /files
-   */
-  private initializeStaticFiles(): void {
-    const uploadsPath = path.join(process.cwd(), 'uploads');
-    
-    // Servir archivos estáticos desde /uploads en la ruta /files
-    this.app.use('/files', express.static(uploadsPath, {
-      // Configuraciones adicionales para servir archivos
-      maxAge: '1d', // Cache por 1 día
-      etag: true,
-      lastModified: true,
-      setHeaders: (res, filePath) => {
-        // Headers adicionales para archivos
-        res.setHeader('Access-Control-Allow-Origin', '*');
-        
-        // Determinar Content-Type basado en la extensión
-        const ext = path.extname(filePath).toLowerCase();
-        switch (ext) {
-          case '.jpg':
-          case '.jpeg':
-            res.setHeader('Content-Type', 'image/jpeg');
-            break;
-          case '.png':
-            res.setHeader('Content-Type', 'image/png');
-            break;
-          case '.gif':
-            res.setHeader('Content-Type', 'image/gif');
-            break;
-          case '.webp':
-            res.setHeader('Content-Type', 'image/webp');
-            break;
-          case '.pdf':
-            res.setHeader('Content-Type', 'application/pdf');
-            break;
-          case '.txt':
-            res.setHeader('Content-Type', 'text/plain');
-            break;
-        }
-      }
-    }));
-
-    console.log(`📁 Archivos estáticos configurados: /files -> ${uploadsPath}`);
-  }
+  // Eliminado servicio de archivos estáticos local (/files) para usar exclusivamente Google Drive
 
   /**
    * Manejo de errores 404 y errores globales
@@ -115,9 +69,9 @@ class App {
         message: `Ruta no encontrada: ${req.method} ${req.originalUrl}`,
         availableEndpoints: {
           upload: 'POST /upload',
-          files: 'GET /files/:filename',
           health: 'GET /health',
-          info: 'GET /'
+          info: 'GET /',
+          driveFiles: 'GET /drive/files'
         }
       });
     });
@@ -147,12 +101,11 @@ class App {
       console.log('');
       console.log('📋 ENDPOINTS DISPONIBLES:');
       console.log(`   📤 POST   http://localhost:${this.port}/upload`);
-      console.log(`   📁 GET    http://localhost:${this.port}/files/:filename`);
       console.log(`   ❤️  GET    http://localhost:${this.port}/health`);
       console.log(`   ℹ️  GET    http://localhost:${this.port}/`);
       console.log('');
-      console.log('📁 CONFIGURACIÓN DE ARCHIVOS:');
-      console.log(`   📂 Carpeta de uploads: ${path.join(process.cwd(), 'uploads')}`);
+      console.log('📁 CONFIGURACIÓN DE ARCHIVOS (Google Drive):');
+      console.log(`   ☁️  Almacenamiento: Google Drive`);
       console.log(`   📏 Tamaño máximo: 10MB`);
       console.log(`   🎯 Campo de archivo: 'file'`);
       console.log('');

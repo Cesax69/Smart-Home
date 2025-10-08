@@ -1,6 +1,6 @@
 import { Request, Response, NextFunction } from 'express';
 import proxy from 'express-http-proxy';
-import { SERVICES, PROXY_CONFIG, getServiceByPath } from '../config/services';
+import { SERVICES, PROXY_CONFIG, getServiceByPath, ServiceConfig } from '../config/services';
 
 /**
  * Middleware de Proxy para API Gateway
@@ -10,24 +10,30 @@ import { SERVICES, PROXY_CONFIG, getServiceByPath } from '../config/services';
 /**
  * Crear proxy para un servicio específico
  */
-const createServiceProxy = (serviceUrl: string) => {
-  return proxy(serviceUrl, {
+const createServiceProxy = (service: ServiceConfig) => {
+  return proxy(service.url, {
     timeout: PROXY_CONFIG.timeout,
     limit: PROXY_CONFIG.limit,
     preserveHostHdr: PROXY_CONFIG.preserveHostHdr,
-    parseReqBody: PROXY_CONFIG.parseReqBody,
+    // Para uploads multipart, evitamos parseo del body
+    parseReqBody: service.stripApiPrefix ? false : PROXY_CONFIG.parseReqBody,
     memoizeHost: PROXY_CONFIG.memoizeHost,
     
     // Modificar la URL de la petición para mantener el prefijo /api
     proxyReqPathResolver: (req: Request) => {
       const originalUrl = req.originalUrl;
-      const service = getServiceByPath(originalUrl);
+      const svc = getServiceByPath(originalUrl);
       
-      if (service) {
-        // Mantener el path completo incluyendo /api
-        const newPath = originalUrl.replace('/api', '/api');
-        console.log(`🔄 [PROXY] ${req.method} ${originalUrl} -> ${service.url}${newPath}`);
-        return newPath;
+      if (svc) {
+        // Si el servicio monta rutas en raíz, quitamos su prefijo /api/<service>
+        if (svc.stripApiPrefix && originalUrl.startsWith(svc.path)) {
+          const strippedPath = originalUrl.substring(svc.path.length) || '/';
+          console.log(`🔄 [PROXY] ${req.method} ${originalUrl} -> ${svc.url}${strippedPath}`);
+          return strippedPath;
+        }
+        // En caso contrario, forward tal cual
+        console.log(`🔄 [PROXY] ${req.method} ${originalUrl} -> ${svc.url}${originalUrl}`);
+        return originalUrl;
       }
       
       return req.originalUrl;
@@ -35,10 +41,10 @@ const createServiceProxy = (serviceUrl: string) => {
 
     // Manejar respuestas del proxy
     userResDecorator: (proxyRes: any, proxyResData: any, userReq: Request, userRes: Response) => {
-      const service = getServiceByPath(userReq.originalUrl);
+      const svc = getServiceByPath(userReq.originalUrl);
       
-      if (service) {
-        console.log(`✅ [PROXY] ${userReq.method} ${userReq.originalUrl} -> ${service.name} (${proxyRes.statusCode})`);
+      if (svc) {
+        console.log(`✅ [PROXY] ${userReq.method} ${userReq.originalUrl} -> ${svc.name} (${proxyRes.statusCode})`);
       }
       
       return proxyResData;
@@ -74,14 +80,14 @@ export const routingMiddleware = (req: Request, res: Response, next: NextFunctio
   }
 
   // Crear y ejecutar el proxy para el servicio correspondiente
-  const serviceProxy = createServiceProxy(service.url);
+  const serviceProxy = createServiceProxy(service);
   return serviceProxy(req, res, next);
 };
 
 /**
  * Proxies específicos para cada servicio
  */
-export const usersProxy = createServiceProxy(SERVICES.USERS.url);
-export const tasksProxy = createServiceProxy(SERVICES.TASKS.url);
-export const filesProxy = createServiceProxy(SERVICES.FILES.url);
-export const notificationsProxy = createServiceProxy(SERVICES.NOTIFICATIONS.url);
+export const usersProxy = createServiceProxy(SERVICES.USERS);
+export const tasksProxy = createServiceProxy(SERVICES.TASKS);
+export const filesProxy = createServiceProxy(SERVICES.FILES);
+export const notificationsProxy = createServiceProxy(SERVICES.NOTIFICATIONS);

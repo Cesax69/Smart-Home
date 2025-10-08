@@ -140,6 +140,7 @@ export class TaskService {
         : 'media'),
       status: this.mapDbStatusToApp(dbTask.status as unknown as string),
       assignedUserId: (dbTask.assigned_user_id as unknown as number) || (dbTask.created_by_id as unknown as number),
+      assignedUserIds: (dbTask.assigned_user_ids as unknown as number[]) || ((dbTask.assigned_user_id as unknown as number) ? [dbTask.assigned_user_id as unknown as number] : undefined),
       assignedUserName: dbTask.assigned_user_name,
       createdById: dbTask.created_by_id,
       createdByName: dbTask.created_by_name,
@@ -188,8 +189,12 @@ export class TaskService {
         throw new Error('La descripción de la tarea es requerida');
       }
 
-      if (!taskData.assignedUserId || taskData.assignedUserId <= 0) {
-        throw new Error('El ID del usuario asignado es requerido y debe ser válido');
+      const assigneeIds = Array.isArray(taskData.assignedUserIds) && taskData.assignedUserIds.length > 0
+        ? taskData.assignedUserIds
+        : (taskData.assignedUserId ? [taskData.assignedUserId] : []);
+
+      if (!assigneeIds.length || assigneeIds.some(id => !id || id <= 0)) {
+        throw new Error('Se requiere al menos un usuario asignado válido');
       }
 
       if (!taskData.createdById || taskData.createdById <= 0) {
@@ -231,13 +236,15 @@ export class TaskService {
         const { rows: taskRows } = await client.query(insertTaskQuery, insertTaskParams);
         const t = taskRows[0];
 
-        // Insertar asignación principal
+        // Insertar asignaciones para todos los miembros seleccionados
         const insertAssignQuery = `
           INSERT INTO public.task_assignments (task_id, user_id, assigned_by, status)
           VALUES ($1, $2, $3, $4)
           ON CONFLICT (task_id, user_id) DO UPDATE SET assigned_by = EXCLUDED.assigned_by, status = EXCLUDED.status
         `;
-        await client.query(insertAssignQuery, [t.id, taskData.assignedUserId, taskData.createdById, 'assigned']);
+        for (const uid of assigneeIds) {
+          await client.query(insertAssignQuery, [t.id, uid, taskData.createdById, 'assigned']);
+        }
 
         const dbTask: DatabaseTask = {
           id: t.id,
@@ -246,7 +253,8 @@ export class TaskService {
           category: t.category,
           priority: t.priority,
           status: t.status,
-          assigned_user_id: taskData.assignedUserId,
+          assigned_user_id: assigneeIds[0],
+          assigned_user_ids: assigneeIds,
           created_by_id: t.created_by_id,
           due_date: t.due_date,
           estimated_time: taskData.estimatedTime,
@@ -297,6 +305,11 @@ export class TaskService {
               LIMIT 1
             ) AS assigned_user_id,
             (
+              SELECT ARRAY_AGG(ta2.user_id)
+              FROM public.task_assignments ta2
+              WHERE ta2.task_id = t.id
+            ) AS assigned_user_ids,
+            (
               SELECT tf.file_url 
               FROM public.task_files tf 
               WHERE tf.task_id = t.id AND tf.file_url IS NOT NULL 
@@ -338,7 +351,18 @@ export class TaskService {
             t.completed_at,
             t.created_at,
             t.updated_at,
-            ta.user_id AS assigned_user_id,
+            (
+              SELECT ta.user_id 
+              FROM public.task_assignments ta 
+              WHERE ta.task_id = t.id 
+              ORDER BY ta.assigned_at DESC 
+              LIMIT 1
+            ) AS assigned_user_id,
+            (
+              SELECT ARRAY_AGG(ta2.user_id)
+              FROM public.task_assignments ta2
+              WHERE ta2.task_id = t.id
+            ) AS assigned_user_ids,
             (
               SELECT tf.file_url 
               FROM public.task_files tf 
@@ -347,8 +371,9 @@ export class TaskService {
               LIMIT 1
             ) AS file_url
           FROM public.tasks t
-          JOIN public.task_assignments ta ON ta.task_id = t.id
-          WHERE ta.user_id = $1
+          WHERE EXISTS (
+            SELECT 1 FROM public.task_assignments ta WHERE ta.task_id = t.id AND ta.user_id = $1
+          )
           ORDER BY t.created_at DESC
         `;
         const { rows } = await client.query(query, [userId]);
@@ -392,6 +417,11 @@ export class TaskService {
               ORDER BY ta.assigned_at DESC 
               LIMIT 1
             ) AS assigned_user_id,
+            (
+              SELECT ARRAY_AGG(ta2.user_id)
+              FROM public.task_assignments ta2
+              WHERE ta2.task_id = t.id
+            ) AS assigned_user_ids,
             (
               SELECT tf.file_url 
               FROM public.task_files tf 
@@ -446,6 +476,11 @@ export class TaskService {
               LIMIT 1
             ) AS assigned_user_id,
             (
+              SELECT ARRAY_AGG(ta2.user_id)
+              FROM public.task_assignments ta2
+              WHERE ta2.task_id = t.id
+            ) AS assigned_user_ids,
+            (
               SELECT tf.file_url 
               FROM public.task_files tf 
               WHERE tf.task_id = t.id AND tf.file_url IS NOT NULL 
@@ -497,6 +532,11 @@ export class TaskService {
               ORDER BY ta.assigned_at DESC 
               LIMIT 1
             ) AS assigned_user_id,
+            (
+              SELECT ARRAY_AGG(ta2.user_id)
+              FROM public.task_assignments ta2
+              WHERE ta2.task_id = t.id
+            ) AS assigned_user_ids,
             (
               SELECT tf.file_url 
               FROM public.task_files tf 
@@ -562,8 +602,18 @@ export class TaskService {
         const { rows } = await client.query(updateQuery, params);
         if (!rows.length) return null;
 
-        // Actualizar asignación si viene en el payload
-        if (updateData.assignedUserId !== undefined) {
+        // Actualizar asignaciones si vienen en el payload
+        if (Array.isArray(updateData.assignedUserIds) && updateData.assignedUserIds.length > 0) {
+          await client.query(`DELETE FROM public.task_assignments WHERE task_id = $1`, [id]);
+          const insertAssignQuery = `
+            INSERT INTO public.task_assignments (task_id, user_id, assigned_by, status)
+            VALUES ($1, $2, $3, $4)
+            ON CONFLICT (task_id, user_id) DO UPDATE SET assigned_by = EXCLUDED.assigned_by, status = EXCLUDED.status
+          `;
+          for (const uid of updateData.assignedUserIds) {
+            await client.query(insertAssignQuery, [id, uid, rows[0].created_by_id, 'assigned']);
+          }
+        } else if (updateData.assignedUserId !== undefined) {
           await client.query(`DELETE FROM public.task_assignments WHERE task_id = $1`, [id]);
           await client.query(`INSERT INTO public.task_assignments (task_id, user_id, assigned_by, status) VALUES ($1, $2, $3, $4)`,
             [id, updateData.assignedUserId, rows[0].created_by_id, 'assigned']
@@ -577,7 +627,10 @@ export class TaskService {
           category: rows[0].category,
           priority: rows[0].priority,
           status: rows[0].status,
-          assigned_user_id: updateData.assignedUserId ?? undefined as any,
+          assigned_user_id: (Array.isArray(updateData.assignedUserIds) && updateData.assignedUserIds.length > 0)
+            ? updateData.assignedUserIds[0]
+            : (updateData.assignedUserId ?? undefined as any),
+          assigned_user_ids: Array.isArray(updateData.assignedUserIds) ? updateData.assignedUserIds : undefined,
           created_by_id: rows[0].created_by_id,
           due_date: rows[0].due_date,
           estimated_time: updateData.estimatedTime,
@@ -622,6 +675,114 @@ export class TaskService {
       }
     } catch (error) {
       console.error('Error en deleteTask:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Listar archivos asociados a una tarea
+   */
+  async getTaskFiles(taskId: number): Promise<any[]> {
+    try {
+      if (!taskId || taskId <= 0) {
+        throw new Error('ID de tarea inválido');
+      }
+      const client = await databaseService.getConnection();
+      try {
+        const { rows } = await client.query(`
+          SELECT id, task_id, file_name, file_path, file_url, file_size, file_type, mime_type, uploaded_by, storage_type, google_drive_id, is_image, thumbnail_path, created_at
+          FROM public.task_files
+          WHERE task_id = $1
+          ORDER BY created_at DESC
+        `, [taskId]);
+        return rows;
+      } finally {
+        client.release();
+      }
+    } catch (error) {
+      console.error('Error en getTaskFiles:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Agregar archivos a una tarea (registra metadatos en task_files)
+   */
+  async addTaskFiles(taskId: number, files: any[]): Promise<any[]> {
+    try {
+      if (!taskId || taskId <= 0) {
+        throw new Error('ID de tarea inválido');
+      }
+      if (!Array.isArray(files) || files.length === 0) {
+        throw new Error('No hay archivos para registrar');
+      }
+      const client = await databaseService.getConnection();
+      try {
+        const inserted: any[] = [];
+        for (const f of files) {
+          const {
+            file_name,
+            file_path,
+            file_url,
+            file_size,
+            file_type,
+            mime_type,
+            uploaded_by,
+            storage_type,
+            google_drive_id,
+            is_image,
+            thumbnail_path
+          } = f;
+
+          const { rows } = await client.query(`
+            INSERT INTO public.task_files (task_id, file_name, file_path, file_url, file_size, file_type, mime_type, uploaded_by, storage_type, google_drive_id, is_image, thumbnail_path)
+            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
+            RETURNING id, task_id, file_name, file_path, file_url, file_size, file_type, mime_type, uploaded_by, storage_type, google_drive_id, is_image, thumbnail_path, created_at
+          `, [
+            taskId,
+            file_name || 'archivo',
+            file_path || '',
+            file_url || null,
+            file_size || null,
+            file_type || null,
+            mime_type || null,
+            uploaded_by || 0,
+            storage_type || 'google_drive',
+            google_drive_id || null,
+            is_image || false,
+            thumbnail_path || null
+          ]);
+          inserted.push(rows[0]);
+        }
+        return inserted;
+      } finally {
+        client.release();
+      }
+    } catch (error) {
+      console.error('Error en addTaskFiles:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Eliminar registro de archivo asociado a una tarea
+   */
+  async deleteTaskFile(fileRecordId: number): Promise<boolean> {
+    try {
+      if (!fileRecordId || fileRecordId <= 0) {
+        throw new Error('ID de archivo inválido');
+      }
+      const client = await databaseService.getConnection();
+      try {
+        const { rows } = await client.query(`SELECT id FROM public.task_files WHERE id = $1`, [fileRecordId]);
+        if (!rows.length) return false;
+        await client.query(`DELETE FROM public.task_files WHERE id = $1`, [fileRecordId]);
+        return true;
+      } finally {
+        client.release();
+      }
+    } catch (error) {
+      console.error('Error en deleteTaskFile:', error);
       throw error;
     }
   }
@@ -733,6 +894,11 @@ export class TaskService {
               LIMIT 1
             ) AS assigned_user_id,
             (
+              SELECT ARRAY_AGG(ta2.user_id)
+              FROM public.task_assignments ta2
+              WHERE ta2.task_id = t.id
+            ) AS assigned_user_ids,
+            (
               SELECT tf.file_url 
               FROM public.task_files tf 
               WHERE tf.task_id = t.id AND tf.file_url IS NOT NULL 
@@ -780,6 +946,11 @@ export class TaskService {
               ORDER BY ta.assigned_at DESC 
               LIMIT 1
             ) AS assigned_user_id,
+            (
+              SELECT ARRAY_AGG(ta2.user_id)
+              FROM public.task_assignments ta2
+              WHERE ta2.task_id = t.id
+            ) AS assigned_user_ids,
             (
               SELECT tf.file_url 
               FROM public.task_files tf 

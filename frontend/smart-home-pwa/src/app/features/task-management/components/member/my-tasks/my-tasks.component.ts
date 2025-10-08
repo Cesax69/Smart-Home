@@ -51,6 +51,12 @@ import { Task } from '../../../models/task.model';
             <span class="stat-label">Completadas</span>
           </div>
         </div>
+        <div class="header-actions">
+          <button mat-stroked-button color="primary" (click)="reloadTasks()" [disabled]="isLoading()">
+            <mat-icon>refresh</mat-icon>
+            Recargar
+          </button>
+        </div>
       </div>
 
       @if (isLoading()) {
@@ -299,6 +305,11 @@ import { Task } from '../../../models/task.model';
     .header-stats {
       display: flex;
       gap: 24px;
+    }
+
+    .header-actions {
+      display: flex;
+      align-items: center;
     }
 
     .stat-item {
@@ -631,5 +642,12 @@ export class MyTasksComponent implements OnInit {
       hour: '2-digit',
       minute: '2-digit'
     });
+  }
+
+  reloadTasks(): void {
+    if (this.isLoading()) return;
+    this.isLoading.set(true);
+    this.loadMyTasks();
+    this.snackBar.open('Tareas recargadas', 'Cerrar', { duration: 2000 });
   }
 }

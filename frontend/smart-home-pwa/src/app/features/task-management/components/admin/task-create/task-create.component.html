@@ -9,249 +9,302 @@
 
     <mat-card-content>
       <form [formGroup]="taskForm" (ngSubmit)="onSubmit()" class="task-form">
-        
-        <!-- Título -->
-        <mat-form-field appearance="outline" class="full-width">
-          <mat-label>Título de la tarea</mat-label>
-          <input matInput formControlName="title" placeholder="Ej: Limpiar la cocina">
-          <mat-icon matSuffix>title</mat-icon>
-          @if (taskForm.get('title')?.invalid && taskForm.get('title')?.touched) {
-            <mat-error>{{ getErrorMessage('title') }}</mat-error>
-          }
-        </mat-form-field>
+        <mat-accordion multi>
+          <!-- Sección 1: Datos textuales -->
+          <mat-expansion-panel [expanded]="true">
+            <mat-expansion-panel-header>
+              <mat-panel-title>
+                <mat-icon>description</mat-icon>
+                Datos de la tarea
+              </mat-panel-title>
+            </mat-expansion-panel-header>
+          <!-- Título -->
+          <mat-form-field appearance="outline" class="full-width">
+            <mat-label>Título de la tarea</mat-label>
+            <input matInput formControlName="title" placeholder="Ej: Limpiar la cocina">
+            <mat-icon matSuffix>title</mat-icon>
+            @if (taskForm.get('title')?.invalid && taskForm.get('title')?.touched) {
+              <mat-error>{{ getErrorMessage('title') }}</mat-error>
+            }
+          </mat-form-field>
 
-        <!-- Descripción -->
-        <mat-form-field appearance="outline" class="full-width">
-          <mat-label>Descripción</mat-label>
-          <textarea matInput formControlName="description" rows="3" 
-                   placeholder="Describe los detalles de la tarea..."></textarea>
-          <mat-icon matSuffix>description</mat-icon>
-          @if (taskForm.get('description')?.invalid && taskForm.get('description')?.touched) {
-            <mat-error>{{ getErrorMessage('description') }}</mat-error>
-          }
-        </mat-form-field>
+          <!-- Descripción -->
+          <mat-form-field appearance="outline" class="full-width">
+            <mat-label>Descripción</mat-label>
+            <textarea matInput formControlName="description" rows="3" 
+                     placeholder="Describe los detalles de la tarea..."></textarea>
+            <mat-icon matSuffix>description</mat-icon>
+            @if (taskForm.get('description')?.invalid && taskForm.get('description')?.touched) {
+              <mat-error>{{ getErrorMessage('description') }}</mat-error>
+            }
+          </mat-form-field>
 
-        <!-- Categoría -->
-        <mat-form-field appearance="outline" class="full-width">
-          <mat-label>Categoría</mat-label>
-          <mat-select formControlName="category">
-            <mat-option value="limpieza">
-              <mat-icon>cleaning_services</mat-icon>
-              Limpieza
-            </mat-option>
-            <mat-option value="cocina">
-              <mat-icon>kitchen</mat-icon>
-              Cocina
-            </mat-option>
-            <mat-option value="lavanderia">
-              <mat-icon>local_laundry_service</mat-icon>
-              Lavandería
-            </mat-option>
-            <mat-option value="jardin">
-              <mat-icon>yard</mat-icon>
-              Jardín
-            </mat-option>
-            <mat-option value="mantenimiento">
-              <mat-icon>build</mat-icon>
-              Mantenimiento
-            </mat-option>
-            <mat-option value="organizacion">
-              <mat-icon>inventory_2</mat-icon>
-              Organización
-            </mat-option>
-            <mat-option value="mascotas">
-              <mat-icon>pets</mat-icon>
-              Mascotas
-            </mat-option>
-            <mat-option value="compras">
-              <mat-icon>shopping_cart</mat-icon>
-              Compras
-            </mat-option>
-            <mat-option value="otros">
-              <mat-icon>more_horiz</mat-icon>
-              Otros
-            </mat-option>
-          </mat-select>
-          <mat-icon matSuffix>category</mat-icon>
-          @if (taskForm.get('category')?.invalid && taskForm.get('category')?.touched) {
-            <mat-error>{{ getErrorMessage('category') }}</mat-error>
-          }
-        </mat-form-field>
-
-        <!-- Asignado a -->
-        <mat-form-field appearance="outline" class="full-width">
-          <mat-label>Asignar a</mat-label>
-          <mat-select formControlName="assignedTo">
-            @for (member of familyMembers(); track member.id) {
-              <mat-option [value]="member.id">
-                {{ member.firstName }} {{ member.lastName }}
-                <span class="role-badge">{{ member.role === 'head_of_household' ? 'Jefe' : 'Miembro' }}</span>
+          <!-- Categoría -->
+          <mat-form-field appearance="outline" class="full-width">
+            <mat-label>Categoría</mat-label>
+            <mat-select formControlName="category">
+              <mat-option value="limpieza">
+                <mat-icon>cleaning_services</mat-icon>
+                Limpieza
               </mat-option>
+              <mat-option value="cocina">
+                <mat-icon>kitchen</mat-icon>
+                Cocina
+              </mat-option>
+              <mat-option value="lavanderia">
+                <mat-icon>local_laundry_service</mat-icon>
+                Lavandería
+              </mat-option>
+              <mat-option value="jardin">
+                <mat-icon>yard</mat-icon>
+                Jardín
+              </mat-option>
+              <mat-option value="mantenimiento">
+                <mat-icon>build</mat-icon>
+                Mantenimiento
+              </mat-option>
+              <mat-option value="organizacion">
+                <mat-icon>inventory_2</mat-icon>
+                Organización
+              </mat-option>
+              <mat-option value="mascotas">
+                <mat-icon>pets</mat-icon>
+                Mascotas
+              </mat-option>
+              <mat-option value="compras">
+                <mat-icon>shopping_cart</mat-icon>
+                Compras
+              </mat-option>
+              <mat-option value="otros">
+                <mat-icon>more_horiz</mat-icon>
+                Otros
+              </mat-option>
+            </mat-select>
+            <mat-icon matSuffix>category</mat-icon>
+            @if (taskForm.get('category')?.invalid && taskForm.get('category')?.touched) {
+              <mat-error>{{ getErrorMessage('category') }}</mat-error>
             }
-          </mat-select>
-          <mat-icon matSuffix>person</mat-icon>
-          @if (taskForm.get('assignedTo')?.invalid && taskForm.get('assignedTo')?.touched) {
-            <mat-error>{{ getErrorMessage('assignedTo') }}</mat-error>
+          </mat-form-field>
+
+          <!-- Botón para activar adjuntos opcionales -->
+          <div class="file-upload-toggle">
+            <button type="button" mat-stroked-button color="primary" (click)="showAttachments.set(!showAttachments())">
+              <mat-icon>attach_file</mat-icon>
+              {{ showAttachments() ? 'Ocultar Adjuntos' : 'Adjuntar Archivos (opcional)' }}
+            </button>
+          </div>
+          @if (showAttachments()) {
+            <div class="file-upload-section">
+              <mat-card class="file-upload-card">
+                <mat-card-header>
+                  <mat-card-title class="file-upload-title">
+                    <mat-icon>attach_file</mat-icon>
+                    Archivos adjuntos
+                  </mat-card-title>
+                </mat-card-header>
+                
+                <mat-card-content>
+                  <div class="file-drop-zone" 
+                       (dragover)="onDragOver($event)" 
+                       (dragleave)="onDragLeave($event)"
+                       (drop)="onDrop($event)"
+                       [class.drag-over]="isDragOver()">
+                    <mat-icon class="upload-icon">cloud_upload</mat-icon>
+                    <p>Arrastra archivos aquí o</p>
+                    <button type="button" mat-raised-button color="primary" (click)="fileInput.click()">
+                      <mat-icon>add</mat-icon>
+                      Seleccionar archivos
+                    </button>
+                    <input #fileInput type="file" multiple accept="image/*,.pdf,.doc,.docx,.txt" 
+                           (change)="onFileSelected($event)" style="display: none;">
+                    <p class="file-info">Máximo 5 archivos, 10MB cada uno</p>
+                  </div>
+
+                  <!-- Vista previa de archivos -->
+                  @if (filePreviews().length > 0) {
+                    <div class="file-previews">
+                      <h4>Archivos seleccionados:</h4>
+                      <div class="preview-grid">
+                        @for (preview of filePreviews(); track preview.name) {
+                          <mat-card class="file-preview-card">
+                            @if (preview.type === 'image') {
+                              <img [src]="preview.url" [alt]="preview.name" class="preview-image">
+                            } @else {
+                              <div class="document-preview">
+                                <mat-icon class="document-icon">description</mat-icon>
+                              </div>
+                            }
+                            <mat-card-content class="preview-info">
+                              <p class="file-name">{{ preview.name }}</p>
+                              <p class="file-size">{{ preview.size }}</p>
+                            </mat-card-content>
+                            <mat-card-actions class="preview-actions">
+                              <button type="button" mat-icon-button color="warn" 
+                                      (click)="removeFile(preview)" 
+                                      matTooltip="Eliminar archivo">
+                                <mat-icon>delete</mat-icon>
+                              </button>
+                            </mat-card-actions>
+                          </mat-card>
+                        }
+                      </div>
+                    </div>
+                  }
+
+                  @if (taskForm.get('files')?.invalid && taskForm.get('files')?.touched) {
+                    <mat-error class="file-error">{{ getErrorMessage('files') }}</mat-error>
+                  }
+                </mat-card-content>
+              </mat-card>
+            </div>
           }
-        </mat-form-field>
+          </mat-expansion-panel>
 
-        <!-- Prioridad -->
-        <mat-form-field appearance="outline" class="full-width">
-          <mat-label>Prioridad</mat-label>
-          <mat-select formControlName="priority">
-            <mat-option value="baja">
-              <mat-icon class="priority-icon low">keyboard_arrow_down</mat-icon>
-              Baja
-            </mat-option>
-            <mat-option value="media">
-              <mat-icon class="priority-icon medium">remove</mat-icon>
-              Media
-            </mat-option>
-            <mat-option value="alta">
-              <mat-icon class="priority-icon high">keyboard_arrow_up</mat-icon>
-              Alta
-            </mat-option>
-            <mat-option value="urgente">
-              <mat-icon class="priority-icon urgent">priority_high</mat-icon>
-              Urgente
-            </mat-option>
-          </mat-select>
-          <mat-icon matSuffix>priority_high</mat-icon>
-          @if (taskForm.get('priority')?.invalid && taskForm.get('priority')?.touched) {
-            <mat-error>{{ getErrorMessage('priority') }}</mat-error>
-          }
-        </mat-form-field>
+        <!-- Sección 2: Plazos y asignaciones -->
+        <mat-expansion-panel [expanded]="true">
+          <mat-expansion-panel-header>
+            <mat-panel-title>
+              <mat-icon>event</mat-icon>
+              Plazos y asignaciones
+            </mat-panel-title>
+          </mat-expansion-panel-header>
 
-        <!-- Fechas -->
-        <div class="date-row">
-          <mat-form-field appearance="outline" class="date-field">
-            <mat-label>Fecha de inicio</mat-label>
-            <input matInput [matDatepicker]="startPicker" formControlName="startDate">
-            <mat-datepicker-toggle matIconSuffix [for]="startPicker"></mat-datepicker-toggle>
-            <mat-datepicker #startPicker></mat-datepicker>
-            @if (taskForm.get('startDate')?.invalid && taskForm.get('startDate')?.touched) {
-              <mat-error>{{ getErrorMessage('startDate') }}</mat-error>
+          <!-- Prioridad -->
+          <mat-form-field appearance="outline" class="full-width">
+            <mat-label>Prioridad</mat-label>
+            <mat-select formControlName="priority">
+              <mat-option value="baja">
+                <mat-icon class="priority-icon low">keyboard_arrow_down</mat-icon>
+                Baja
+              </mat-option>
+              <mat-option value="media">
+                <mat-icon class="priority-icon medium">remove</mat-icon>
+                Media
+              </mat-option>
+              <mat-option value="alta">
+                <mat-icon class="priority-icon high">keyboard_arrow_up</mat-icon>
+                Alta
+              </mat-option>
+              <mat-option value="urgente">
+                <mat-icon class="priority-icon urgent">priority_high</mat-icon>
+                Urgente
+              </mat-option>
+            </mat-select>
+            <mat-icon matSuffix>priority_high</mat-icon>
+            @if (taskForm.get('priority')?.invalid && taskForm.get('priority')?.touched) {
+              <mat-error>{{ getErrorMessage('priority') }}</mat-error>
             }
           </mat-form-field>
 
-          <mat-form-field appearance="outline" class="date-field">
-            <mat-label>Fecha límite</mat-label>
-            <input matInput [matDatepicker]="duePicker" formControlName="dueDate">
-            <mat-datepicker-toggle matIconSuffix [for]="duePicker"></mat-datepicker-toggle>
-            <mat-datepicker #duePicker></mat-datepicker>
-            @if (taskForm.get('dueDate')?.invalid && taskForm.get('dueDate')?.touched) {
-              <mat-error>{{ getErrorMessage('dueDate') }}</mat-error>
-            }
-          </mat-form-field>
-        </div>
-
-        <!-- Tiempo estimado y recompensa -->
-        <div class="additional-fields-row">
-          <mat-form-field appearance="outline" class="time-field">
-            <mat-label>Tiempo estimado (minutos)</mat-label>
-            <input matInput type="number" formControlName="estimatedTime" placeholder="30">
-            <mat-icon matSuffix>schedule</mat-icon>
-            @if (taskForm.get('estimatedTime')?.invalid && taskForm.get('estimatedTime')?.touched) {
-              <mat-error>{{ getErrorMessage('estimatedTime') }}</mat-error>
+          <!-- Rango de fechas -->
+          <mat-form-field appearance="outline" class="full-width">
+            <mat-label>Rango de fechas</mat-label>
+            <mat-date-range-input [formGroup]="taskForm" [rangePicker]="rangePicker">
+              <input matStartDate formControlName="startDate" placeholder="Inicio" readonly (focus)="rangePicker.open()" (click)="rangePicker.open()">
+              <input matEndDate formControlName="dueDate" placeholder="Límite" readonly (focus)="rangePicker.open()" (click)="rangePicker.open()">
+            </mat-date-range-input>
+            <mat-datepicker-toggle matIconSuffix [for]="rangePicker"></mat-datepicker-toggle>
+            <mat-date-range-picker #rangePicker></mat-date-range-picker>
+            @if ((taskForm.get('startDate')?.invalid && taskForm.get('startDate')?.touched) ||
+                 (taskForm.get('dueDate')?.invalid && taskForm.get('dueDate')?.touched)) {
+              <mat-error>
+                {{ taskForm.get('startDate')?.invalid ? getErrorMessage('startDate') : getErrorMessage('dueDate') }}
+              </mat-error>
             }
           </mat-form-field>
 
-          <mat-form-field appearance="outline" class="reward-field">
-            <mat-label>Recompensa (opcional)</mat-label>
-            <input matInput formControlName="reward" placeholder="Ej: 30 min extra de TV">
-            <mat-icon matSuffix>emoji_events</mat-icon>
-            @if (taskForm.get('reward')?.invalid && taskForm.get('reward')?.touched) {
-              <mat-error>{{ getErrorMessage('reward') }}</mat-error>
-            }
-          </mat-form-field>
-        </div>
+          <!-- Tiempo estimado y recompensa -->
+          <div class="additional-fields-row">
+            <div class="time-field-group">
+              <mat-form-field appearance="outline" class="time-field">
+                <mat-label>Tiempo estimado (HH:MM)</mat-label>
+                <input matInput type="text" inputmode="numeric" formControlName="estimatedTimeDuration" placeholder="HH:MM" (input)="onDurationChange()">
+                <mat-hint>Formato 24h, ej: 01:30</mat-hint>
+                <mat-icon matSuffix>schedule</mat-icon>
+                @if (taskForm.get('estimatedTime')?.invalid && taskForm.get('estimatedTime')?.touched) {
+                  <mat-error>{{ getErrorMessage('estimatedTime') }}</mat-error>
+                }
+              </mat-form-field>
 
-        <!-- Recurrencia -->
-        <div class="recurrence-section">
-          <mat-checkbox formControlName="isRecurring" class="recurrence-checkbox">
-            Tarea recurrente
-          </mat-checkbox>
-          
-          @if (taskForm.get('isRecurring')?.value) {
-            <mat-form-field appearance="outline" class="recurrence-field">
-              <mat-label>Repetir cada</mat-label>
-              <mat-select formControlName="recurrenceInterval">
-                <mat-option value="daily">Diariamente</mat-option>
-                <mat-option value="weekly">Semanalmente</mat-option>
-                <mat-option value="monthly">Mensualmente</mat-option>
-                <mat-option value="yearly">Anualmente</mat-option>
-              </mat-select>
-              @if (taskForm.get('recurrenceInterval')?.invalid && taskForm.get('recurrenceInterval')?.touched) {
-                <mat-error>{{ getErrorMessage('recurrenceInterval') }}</mat-error>
+              <div class="time-presets">
+                <span class="presets-label">Rápido:</span>
+                <mat-button-toggle-group (change)="setPresetDuration($event.value)">
+                  <mat-button-toggle [value]="15">15m</mat-button-toggle>
+                  <mat-button-toggle [value]="30">30m</mat-button-toggle>
+                  <mat-button-toggle [value]="45">45m</mat-button-toggle>
+                  <mat-button-toggle [value]="60">1h</mat-button-toggle>
+                  <mat-button-toggle [value]="90">1h 30</mat-button-toggle>
+                  <mat-button-toggle [value]="120">2h</mat-button-toggle>
+                </mat-button-toggle-group>
+              </div>
+            </div>
+
+            <mat-form-field appearance="outline" class="reward-field">
+              <mat-label>Recompensa (opcional)</mat-label>
+              <input matInput formControlName="reward" placeholder="Ej: 30 min extra de TV">
+              <mat-icon matSuffix>emoji_events</mat-icon>
+              @if (taskForm.get('reward')?.invalid && taskForm.get('reward')?.touched) {
+                <mat-error>{{ getErrorMessage('reward') }}</mat-error>
               }
             </mat-form-field>
-          }
-        </div>
+          </div>
 
-        <!-- Subida de archivos -->
-        <div class="file-upload-section">
-          <mat-card class="file-upload-card">
-            <mat-card-header>
-              <mat-card-title class="file-upload-title">
-                <mat-icon>attach_file</mat-icon>
-                Archivos adjuntos
-              </mat-card-title>
-            </mat-card-header>
+          <!-- Recurrencia -->
+          <div class="recurrence-section">
+            <mat-checkbox formControlName="isRecurring" class="recurrence-checkbox">
+              Tarea recurrente
+            </mat-checkbox>
             
-            <mat-card-content>
-              <div class="file-drop-zone" 
-                   (dragover)="onDragOver($event)" 
-                   (dragleave)="onDragLeave($event)"
-                   (drop)="onDrop($event)"
-                   [class.drag-over]="isDragOver()">
-                <mat-icon class="upload-icon">cloud_upload</mat-icon>
-                <p>Arrastra archivos aquí o</p>
-                <button type="button" mat-raised-button color="primary" (click)="fileInput.click()">
-                  <mat-icon>add</mat-icon>
-                  Seleccionar archivos
-                </button>
-                <input #fileInput type="file" multiple accept="image/*,.pdf,.doc,.docx,.txt" 
-                       (change)="onFileSelected($event)" style="display: none;">
-                <p class="file-info">Máximo 5 archivos, 10MB cada uno</p>
-              </div>
+            @if (taskForm.get('isRecurring')?.value) {
+              <mat-form-field appearance="outline" class="recurrence-field">
+                <mat-label>Repetir cada</mat-label>
+                <mat-select formControlName="recurrenceInterval">
+                  <mat-option value="daily">Diariamente</mat-option>
+                  <mat-option value="weekly">Semanalmente</mat-option>
+                  <mat-option value="monthly">Mensualmente</mat-option>
+                  <mat-option value="yearly">Anualmente</mat-option>
+                </mat-select>
+                @if (taskForm.get('recurrenceInterval')?.invalid && taskForm.get('recurrenceInterval')?.touched) {
+                  <mat-error>{{ getErrorMessage('recurrenceInterval') }}</mat-error>
+                }
+              </mat-form-field>
+            }
+          </div>
 
-              <!-- Vista previa de archivos -->
-              @if (filePreviews().length > 0) {
-                <div class="file-previews">
-                  <h4>Archivos seleccionados:</h4>
-                  <div class="preview-grid">
-                    @for (preview of filePreviews(); track preview.name) {
-                      <mat-card class="file-preview-card">
-                        @if (preview.type === 'image') {
-                          <img [src]="preview.url" [alt]="preview.name" class="preview-image">
-                        } @else {
-                          <div class="document-preview">
-                            <mat-icon class="document-icon">description</mat-icon>
-                          </div>
-                        }
-                        <mat-card-content class="preview-info">
-                          <p class="file-name">{{ preview.name }}</p>
-                          <p class="file-size">{{ preview.size }}</p>
-                        </mat-card-content>
-                        <mat-card-actions class="preview-actions">
-                          <button type="button" mat-icon-button color="warn" 
-                                  (click)="removeFile(preview)" 
-                                  matTooltip="Eliminar archivo">
-                            <mat-icon>delete</mat-icon>
-                          </button>
-                        </mat-card-actions>
-                      </mat-card>
-                    }
-                  </div>
-                </div>
+          <!-- Asignado(s) -->
+          <div class="assign-grid">
+            <div class="assign-input">
+              <mat-form-field appearance="outline" class="full-width">
+                <mat-label>Asignar a (uno o varios)</mat-label>
+                <mat-select formControlName="assignedTo" multiple>
+                  @for (member of familyMembers(); track member.id) {
+                    <mat-option [value]="member.id">
+                      {{ member.firstName }} {{ member.lastName }}
+                      <span class="role-badge">{{ member.role === 'head_of_household' ? 'Jefe' : 'Miembro' }}</span>
+                    </mat-option>
+                  }
+                </mat-select>
+                <mat-icon matSuffix>group_add</mat-icon>
+                @if (taskForm.get('assignedTo')?.invalid && taskForm.get('assignedTo')?.touched) {
+                  <mat-error>{{ getErrorMessage('assignedTo') }}</mat-error>
+                }
+              </mat-form-field>
+            </div>
+            <div class="assign-side">
+              <h4 class="assigned-title"><mat-icon>groups</mat-icon> Asignados</h4>
+              @if (getSelectedMembers().length > 0) {
+                <mat-chip-set>
+                  @for (m of getSelectedMembers(); track m.id) {
+                    <mat-chip>{{ m.firstName }} {{ m.lastName }}</mat-chip>
+                  }
+                </mat-chip-set>
+              } @else {
+                <p class="no-assigned">Sin asignados aún</p>
               }
-
-              @if (taskForm.get('files')?.invalid && taskForm.get('files')?.touched) {
-                <mat-error class="file-error">{{ getErrorMessage('files') }}</mat-error>
-              }
-            </mat-card-content>
-          </mat-card>
-        </div>
+            </div>
+          </div>
+        </mat-expansion-panel>
+        </mat-accordion>
 
         <!-- Barra de progreso -->
         @if (isSubmitting()) {
@@ -262,6 +315,12 @@
     </mat-card-content>
 
     <mat-card-actions class="form-actions">
+      <button type="button" mat-button (click)="onClear()" [disabled]="isSubmitting()">
+        <mat-icon>backspace</mat-icon>
+        Limpiar
+      </button>
+      
+      <span class="spacer"></span>
       <button type="button" mat-button (click)="onCancel()" [disabled]="isSubmitting()">
         <mat-icon>cancel</mat-icon>
         Cancelar
