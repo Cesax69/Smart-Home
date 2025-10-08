@@ -1,4 +1,4 @@
-import { Component, OnInit, signal } from '@angular/core';
+import { Component, OnInit, signal, inject } from '@angular/core';
 import { Router } from '@angular/router';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
@@ -13,6 +13,7 @@ import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
 import { MatMenuModule } from '@angular/material/menu';
 import { MatDialogModule, MatDialog } from '@angular/material/dialog';
 import { MatSnackBar, MatSnackBarModule } from '@angular/material/snack-bar';
+import { MatDividerModule } from '@angular/material/divider';
 
 // Imports actualizados para la nueva estructura
 import { TaskService } from '../../../services/task.service';
@@ -38,7 +39,8 @@ import { TaskCreateComponent } from '../../admin/task-create/task-create.compone
     MatProgressSpinnerModule,
     MatMenuModule,
     MatDialogModule,
-    MatSnackBarModule
+    MatSnackBarModule,
+    MatDividerModule
   ],
   templateUrl: './task-list.component.html',
   styleUrl: './task-list.component.scss'
@@ -52,18 +54,56 @@ export class TaskListComponent implements OnInit {
   searchTerm = '';
   statusFilter = '';
   priorityFilter = '';
+  dueDateFilter = '';
+  assignedUserFilter = '';
+  
+  // Lista de usuarios para el filtro
+  familyMembers = signal<User[]>([]);
 
-  constructor(
-    private taskService: TaskService,
-    private authService: AuthService,
-    private router: Router,
-    private dialog: MatDialog,
-    private snackBar: MatSnackBar
-  ) {}
+  // Inyección de dependencias usando inject()
+  private taskService = inject(TaskService);
+  private authService = inject(AuthService);
+  private router = inject(Router);
+  private dialog = inject(MatDialog);
+  private snackBar = inject(MatSnackBar);
 
   ngOnInit(): void {
-    this.loadTasks();
-    this.currentUser.set(this.authService.getCurrentUser());
+    // Auto-login para pruebas si no hay usuario
+    if (!this.authService.getCurrentUser()) {
+      // Para pruebas, alternar entre jefe del hogar y miembro de la familia
+      const loginRole = Math.random() > 0.5 ? 'head_of_household' : 'family_member';
+      this.authService.loginByRole(loginRole).subscribe({
+        next: (user) => {
+          this.currentUser.set(user);
+          this.loadTasks();
+          this.loadFamilyMembers();
+        },
+        error: (error) => {
+          console.error('Error en auto-login:', error);
+        }
+      });
+    } else {
+      this.currentUser.set(this.authService.getCurrentUser());
+      this.loadTasks();
+      this.loadFamilyMembers();
+    }
+  }
+
+  // Método para cambiar entre roles para pruebas
+  switchUserRole(): void {
+    const currentRole = this.currentUser()?.role;
+    const newRole = currentRole === 'head_of_household' ? 'family_member' : 'head_of_household';
+    
+    this.authService.loginByRole(newRole).subscribe({
+      next: (user) => {
+        this.currentUser.set(user);
+        this.loadTasks();
+        this.snackBar.open(`Cambiado a: ${newRole === 'head_of_household' ? 'Jefe del Hogar' : 'Miembro de la Familia'}`, 'Cerrar', { duration: 2000 });
+      },
+      error: (error) => {
+        console.error('Error al cambiar rol:', error);
+      }
+    });
   }
 
   loadTasks(): void {
@@ -101,6 +141,40 @@ export class TaskListComponent implements OnInit {
       filtered = filtered.filter(task => task.priority === this.priorityFilter);
     }
 
+    if (this.dueDateFilter) {
+      const today = new Date();
+      const tomorrow = new Date(today);
+      tomorrow.setDate(today.getDate() + 1);
+      const nextWeek = new Date(today);
+      nextWeek.setDate(today.getDate() + 7);
+
+      filtered = filtered.filter(task => {
+        if (!task.dueDate) return this.dueDateFilter === 'no_date';
+        
+        const dueDate = new Date(task.dueDate);
+        
+        switch (this.dueDateFilter) {
+          case 'overdue':
+            return dueDate < today && task.status !== 'completed';
+          case 'today':
+            return dueDate.toDateString() === today.toDateString();
+          case 'tomorrow':
+            return dueDate.toDateString() === tomorrow.toDateString();
+          case 'this_week':
+            return dueDate >= today && dueDate <= nextWeek;
+          case 'no_date':
+            return false; // Ya se maneja arriba
+          default:
+            return true;
+        }
+      });
+    }
+
+    if (this.assignedUserFilter) {
+      const assignedUserId = parseInt(this.assignedUserFilter);
+      filtered = filtered.filter(task => task.assignedTo === assignedUserId);
+    }
+
     this.filteredTasks.set(filtered);
   }
 
@@ -108,12 +182,17 @@ export class TaskListComponent implements OnInit {
     this.searchTerm = '';
     this.statusFilter = '';
     this.priorityFilter = '';
+    this.dueDateFilter = '';
+    this.assignedUserFilter = '';
     this.applyFilters();
   }
 
   canManageTask(task: Task): boolean {
     const user = this.currentUser();
-    return user && (user.role === 'head_of_household' || task.assignedTo === user.id);
+    if (!user) return false;
+    
+    const canManage = user.role === 'head_of_household' || task.assignedTo === user.id;
+    return canManage;
   }
 
   getTaskCardClass(task: Task): string {
@@ -139,8 +218,8 @@ export class TaskListComponent implements OnInit {
   }
 
   getAssignedUserName(task: Task): string {
-    // Aquí deberías obtener el nombre del usuario asignado
-    return `Usuario ${task.assignedTo}`;
+    const user = this.familyMembers().find(u => u.id === task.assignedTo);
+    return user ? `${user.firstName} ${user.lastName}` : `Usuario ${task.assignedTo}`;
   }
 
   isOverdue(task: Task): boolean {
@@ -178,20 +257,39 @@ export class TaskListComponent implements OnInit {
   }
 
   completeTask(task: Task): void {
-    this.taskService.completeTask(task.id).subscribe({
-      next: (updatedTask: any) => {
-        const tasks = this.tasks();
-        const index = tasks.findIndex(t => t.id === task.id);
-        if (index !== -1) {
-          tasks[index] = updatedTask;
-          this.tasks.set([...tasks]);
-          this.applyFilters();
-        }
-        this.snackBar.open('Tarea completada', 'Cerrar', { duration: 2000 });
-      },
-      error: (error: any) => {
-        console.error('Error completing task:', error);
-        this.snackBar.open('Error al completar la tarea', 'Cerrar', { duration: 3000 });
+    const dialogRef = this.dialog.open(ConfirmDialogComponent, {
+      width: '400px',
+      data: {
+        title: 'Completar Tarea',
+        message: `¿Estás seguro de que quieres marcar como completada la tarea "${task.title}"?`,
+        confirmText: 'Sí, Completar',
+        cancelText: 'Cancelar',
+        icon: 'check_circle',
+        color: 'primary'
+      }
+    });
+
+    dialogRef.afterClosed().subscribe(result => {
+      if (result) {
+        this.taskService.completeTask(task.id).subscribe({
+          next: (updatedTask: any) => {
+            const tasks = this.tasks();
+            const index = tasks.findIndex(t => t.id === task.id);
+            if (index !== -1) {
+              tasks[index] = updatedTask;
+              this.tasks.set([...tasks]);
+              this.applyFilters();
+            }
+            this.snackBar.open('¡Felicidades! Tarea completada 🎉', 'Cerrar', { 
+              duration: 3000,
+              panelClass: ['success-snackbar']
+            });
+          },
+          error: (error: any) => {
+            console.error('Error completing task:', error);
+            this.snackBar.open('Error al completar la tarea', 'Cerrar', { duration: 3000 });
+          }
+        });
       }
     });
   }
@@ -254,5 +352,78 @@ export class TaskListComponent implements OnInit {
         });
       }
     });
+  }
+
+  loadFamilyMembers(): void {
+    this.authService.getFamilyMembers().subscribe({
+      next: (members) => {
+        this.familyMembers.set(members);
+      },
+      error: (error) => {
+        console.error('Error loading family members:', error);
+      }
+    });
+  }
+
+  // Nuevos métodos para las funcionalidades agregadas
+  viewTaskDetails(task: Task): void {
+    this.snackBar.open(`Ver detalles de: ${task.title}`, 'Cerrar', {
+      duration: 3000
+    });
+    // TODO: Implementar modal de detalles completos
+  }
+
+  addComment(task: Task): void {
+    const comment = prompt('Agregar comentario:');
+    if (comment && comment.trim()) {
+      this.taskService.addComment(task.id, comment.trim()).subscribe({
+        next: () => {
+          this.snackBar.open('Comentario agregado exitosamente', 'Cerrar', {
+            duration: 3000
+          });
+        },
+        error: (error) => {
+          console.error('Error adding comment:', error);
+          this.snackBar.open('Error al agregar comentario', 'Cerrar', {
+            duration: 3000
+          });
+        }
+      });
+    }
+  }
+
+  uploadDocument(task: Task): void {
+    const input = document.createElement('input');
+    input.type = 'file';
+    input.accept = '.pdf,.doc,.docx,.jpg,.jpeg,.png,.txt';
+    
+    input.onchange = (event: any) => {
+      const file = event.target.files[0];
+      if (file) {
+        // Simular subida de archivo
+        const fileInfo = {
+          name: file.name,
+          size: file.size,
+          type: file.type,
+          uploadedAt: new Date()
+        };
+        
+        this.taskService.addTaskFile(task.id, fileInfo).subscribe({
+          next: () => {
+            this.snackBar.open(`Archivo "${file.name}" subido exitosamente`, 'Cerrar', {
+              duration: 3000
+            });
+          },
+          error: (error) => {
+            console.error('Error uploading file:', error);
+            this.snackBar.open('Error al subir archivo', 'Cerrar', {
+              duration: 3000
+            });
+          }
+        });
+      }
+    };
+    
+    input.click();
   }
 }

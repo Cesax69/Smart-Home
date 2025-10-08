@@ -12,9 +12,12 @@ import { MatInputModule } from '@angular/material/input';
 import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
 import { MatTabsModule } from '@angular/material/tabs';
 import { MatSnackBar, MatSnackBarModule } from '@angular/material/snack-bar';
+import { MatDialog, MatDialogModule } from '@angular/material/dialog';
 import { TaskService } from '../../../services/task.service';
 import { AuthService } from '../../../../../services/auth.service';
 import { Task } from '../../../models/task.model';
+import { ConfirmDialogComponent } from '../../../../../components/confirm-dialog/confirm-dialog.component';
+import { TaskActionsDialogComponent } from './task-actions-dialog.component';
 
 @Component({
   selector: 'app-my-tasks',
@@ -31,7 +34,8 @@ import { Task } from '../../../models/task.model';
     MatInputModule,
     MatProgressSpinnerModule,
     MatTabsModule,
-    MatSnackBarModule
+    MatSnackBarModule,
+    MatDialogModule
   ],
   template: `
     <div class="my-tasks-container">
@@ -192,6 +196,10 @@ import { Task } from '../../../models/task.model';
                         <button mat-raised-button color="accent" (click)="completeTask(task)">
                           <mat-icon>check_circle</mat-icon>
                           Completar
+                        </button>
+                        <button mat-button (click)="openTaskActions(task)">
+                          <mat-icon>more_horiz</mat-icon>
+                          Acciones
                         </button>
                         <button mat-button (click)="viewTaskDetails(task)">
                           <mat-icon>visibility</mat-icon>
@@ -538,7 +546,8 @@ export class MyTasksComponent implements OnInit {
     private taskService: TaskService,
     private authService: AuthService,
     private router: Router,
-    private snackBar: MatSnackBar
+    private snackBar: MatSnackBar,
+    private dialog: MatDialog
   ) {}
 
   ngOnInit(): void {
@@ -588,17 +597,48 @@ export class MyTasksComponent implements OnInit {
   }
 
   completeTask(task: Task): void {
-    this.taskService.completeTask(task.id).subscribe({
-      next: () => {
-        this.loadMyTasks();
-        this.snackBar.open('¡Felicidades! Tarea completada 🎉', 'Cerrar', { 
-          duration: 3000,
-          panelClass: ['success-snackbar']
+    const dialogRef = this.dialog.open(ConfirmDialogComponent, {
+      width: '400px',
+      data: {
+        title: 'Completar Tarea',
+        message: `¿Estás seguro de que quieres marcar como completada la tarea "${task.title}"?`,
+        confirmText: 'Sí, Completar',
+        cancelText: 'Cancelar',
+        icon: 'check_circle',
+        color: 'primary'
+      }
+    });
+
+    dialogRef.afterClosed().subscribe(result => {
+      if (result) {
+        this.taskService.completeTask(task.id).subscribe({
+          next: () => {
+            this.loadMyTasks();
+            this.snackBar.open('¡Felicidades! Tarea completada 🎉', 'Cerrar', { 
+              duration: 3000,
+              panelClass: ['success-snackbar']
+            });
+          },
+          error: (error: any) => {
+            console.error('Error completing task:', error);
+            this.snackBar.open('Error al completar la tarea', 'Cerrar', { duration: 3000 });
+          }
         });
-      },
-      error: (error: any) => {
-        console.error('Error completing task:', error);
-        this.snackBar.open('Error al completar la tarea', 'Cerrar', { duration: 3000 });
+      }
+    });
+  }
+
+  openTaskActions(task: Task): void {
+    const dialogRef = this.dialog.open(TaskActionsDialogComponent, {
+      width: '600px',
+      maxWidth: '90vw',
+      data: { task }
+    });
+
+    dialogRef.afterClosed().subscribe(result => {
+      // Opcional: recargar datos si se hicieron cambios
+      if (result) {
+        this.loadMyTasks();
       }
     });
   }

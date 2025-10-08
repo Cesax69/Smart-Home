@@ -1,11 +1,20 @@
 <div class="task-list-container">
   <div class="header">
-    <h1>📋 Gestión de Tareas</h1>
-    <button mat-raised-button color="primary" (click)="goToCreateTask()" 
-            *ngIf="currentUser()?.role === 'head_of_household'">
-      <mat-icon>add</mat-icon>
-      Nueva Tarea
-    </button>
+    <h1>Lista de Tareas</h1>
+    <div class="header-actions">
+      <!-- Botón para cambiar rol (solo para pruebas) -->
+      <button mat-stroked-button color="accent" (click)="switchUserRole()" class="role-switch-btn">
+        <mat-icon>swap_horiz</mat-icon>
+        Cambiar a {{ currentUser()?.role === 'head_of_household' ? 'Miembro' : 'Jefe' }}
+      </button>
+      
+      @if (currentUser()?.role === 'head_of_household') {
+        <button mat-raised-button color="primary" (click)="goToCreateTask()">
+          <mat-icon>add</mat-icon>
+          Nueva Tarea
+        </button>
+      }
+    </div>
   </div>
 
   <!-- Filtros -->
@@ -38,6 +47,28 @@
           </mat-select>
         </mat-form-field>
 
+        <mat-form-field appearance="outline">
+          <mat-label>Fecha de Vencimiento</mat-label>
+          <mat-select [(ngModel)]="dueDateFilter" (selectionChange)="applyFilters()">
+            <mat-option value="">Todas</mat-option>
+            <mat-option value="overdue">Vencidas</mat-option>
+            <mat-option value="today">Hoy</mat-option>
+            <mat-option value="tomorrow">Mañana</mat-option>
+            <mat-option value="this_week">Esta Semana</mat-option>
+            <mat-option value="no_date">Sin Fecha</mat-option>
+          </mat-select>
+        </mat-form-field>
+
+        <mat-form-field appearance="outline">
+          <mat-label>Asignado a</mat-label>
+          <mat-select [(ngModel)]="assignedUserFilter" (selectionChange)="applyFilters()">
+            <mat-option value="">Todos</mat-option>
+            @for (member of familyMembers(); track member.id) {
+              <mat-option [value]="member.id">{{ member.firstName }} {{ member.lastName }}</mat-option>
+            }
+          </mat-select>
+        </mat-form-field>
+
         <button mat-button (click)="clearFilters()">
           <mat-icon>clear</mat-icon>
           Limpiar
@@ -47,6 +78,7 @@
   </mat-card>
 
   <!-- Lista de Tareas -->
+  <!-- Note: MatDividerModule import needed for mat-divider elements used in task menus -->
   @if (isLoading()) {
     <div class="loading-container">
       <mat-spinner></mat-spinner>
@@ -83,25 +115,45 @@
                 </div>
               </div>
               
+              <!-- Menú de opciones (tres puntos) -->
               @if (canManageTask(task)) {
                 <button mat-icon-button [matMenuTriggerFor]="taskMenu">
                   <mat-icon>more_vert</mat-icon>
                 </button>
                 
                 <mat-menu #taskMenu="matMenu">
+                  <button mat-menu-item (click)="viewTaskDetails(task)">
+                    <mat-icon>visibility</mat-icon>
+                    <span>Ver Detalles</span>
+                  </button>
+                  
+                  <button mat-menu-item (click)="addComment(task)">
+                    <mat-icon>comment</mat-icon>
+                    <span>Agregar Comentario</span>
+                  </button>
+                  
+                  <button mat-menu-item (click)="uploadDocument(task)">
+                    <mat-icon>attach_file</mat-icon>
+                    <span>Subir Documento</span>
+                  </button>
+                  
                   @if (task.status !== 'completed') {
+                    <mat-divider></mat-divider>
+                    
                     <button mat-menu-item (click)="editTask(task)">
                       <mat-icon>edit</mat-icon>
                       <span>Editar</span>
                     </button>
                     
-                    @if (task.assignedTo === currentUser()?.id) {
+                    <!-- Marcar completada: solo para tareas en progreso -->
+                    @if (task.status === 'in_progress') {
                       <button mat-menu-item (click)="completeTask(task)">
                         <mat-icon>check_circle</mat-icon>
                         <span>Marcar Completada</span>
                       </button>
                     }
                     
+                    <!-- Reasignar: solo para jefe del hogar -->
                     @if (currentUser()?.role === 'head_of_household') {
                       <button mat-menu-item (click)="reassignTask(task)">
                         <mat-icon>person_add</mat-icon>
@@ -110,7 +162,9 @@
                     }
                   }
                   
+                  <!-- Eliminar: solo para jefe del hogar -->
                   @if (currentUser()?.role === 'head_of_household') {
+                    <mat-divider></mat-divider>
                     <button mat-menu-item (click)="deleteTask(task)" class="delete-option">
                       <mat-icon>delete</mat-icon>
                       <span>Eliminar</span>
@@ -153,8 +207,10 @@
             </div>
           </mat-card-content>
 
-          @if (task.assignedTo === currentUser()?.id && task.status !== 'completed') {
+          <!-- Botones de acción para tareas no completadas -->
+          @if (canManageTask(task) && task.status !== 'completed') {
             <mat-card-actions>
+              <!-- Botón Comenzar: solo para tareas pendientes -->
               @if (task.status === 'pending') {
                 <button mat-button color="primary" (click)="startTask(task)">
                   <mat-icon>play_arrow</mat-icon>
@@ -162,9 +218,23 @@
                 </button>
               }
               
-              <button mat-raised-button color="accent" (click)="completeTask(task)">
-                <mat-icon>check_circle</mat-icon>
-                Completar
+              <!-- Botón Completar: solo para tareas en progreso -->
+              @if (task.status === 'in_progress') {
+                <button mat-raised-button color="accent" (click)="completeTask(task)">
+                  <mat-icon>check_circle</mat-icon>
+                  Completar
+                </button>
+              }
+              
+              <!-- Botones siempre disponibles para tareas no completadas -->
+              <button mat-button (click)="addComment(task)">
+                <mat-icon>comment</mat-icon>
+                Comentar
+              </button>
+              
+              <button mat-button (click)="uploadDocument(task)">
+                <mat-icon>attach_file</mat-icon>
+                Archivo
               </button>
             </mat-card-actions>
           }

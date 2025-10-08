@@ -274,4 +274,70 @@ export class AuthController {
       });
     }
   };
+
+  /**
+   * Login por rol (para botones de login rápido)
+   */
+  public loginByRole = async (req: Request, res: Response): Promise<void> => {
+    try {
+      const { role } = req.body;
+
+      if (!role) {
+        res.status(400).json({
+          success: false,
+          message: 'Rol es requerido'
+        });
+        return;
+      }
+
+      // Validar rol
+      if (!['head_of_household', 'family_member'].includes(role)) {
+        res.status(400).json({
+          success: false,
+          message: 'Rol inválido'
+        });
+        return;
+      }
+
+      // Buscar un usuario con el rol especificado
+      const user = await this.userService.findByRole(role);
+      
+      if (!user) {
+        res.status(404).json({
+          success: false,
+          message: `No se encontró usuario con rol ${role}`
+        });
+        return;
+      }
+
+      // Generar token JWT
+      const token = jwt.sign(
+        { 
+          userId: user.id, 
+          username: user.username,
+          role: user.role 
+        },
+        process.env.JWT_SECRET || 'default-secret',
+        { expiresIn: process.env.JWT_EXPIRES_IN || '24h' } as jwt.SignOptions
+      );
+
+      // Remover password de la respuesta
+      const { password: _, ...userWithoutPassword } = user;
+
+      res.json({
+        success: true,
+        message: `¡Bienvenido ${role === 'head_of_household' ? 'Jefe del Hogar' : 'Miembro'}!`,
+        user: userWithoutPassword,
+        token,
+        expiresIn: process.env.JWT_EXPIRES_IN || '24h'
+      });
+
+    } catch (error) {
+      console.error('Error en login por rol:', error);
+      res.status(500).json({
+        success: false,
+        message: 'Error interno del servidor'
+      });
+    }
+  };
 }

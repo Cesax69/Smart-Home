@@ -211,6 +211,15 @@ export class UserService {
   }
 
   /**
+   * Busca un usuario por rol
+   * @param role - Rol a buscar
+   * @returns Usuario encontrado o undefined
+   */
+  public async findByRole(role: string): Promise<any | undefined> {
+    return mockAuthUsers.find(user => user.role === role);
+  }
+
+  /**
    * Crea un nuevo usuario
    * @param userData - Datos del usuario a crear
    * @returns Usuario creado
