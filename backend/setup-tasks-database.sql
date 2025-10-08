@@ -89,31 +89,28 @@ CREATE INDEX IF NOT EXISTS idx_task_files_storage_type ON task_files(storage_typ
 -- Tareas de ejemplo con períodos y asignaciones
 INSERT INTO tasks (user_id, title, description, status, priority, category, due_date, is_recurring, recurrence_type, recurrence_interval, recurrence_days) 
 VALUES 
-    (1, 'Limpiar la cocina', 'Limpiar y organizar toda la cocina después de las comidas', 'pending', 'high', 'limpieza', '2024-01-15 20:00:00', true, 'daily', 1, '[1,2,3,4,5,6,7]'),
-    (2, 'Revisar tareas escolares', 'Supervisar que los niños hagan sus tareas', 'in_progress', 'high', 'educacion', '2024-01-15 19:00:00', true, 'weekly', 1, '[1,2,3,4,5]'),
-    (1, 'Compras del supermercado', 'Hacer las compras semanales de la familia', 'pending', 'medium', 'compras', '2024-01-20 10:00:00', true, 'weekly', 1, '[6]'),
-    (3, 'Organizar cuarto', 'Mantener el cuarto ordenado y limpio', 'pending', 'medium', 'limpieza', '2024-01-16 18:00:00', false, NULL, NULL, NULL),
-    (6, 'Ayudar en la cocina', 'Ayudar a preparar la cena familiar', 'pending', 'low', 'cocina', '2024-01-15 17:30:00', false, NULL, NULL, NULL),
-    (4, 'Sacar la basura', 'Sacar la basura todos los martes y viernes', 'pending', 'medium', 'limpieza', '2024-01-16 07:00:00', true, 'weekly', 1, '[2,5]'),
-    (5, 'Regar las plantas', 'Regar todas las plantas del jardín', 'completed', 'low', 'jardineria', '2024-01-14 16:00:00', true, 'daily', 2, '[1,3,5]'),
-    (7, 'Ordenar juguetes', 'Recoger y organizar todos los juguetes', 'pending', 'medium', 'limpieza', '2024-01-15 18:00:00', false, NULL, NULL, NULL),
-    (1, 'Preparar desayuno', 'Preparar el desayuno para toda la familia', 'in_progress', 'high', 'cocina', '2024-01-15 07:30:00', true, 'daily', 1, '[1,2,3,4,5,6,7]'),
-    (2, 'Revisar gastos mensuales', 'Revisar y organizar los gastos del mes', 'pending', 'medium', 'finanzas', '2024-01-31 20:00:00', true, 'monthly', 1, NULL)
+    (1, 'Limpiar la cocina', 'Limpiar y organizar toda la cocina después de las comidas', 'pending', 'alta', 'limpieza', '2024-01-15 20:00:00', true, 'daily', 1, '[1,2,3,4,5,6,7]'),
+    (2, 'Revisar tareas escolares', 'Supervisar que los niños hagan sus tareas', 'in_progress', 'alta', 'educacion', '2024-01-15 19:00:00', true, 'weekly', 1, '[1,2,3,4,5]'),
+    (1, 'Compras del supermercado', 'Hacer las compras semanales de la familia', 'pending', 'media', 'compras', '2024-01-20 10:00:00', true, 'weekly', 1, '[6]'),
+    (1, 'Organizar cuarto', 'Mantener el cuarto ordenado y limpio', 'pending', 'media', 'limpieza', '2024-01-16 18:00:00', false, NULL, NULL, NULL),
+    (2, 'Ayudar en la cocina', 'Ayudar a preparar la cena familiar', 'pending', 'baja', 'cocina', '2024-01-15 17:30:00', false, NULL, NULL, NULL),
+    (1, 'Sacar la basura', 'Sacar la basura todos los martes y viernes', 'pending', 'media', 'limpieza', '2024-01-16 07:00:00', true, 'weekly', 1, '[2,5]'),
+    (2, 'Regar las plantas', 'Regar todas las plantas del jardín', 'completed', 'baja', 'jardineria', '2024-01-14 16:00:00', true, 'daily', 2, '[1,3,5]'),
+    (1, 'Ordenar juguetes', 'Recoger y organizar todos los juguetes', 'pending', 'media', 'limpieza', '2024-01-15 18:00:00', false, NULL, NULL, NULL),
+    (1, 'Preparar desayuno', 'Preparar el desayuno para toda la familia', 'in_progress', 'alta', 'cocina', '2024-01-15 07:30:00', true, 'daily', 1, '[1,2,3,4,5,6,7]'),
+    (2, 'Revisar gastos mensuales', 'Revisar y organizar los gastos del mes', 'pending', 'media', 'finanzas', '2024-01-31 20:00:00', true, 'monthly', 1, NULL)
 ON CONFLICT DO NOTHING;
 
 -- Asignaciones de tareas (tarea con múltiples usuarios)
 INSERT INTO task_assignments (task_id, user_id, assigned_by, status) 
 VALUES 
-    (4, 3, 1, 'assigned'), -- Luis asignado a "Organizar cuarto" por María
-    (4, 4, 1, 'assigned'), -- Pedro asignado a "Organizar cuarto" por María
-    (5, 6, 1, 'accepted'), -- Ana asignada a "Ayudar en la cocina" por María
-    (5, 7, 1, 'accepted'), -- Sofía asignada a "Ayudar en la cocina" por María
-    (2, 3, 2, 'assigned'), -- Luis asignado a "Revisar tareas escolares" por Carlos
-    (2, 4, 2, 'assigned'), -- Pedro asignado a "Revisar tareas escolares" por Carlos
-    (6, 4, 1, 'accepted'), -- Pedro asignado a "Sacar la basura" por María
-    (8, 7, 6, 'assigned'), -- Sofía asignada a "Ordenar juguetes" por Ana
-    (1, 6, 1, 'accepted'), -- Ana asignada a "Limpiar la cocina" por María
-    (9, 2, 1, 'accepted')  -- Carlos asignado a "Preparar desayuno" por María
+    (4, 1, 1, 'assigned'), -- Admin asignado a "Organizar cuarto"
+    (5, 2, 1, 'accepted'), -- Member asignado a "Ayudar en la cocina"
+    (2, 2, 1, 'assigned'), -- Member asignado a "Revisar tareas escolares"
+    (6, 1, 1, 'accepted'), -- Admin asignado a "Sacar la basura"
+    (8, 2, 1, 'assigned'), -- Member asignado a "Ordenar juguetes"
+    (1, 2, 1, 'accepted'), -- Member asignado a "Limpiar la cocina"
+    (9, 2, 1, 'accepted')  -- Member asignado a "Preparar desayuno"
 ON CONFLICT DO NOTHING;
 
 -- Subtareas de ejemplo
@@ -155,15 +152,14 @@ ON CONFLICT DO NOTHING;
 INSERT INTO task_files (task_id, file_name, file_path, file_type, mime_type, uploaded_by, storage_type, is_image) 
 VALUES 
     (2, 'horario_tareas_escolares.pdf', '/uploads/documents/horario_tareas_escolares.pdf', 'pdf', 'application/pdf', 2, 'local', false),
-    (2, 'foto_tarea_luis.jpg', '/uploads/images/foto_tarea_luis.jpg', 'jpg', 'image/jpeg', 3, 'local', true),
-    (2, 'proyecto_ana_ciencias.docx', '/uploads/documents/proyecto_ana_ciencias.docx', 'docx', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document', 6, 'local', false),
+    (2, 'foto_tarea_member.jpg', '/uploads/images/foto_tarea_member.jpg', 'jpg', 'image/jpeg', 2, 'local', true),
     (3, 'lista_compras_enero.txt', '/uploads/documents/lista_compras_enero.txt', 'txt', 'text/plain', 1, 'local', false),
     (3, 'cupones_descuento.pdf', '/uploads/documents/cupones_descuento.pdf', 'pdf', 'application/pdf', 1, 'local', false),
-    (4, 'antes_organizacion.jpg', '/uploads/images/antes_organizacion.jpg', 'jpg', 'image/jpeg', 3, 'local', true),
-    (4, 'despues_organizacion.jpg', '/uploads/images/despues_organizacion.jpg', 'jpg', 'image/jpeg', 3, 'local', true),
-    (5, 'receta_cena_familiar.pdf', '/uploads/documents/receta_cena_familiar.pdf', 'pdf', 'application/pdf', 6, 'local', false),
-    (5, 'foto_plato_terminado.jpg', '/uploads/images/foto_plato_terminado.jpg', 'jpg', 'image/jpeg', 6, 'local', true),
-    (7, 'guia_cuidado_plantas.pdf', '/uploads/documents/guia_cuidado_plantas.pdf', 'pdf', 'application/pdf', 5, 'local', false),
+    (4, 'antes_organizacion.jpg', '/uploads/images/antes_organizacion.jpg', 'jpg', 'image/jpeg', 1, 'local', true),
+    (4, 'despues_organizacion.jpg', '/uploads/images/despues_organizacion.jpg', 'jpg', 'image/jpeg', 1, 'local', true),
+    (5, 'receta_cena_familiar.pdf', '/uploads/documents/receta_cena_familiar.pdf', 'pdf', 'application/pdf', 2, 'local', false),
+    (5, 'foto_plato_terminado.jpg', '/uploads/images/foto_plato_terminado.jpg', 'jpg', 'image/jpeg', 2, 'local', true),
+    (7, 'guia_cuidado_plantas.pdf', '/uploads/documents/guia_cuidado_plantas.pdf', 'pdf', 'application/pdf', 2, 'local', false),
     (9, 'menu_desayunos_semana.txt', '/uploads/documents/menu_desayunos_semana.txt', 'txt', 'text/plain', 1, 'local', false),
     (10, 'recibos_enero_2024.zip', '/uploads/documents/recibos_enero_2024.zip', 'zip', 'application/zip', 2, 'local', false),
     (10, 'presupuesto_familiar.xlsx', '/uploads/documents/presupuesto_familiar.xlsx', 'xlsx', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', 2, 'local', false)
@@ -178,7 +174,7 @@ BEGIN
     RAISE NOTICE '  - Asignación múltiple de usuarios por tarea';
     RAISE NOTICE '  - Gestión de archivos con integración Google Drive';
     RAISE NOTICE '  - Sistema de subtareas para mejor organización';
-    RAISE NOTICE 'Total de tareas creadas: 10';
+    RAISE NOTICE 'Total de tareas creadas: 10 (para usuarios admin y member)';
     RAISE NOTICE 'Total de subtareas creadas: 30';
-    RAISE NOTICE 'Total de archivos adjuntos: 13';
+    RAISE NOTICE 'Total de archivos adjuntos: 12';
 END $$;

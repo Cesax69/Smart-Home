@@ -9,6 +9,8 @@ export interface ServiceConfig {
   path: string;
   description: string;
   healthEndpoint?: string;
+  // Algunos servicios montan rutas en la raíz y requieren quitar el prefijo /api
+  stripApiPrefix?: boolean;
 }
 
 /**
@@ -22,6 +24,13 @@ export const SERVICES: Record<string, ServiceConfig> = {
     description: 'Servicio de gestión de usuarios',
     healthEndpoint: '/health'
   },
+  AUTH: {
+    name: 'Authentication Service',
+    url: process.env.USERS_SERVICE_URL || 'http://localhost:3001',
+    path: '/api/auth',
+    description: 'Servicio de autenticación de usuarios',
+    healthEndpoint: '/health'
+  },
   TASKS: {
     name: 'Tasks Service', 
     url: process.env.TASKS_SERVICE_URL || 'http://localhost:3002',
@@ -31,17 +40,20 @@ export const SERVICES: Record<string, ServiceConfig> = {
   },
   FILES: {
     name: 'File Upload Service',
-    url: process.env.FILES_SERVICE_URL || 'http://localhost:3003',
+    // En Docker se usa FILE_UPLOAD_SERVICE_URL; mantenemos compatibilidad con ambos nombres
+    url: process.env.FILE_UPLOAD_SERVICE_URL || process.env.FILES_SERVICE_URL || 'http://localhost:3004',
     path: '/api/files',
     description: 'Servicio de subida y gestión de archivos',
-    healthEndpoint: '/health'
+    healthEndpoint: '/health',
+    stripApiPrefix: true
   },
   NOTIFICATIONS: {
     name: 'Notifications Service',
-    url: process.env.NOTIFICATIONS_SERVICE_URL || 'http://localhost:3004',
+    url: process.env.NOTIFICATIONS_SERVICE_URL || 'http://localhost:3003',
     path: '/api/notifications',
     description: 'Servicio de notificaciones por WhatsApp',
-    healthEndpoint: '/health'
+    healthEndpoint: '/health',
+    stripApiPrefix: true
   }
 };
 

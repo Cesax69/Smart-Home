@@ -10,15 +10,22 @@ import { MatNativeDateModule } from '@angular/material/core';
 import { MatCheckboxModule } from '@angular/material/checkbox';
 import { MatIconModule } from '@angular/material/icon';
 import { MatCardModule } from '@angular/material/card';
+import { MatExpansionModule } from '@angular/material/expansion';
 import { MatChipsModule } from '@angular/material/chips';
 import { MatProgressBarModule } from '@angular/material/progress-bar';
 import { MatSnackBar, MatSnackBarModule } from '@angular/material/snack-bar';
 import { MatDialogRef } from '@angular/material/dialog';
 import { MatTooltipModule } from '@angular/material/tooltip';
+import { MatButtonToggleModule } from '@angular/material/button-toggle';
 
 // Imports actualizados para la nueva estructura
 import { AuthService } from '../../../../../services/auth.service';
+import { TaskService } from '../../../services/task.service';
 import { User } from '../../../../../models/user.model';
+import { CreateTaskRequest } from '../../../models/task.model';
+import { forkJoin, of, switchMap, catchError } from 'rxjs';
+import { HttpClient } from '@angular/common/http';
+import { environment } from '../../../../../../environments/environment';
 import { FormValidators } from '../../../../../shared/validators/form-validators';
 
 interface FilePreview {
@@ -44,14 +51,22 @@ interface FilePreview {
     MatCheckboxModule,
     MatIconModule,
     MatCardModule,
+    MatExpansionModule,
     MatChipsModule,
     MatProgressBarModule,
     MatSnackBarModule,
-    MatTooltipModule
+    MatTooltipModule,
+    MatButtonToggleModule
   ],
   templateUrl: './task-create.component.html',
   styleUrl: './task-create.component.scss'
 })
+/**
+ * Componente para creación de tareas con dos secciones:
+ *  - Datos de la tarea (texto, categoría, adjuntos con vista previa)
+ *  - Plazos y asignaciones (fechas, prioridad, recurrencia, asignar uno o varios miembros)
+ * Incluye botones de Limpiar y Recargar y usa Signals para estado local.
+ */
 export class TaskCreateComponent implements OnInit {
   taskForm: FormGroup;
   familyMembers = signal<User[]>([]);
@@ -59,6 +74,8 @@ export class TaskCreateComponent implements OnInit {
   isDragOver = signal(false);
   isSubmitting = signal(false);
   isLoadingMembers = signal(false);
+  showAttachments = signal(false);
+
 
   private readonly maxFiles = 5;
   private readonly maxFileSize = 10 * 1024 * 1024; // 10MB
@@ -66,8 +83,10 @@ export class TaskCreateComponent implements OnInit {
   constructor(
     private fb: FormBuilder,
     private authService: AuthService,
+    private taskService: TaskService,
     private snackBar: MatSnackBar,
-    private dialogRef: MatDialogRef<TaskCreateComponent>
+    private dialogRef: MatDialogRef<TaskCreateComponent>,
+    private http: HttpClient
   ) {
     this.taskForm = this.createForm();
   }
@@ -86,22 +105,25 @@ export class TaskCreateComponent implements OnInit {
       ]],
       description: ['', [
         Validators.required,
-        Validators.minLength(10),
+        Validators.minLength(3),
         Validators.maxLength(500)
       ]],
-      assignedTo: ['', Validators.required],
-      priority: ['medium', [
+      category: ['limpieza', Validators.required],
+      // Permite uno o varios asignados; con required para al menos uno
+      assignedTo: [[], Validators.required],
+      priority: ['media', [
         Validators.required,
         FormValidators.priorityValidator()
       ]],
-      startDate: ['', [
-        Validators.required,
+      startDate: [null, [
         FormValidators.futureDateValidator()
       ]],
-      dueDate: ['', [
-        Validators.required,
+      dueDate: [null, [
         FormValidators.futureDateValidator()
       ]],
+      estimatedTime: ['', [Validators.min(1), Validators.max(480)]], // minutos
+      estimatedTimeDuration: [''], // HH:MM para el selector de tiempo
+      reward: [''],
       isRecurring: [false],
       recurrenceInterval: [''],
       files: [[]]
@@ -263,33 +285,180 @@ export class TaskCreateComponent implements OnInit {
     return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
   }
 
-  getErrorMessage(fieldName: string): string {
-    const control = this.taskForm.get(fieldName);
-    if (!control || !control.errors) return '';
+  getErrorMessage(field: string): string {
+    const control = this.taskForm.get(field);
+    if (control?.hasError('required')) {
+      return `${this.getFieldDisplayName(field)} es requerido`;
+    }
+    if (control?.hasError('minlength')) {
+      const requiredLength = control.errors?.['minlength']?.requiredLength;
+      return `${this.getFieldDisplayName(field)} debe tener al menos ${requiredLength} caracteres`;
+    }
+    if (control?.hasError('min')) {
+      const min = control.errors?.['min']?.min;
+      return `El valor mínimo es ${min}`;
+    }
+    if (control?.hasError('max')) {
+      const max = control.errors?.['max']?.max;
+      return `El valor máximo es ${max}`;
+    }
+    if (control?.hasError('futureDate')) {
+      return 'La fecha debe ser futura';
+    }
+    return '';
+  }
 
-    return FormValidators.getErrorMessage(control, fieldName);
+  private getFieldDisplayName(field: string): string {
+    const fieldNames: { [key: string]: string } = {
+      'title': 'El título',
+      'description': 'La descripción',
+      'category': 'La categoría',
+      'assignedTo': 'El usuario asignado',
+      'priority': 'La prioridad',
+      'startDate': 'La fecha de inicio',
+      'dueDate': 'La fecha límite',
+      'estimatedTime': 'El tiempo estimado',
+      'estimatedTimeDuration': 'El tiempo estimado',
+      'reward': 'La recompensa',
+      'recurrenceInterval': 'El intervalo de recurrencia'
+    };
+    return fieldNames[field] || field;
+  }
+
+  onDurationChange(): void {
+    const value = this.taskForm.get('estimatedTimeDuration')?.value as string;
+    const minutes = this.parseDurationToMinutes(value);
+    if (minutes != null) {
+      this.taskForm.get('estimatedTime')?.setValue(minutes);
+      this.taskForm.get('estimatedTime')?.markAsDirty();
+    }
+  }
+
+  private parseDurationToMinutes(value: string | null): number | null {
+    if (!value) return null;
+    const [hh, mm] = value.split(':').map(v => parseInt(v, 10));
+    if (isNaN(hh) || isNaN(mm)) return null;
+    return hh * 60 + mm;
+  }
+
+  setPresetDuration(minutes: number): void {
+    this.taskForm.get('estimatedTime')?.setValue(minutes);
+    this.taskForm.get('estimatedTime')?.markAsDirty();
+    const hhmm = this.formatMinutesToHHMM(minutes);
+    this.taskForm.get('estimatedTimeDuration')?.setValue(hhmm);
+  }
+
+  private formatMinutesToHHMM(minutes: number): string {
+    const hh = Math.floor(minutes / 60).toString().padStart(2, '0');
+    const mm = (minutes % 60).toString().padStart(2, '0');
+    return `${hh}:${mm}`;
   }
 
   onSubmit(): void {
     if (this.taskForm.valid && !this.isSubmitting()) {
       this.isSubmitting.set(true);
       
-      // Simular envío de datos
-      setTimeout(() => {
-        console.log('Task data:', this.taskForm.value);
-        console.log('Files:', this.filePreviews().map(p => p.file));
-        
-        this.snackBar.open('Tarea creada exitosamente', 'Cerrar', {
+      const formValue = this.taskForm.value as any;
+      const currentUser = this.authService.getCurrentUser();
+      
+      if (!currentUser) {
+        this.snackBar.open('Error: Usuario no autenticado', 'Cerrar', {
           duration: 3000,
-          panelClass: ['success-snackbar']
+          panelClass: ['error-snackbar']
         });
-        
         this.isSubmitting.set(false);
-        this.dialogRef.close(this.taskForm.value);
-      }, 2000);
+        return;
+      }
+
+      const selectedAssignees: number[] = Array.isArray(formValue.assignedTo)
+        ? formValue.assignedTo
+        : (formValue.assignedTo != null ? [formValue.assignedTo] : []);
+
+      // Asegurar que estimatedTime esté en minutos si se usó HH:MM
+      if (!formValue.estimatedTime && formValue.estimatedTimeDuration) {
+        formValue.estimatedTime = this.parseDurationToMinutes(formValue.estimatedTimeDuration) || '';
+      }
+
+      this.uploadSelectedFile()
+        .pipe(
+          switchMap((fileUrl: string | null) => {
+            const primaryAssignee = selectedAssignees.length > 0 ? selectedAssignees[0] : currentUser.id;
+            const payload: CreateTaskRequest = {
+              title: formValue.title,
+              description: formValue.description,
+              category: formValue.category,
+              assignedUserId: primaryAssignee, // compatibilidad backend
+              assignedUserIds: selectedAssignees.length > 0 ? selectedAssignees : undefined,
+              createdById: currentUser.id,
+              priority: formValue.priority,
+              dueDate: formValue.dueDate,
+              startDate: formValue.startDate,
+              isRecurring: formValue.isRecurring,
+              recurrenceInterval: formValue.recurrenceInterval,
+              estimatedTime: formValue.estimatedTime,
+              reward: formValue.reward,
+              fileUrl: fileUrl || undefined
+            };
+
+            return this.taskService.createTask(payload);
+          }),
+          catchError((error) => {
+            console.error('Error subiendo archivo:', error);
+            this.snackBar.open('No se pudo subir el archivo. La tarea no se creó.', 'Cerrar', { duration: 4000, panelClass: ['error-snackbar'] });
+            this.isSubmitting.set(false);
+            throw error;
+          })
+        )
+        .subscribe({
+          next: (createdTask) => {
+            console.log('Task created successfully:', createdTask);
+            this.snackBar.open('Tarea creada exitosamente', 'Cerrar', {
+              duration: 3000,
+              panelClass: ['success-snackbar']
+            });
+            this.isSubmitting.set(false);
+            this.dialogRef.close(createdTask);
+          },
+          error: (error) => {
+            console.error('Error creating tasks:', error);
+            this.snackBar.open('Error al crear la tarea(s)', 'Cerrar', {
+              duration: 3000,
+              panelClass: ['error-snackbar']
+            });
+            this.isSubmitting.set(false);
+          }
+        });
     } else {
       this.markFormGroupTouched();
     }
+  }
+
+  private uploadSelectedFile() {
+    const previews = this.filePreviews();
+    if (!previews.length) {
+      return of(null);
+    }
+    const formData = new FormData();
+    // Enviar todos los archivos seleccionados (el backend acepta múltiples 'file')
+    previews.forEach(p => formData.append('file', p.file));
+    // Enviar el título para que la carpeta se nombre correctamente
+    const title = (this.taskForm.get('title')?.value || '').toString().trim();
+    if (title) {
+      formData.append('taskTitle', title);
+    }
+
+    const uploadUrl = `${environment.services.fileUpload}/files/upload`;
+    return this.http.post<any>(uploadUrl, formData).pipe(
+      switchMap((res: any) => {
+        // Compatibilidad: si el servicio retornó single-file, usa fileUrl
+        // Nuevo formato: usa el primer elemento de 'uploaded'
+        const url = res?.fileUrl || (Array.isArray(res?.uploaded) ? res.uploaded[0]?.fileUrl : null);
+        if (!url) {
+          throw new Error('Respuesta de subida sin fileUrl');
+        }
+        return of(url);
+      })
+    );
   }
 
   onCancel(): void {
@@ -301,5 +470,38 @@ export class TaskCreateComponent implements OnInit {
       const control = this.taskForm.get(key);
       control?.markAsTouched();
     });
+  }
+  
+  // Miembros seleccionados para mostrar al costado
+  getSelectedMembers(): User[] {
+    const selected = this.taskForm.get('assignedTo')?.value as number[] | number | null;
+    const ids = Array.isArray(selected) ? selected : (selected != null ? [selected] : []);
+    const members = this.familyMembers();
+    return members.filter(m => ids.includes(m.id));
+  }
+
+  onClear(): void {
+    this.taskForm.reset({
+      title: '',
+      description: '',
+      category: 'limpieza',
+      assignedTo: [],
+      priority: 'media',
+      startDate: null,
+      dueDate: null,
+      estimatedTime: '',
+      estimatedTimeDuration: '',
+      reward: '',
+      isRecurring: false,
+      recurrenceInterval: '',
+      files: []
+    });
+    this.filePreviews.set([]);
+    this.isDragOver.set(false);
+  }
+
+  onReload(): void {
+    this.loadFamilyMembers();
+    this.snackBar.open('Miembros recargados', 'Cerrar', { duration: 2000 });
   }
 }

@@ -16,11 +16,14 @@ export class TaskController {
     try {
       const taskData: CreateTaskRequest = req.body;
 
-      // Validación básica de entrada
-      if (!taskData.title || !taskData.description || !taskData.assignedUserId || !taskData.createdById || !taskData.category) {
+      // Validación básica de entrada: permitir uno o varios asignados
+      const hasSingleAssignee = !!taskData.assignedUserId && taskData.assignedUserId > 0;
+      const hasMultipleAssignees = Array.isArray(taskData.assignedUserIds) && taskData.assignedUserIds.length > 0;
+
+      if (!taskData.title || !taskData.description || (!hasSingleAssignee && !hasMultipleAssignees) || !taskData.createdById || !taskData.category) {
         res.status(400).json({
           success: false,
-          message: 'Título, descripción, usuario asignado, creador y categoría son requeridos'
+          message: 'Título, descripción, al menos un asignado (assignedUserId o assignedUserIds), creador y categoría son requeridos'
         } as TaskResponse);
         return;
       }
@@ -343,6 +346,83 @@ export class TaskController {
         success: false,
         message: error instanceof Error ? error.message : 'Error interno del servidor'
       } as TaskResponse);
+    }
+  }
+
+  /**
+   * GET /tasks/:id/files - Listar archivos de una tarea
+   */
+  async getTaskFiles(req: Request, res: Response): Promise<void> {
+    try {
+      const taskId = parseInt(req.params.id);
+      if (isNaN(taskId) || taskId <= 0) {
+        res.status(400).json({ success: false, message: 'ID de tarea inválido' } as TaskResponse);
+        return;
+      }
+      const files = await this.taskService.getTaskFiles(taskId);
+      res.status(200).json({ success: true, data: files, message: `Se encontraron ${files.length} archivos` } as TaskResponse);
+    } catch (error) {
+      console.error('Error en getTaskFiles controller:', error);
+      res.status(500).json({ success: false, message: error instanceof Error ? error.message : 'Error interno del servidor' } as TaskResponse);
+    }
+  }
+
+  /**
+   * POST /tasks/:id/files - Registrar archivos subidos para una tarea
+   */
+  async addTaskFiles(req: Request, res: Response): Promise<void> {
+    try {
+      const taskId = parseInt(req.params.id);
+      if (isNaN(taskId) || taskId <= 0) {
+        res.status(400).json({ success: false, message: 'ID de tarea inválido' } as TaskResponse);
+        return;
+      }
+      const files = Array.isArray(req.body?.files) ? req.body.files : [];
+      if (!files.length) {
+        res.status(400).json({ success: false, message: 'No se proporcionaron archivos para registrar' } as TaskResponse);
+        return;
+      }
+      // Mapear respuesta de file-upload-service a los campos esperados por task_files
+      const mapped = files.map((f: any) => ({
+        file_name: f.filename || f.originalName || 'archivo',
+        file_path: f.folderId || '',
+        file_url: f.fileUrl || f.webViewLink || null,
+        file_size: f.size || null,
+        file_type: null,
+        mime_type: f.mimetype || null,
+        uploaded_by: req.body?.uploadedBy || 0,
+        storage_type: f.storage || 'google_drive',
+        google_drive_id: f.fileId || null,
+        is_image: (f.mimetype || '').startsWith('image/'),
+        thumbnail_path: null
+      }));
+      const inserted = await this.taskService.addTaskFiles(taskId, mapped);
+      res.status(201).json({ success: true, data: inserted, message: `Se registraron ${inserted.length} archivos` } as TaskResponse);
+    } catch (error) {
+      console.error('Error en addTaskFiles controller:', error);
+      res.status(500).json({ success: false, message: error instanceof Error ? error.message : 'Error interno del servidor' } as TaskResponse);
+    }
+  }
+
+  /**
+   * DELETE /tasks/files/:fileRecordId - Eliminar registro de archivo de una tarea
+   */
+  async deleteTaskFile(req: Request, res: Response): Promise<void> {
+    try {
+      const fileRecordId = parseInt(req.params.fileRecordId);
+      if (isNaN(fileRecordId) || fileRecordId <= 0) {
+        res.status(400).json({ success: false, message: 'ID de archivo inválido' } as TaskResponse);
+        return;
+      }
+      const deleted = await this.taskService.deleteTaskFile(fileRecordId);
+      if (!deleted) {
+        res.status(404).json({ success: false, message: 'Archivo no encontrado' } as TaskResponse);
+        return;
+      }
+      res.status(200).json({ success: true, message: 'Archivo eliminado exitosamente' } as TaskResponse);
+    } catch (error) {
+      console.error('Error en deleteTaskFile controller:', error);
+      res.status(500).json({ success: false, message: error instanceof Error ? error.message : 'Error interno del servidor' } as TaskResponse);
     }
   }
 

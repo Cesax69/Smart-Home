@@ -92,33 +92,21 @@ VALUES
     (2, 'Hija', 'Hija mujer de la familia')
 ON CONFLICT (role_id, sub_role_name) DO NOTHING;
 
--- Insertar usuarios de ejemplo
+-- Insertar usuarios de ejemplo con credenciales simplificadas
 INSERT INTO users (username, email, password_hash, first_name, last_name, family_role_id, family_sub_role_id, birth_date) 
 VALUES 
-    -- Padres como jefes del hogar
-    ('mama_garcia', 'maria.garcia@smarthome.com', '$2b$10$example_hash', 'María', 'García', 1, NULL, '1985-03-15'),
-    ('papa_garcia', 'carlos.garcia@smarthome.com', '$2b$10$example_hash', 'Carlos', 'García', 1, NULL, '1983-07-22'),
+    -- Usuario admin (jefe del hogar)
+    ('admin', 'admin@smarthome.com', '$2b$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi', 'Admin', 'Usuario', 1, NULL, '1985-01-01'),
     
-    -- Hijos
-    ('luis_garcia', 'luis.garcia@smarthome.com', '$2b$10$example_hash', 'Luis', 'García', 2, 3, '2010-09-12'),
-    ('pedro_garcia', 'pedro.garcia@smarthome.com', '$2b$10$example_hash', 'Pedro', 'García', 2, 3, '2012-11-08'),
-    ('miguel_garcia', 'miguel.garcia@smarthome.com', '$2b$10$example_hash', 'Miguel', 'García', 2, 3, '2015-04-25'),
-    
-    -- Hijas
-    ('ana_garcia', 'ana.garcia@smarthome.com', '$2b$10$example_hash', 'Ana', 'García', 2, 4, '2008-12-03'),
-    ('sofia_garcia', 'sofia.garcia@smarthome.com', '$2b$10$example_hash', 'Sofía', 'García', 2, 4, '2013-06-18')
+    -- Usuario member (miembro del hogar)
+    ('member', 'member@smarthome.com', '$2b$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi', 'Member', 'Usuario', 2, 3, '1990-01-01')
 ON CONFLICT (email) DO NOTHING;
 
 -- Preferencias de usuario
 INSERT INTO user_preferences (user_id, theme, language) 
 VALUES 
-    (1, 'light', 'es'), -- María
-    (2, 'dark', 'es'),  -- Carlos
-    (3, 'light', 'es'), -- Luis
-    (4, 'light', 'es'), -- Pedro
-    (5, 'light', 'es'), -- Miguel
-    (6, 'light', 'es'), -- Ana
-    (7, 'light', 'es')  -- Sofía
+    (1, 'light', 'es'), -- Admin
+    (2, 'light', 'es')  -- Member
 ON CONFLICT DO NOTHING;
 
 -- Mensaje de confirmación
@@ -126,7 +114,7 @@ DO $$
 BEGIN
     RAISE NOTICE 'Base de datos de Usuarios Smart Home configurada exitosamente!';
     RAISE NOTICE 'Sistema de roles familiares implementado:';
-    RAISE NOTICE '  - Jefe del hogar: María y Carlos García';
-    RAISE NOTICE '  - Miembros: 3 hijos (Luis, Pedro, Miguel) y 2 hijas (Ana, Sofía)';
-    RAISE NOTICE 'Total de usuarios creados: 7';
+    RAISE NOTICE '  - Jefe del hogar: admin/admin';
+    RAISE NOTICE '  - Miembro: member/member';
+    RAISE NOTICE 'Total de usuarios creados: 2';
 END $$;

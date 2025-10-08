@@ -22,6 +22,7 @@ import { Task } from '../../../models/task.model';
 import { User } from '../../../../../models/user.model';
 import { ConfirmDialogComponent } from '../../../../../components/confirm-dialog/confirm-dialog.component';
 import { TaskCreateComponent } from '../../admin/task-create/task-create.component';
+import { TaskEditComponent } from '../task-edit/task-edit.component';
 
 @Component({
   selector: 'app-task-list',
@@ -50,6 +51,7 @@ export class TaskListComponent implements OnInit {
   filteredTasks = signal<Task[]>([]);
   currentUser = signal<any>(null);
   isLoading = signal(true);
+  private memberNameMap = new Map<number, string>();
 
   searchTerm = '';
   statusFilter = '';
@@ -185,6 +187,11 @@ export class TaskListComponent implements OnInit {
     this.dueDateFilter = '';
     this.assignedUserFilter = '';
     this.applyFilters();
+  }
+
+  reloadTasks(): void {
+    this.loadTasks();
+    this.snackBar.open('Tareas recargadas', 'Cerrar', { duration: 2000 });
   }
 
   canManageTask(task: Task): boolean {

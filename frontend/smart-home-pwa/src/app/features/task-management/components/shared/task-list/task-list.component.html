@@ -73,6 +73,10 @@
           <mat-icon>clear</mat-icon>
           Limpiar
         </button>
+        <button mat-stroked-button color="primary" (click)="reloadTasks()" [disabled]="isLoading()">
+          <mat-icon>refresh</mat-icon>
+          Recargar
+        </button>
       </div>
     </mat-card-content>
   </mat-card>
@@ -182,8 +186,11 @@
 
             <div class="task-details">
               <div class="detail-item">
-                <mat-icon>person</mat-icon>
-                <span>Asignada a: {{ getAssignedUserName(task) }}</span>
+                <mat-icon>people</mat-icon>
+                <span>Asignada a:</span>
+                <mat-chip-set>
+                  <mat-chip *ngFor="let uid of getAssignedUsers(task)">{{ getUserName(uid) }}</mat-chip>
+                </mat-chip-set>
               </div>
               
               @if (task.dueDate) {

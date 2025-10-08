@@ -1,9 +1,11 @@
-import { Injectable } from '@angular/core';
+import { Injectable, inject, signal } from '@angular/core';
 import { HttpClient, HttpParams } from '@angular/common/http';
 import { Observable, of } from 'rxjs';
 import { catchError } from 'rxjs/operators';
 import { Task, CreateTaskRequest, UpdateTaskRequest, TaskStats } from '../models/task.model';
 import { environment } from '../../../../environments/environment';
+import { AuthService } from '../../../services/auth.service';
+import { MatSnackBar } from '@angular/material/snack-bar';
 
 @Injectable({
   providedIn: 'root'
@@ -147,6 +149,7 @@ export class TaskService {
   getTasks(filters?: {
     status?: string;
     assignedTo?: number;
+    userId?: number;
     priority?: string;
     page?: number;
     limit?: number;
@@ -156,7 +159,11 @@ export class TaskService {
     if (filters) {
       Object.entries(filters).forEach(([key, value]) => {
         if (value !== undefined && value !== null) {
-          params = params.set(key, value.toString());
+          // Mapear assignedTo -> userId si corresponde
+          const paramKey = key === 'assignedTo' ? 'userId' : key;
+          // Mapear estado al backend si se filtra por estado
+          const paramValue = paramKey === 'status' ? this.mapStatusToBackend(String(value)) : String(value);
+          params = params.set(paramKey, paramValue);
         }
       });
     }
@@ -279,7 +286,10 @@ export class TaskService {
 
   // Obtener estadísticas de tareas
   getTaskStats(): Observable<TaskStats> {
-    return this.http.get<TaskStats>(`${this.API_URL}/tasks/stats`);
+    return this.http.get<any>(`${this.API_URL}/tasks/stats`).pipe(
+      map((res: any) => res?.data ?? res),
+      catchError(this.handleError<TaskStats>('obtener estadísticas'))
+    );
   }
 
   // Obtener tareas por usuario (solo para jefe de hogar)

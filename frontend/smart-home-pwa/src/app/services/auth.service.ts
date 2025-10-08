@@ -52,19 +52,20 @@ export class AuthService {
           return;
         }
 
-        // Buscar usuario en localStorage
-        const existingUsers = this.getStoredUsers();
-        const user = existingUsers.find(u => 
-          (u.username === credentials.username || u.email === credentials.username)
-        );
+        // Validar credenciales específicas
+        let user: User | undefined;
+        
+        if (credentials.username === 'admin' && credentials.password === 'admin') {
+          user = this.getStoredUsers().find(u => u.username === 'admin');
+        } else if (credentials.username === 'member' && credentials.password === 'member') {
+          user = this.getStoredUsers().find(u => u.username === 'member');
+        }
 
         if (!user) {
-          observer.error({ error: { message: 'Usuario no encontrado' } });
+          observer.error({ error: { message: 'Credenciales inválidas' } });
           return;
         }
 
-        // En una implementación real, aquí verificarías la contraseña hasheada
-        // Por ahora, aceptamos cualquier contraseña para testing
         const response: LoginResponse = {
           user: user,
           token: 'mock_token_' + Date.now(),
@@ -173,30 +174,20 @@ export class AuthService {
         username: 'admin',
         email: 'admin@smarthome.com',
         firstName: 'Admin',
-        lastName: 'Sistema',
+        lastName: 'Usuario',
         role: 'head_of_household',
         createdAt: new Date('2024-01-01'),
         updatedAt: new Date('2024-01-01')
       },
       {
         id: 2,
-        username: 'maria',
-        email: 'maria@familia.com',
-        firstName: 'María',
-        lastName: 'García',
-        role: 'head_of_household',
+        username: 'member',
+        email: 'member@smarthome.com',
+        firstName: 'Member',
+        lastName: 'Usuario',
+        role: 'family_member',
         createdAt: new Date('2024-01-02'),
         updatedAt: new Date('2024-01-02')
-      },
-      {
-        id: 3,
-        username: 'juan',
-        email: 'juan@familia.com',
-        firstName: 'Juan',
-        lastName: 'García',
-        role: 'family_member',
-        createdAt: new Date('2024-01-03'),
-        updatedAt: new Date('2024-01-03')
       }
     ];
     

@@ -13,23 +13,20 @@ export class UserController {
    * Obtiene todos los miembros de la familia
    * GET /users
    */
-  public getAllUsers = (req: Request, res: Response): void => {
+  public getAllUsers = async (req: Request, res: Response): Promise<void> => {
     try {
-      const familyMembers = this.userService.getAllFamilyMembers();
-      
+      const familyMembers = await this.userService.getAllFamilyMembers();
       const response: UserResponse = {
         success: true,
         data: familyMembers,
         message: 'Miembros de la familia obtenidos exitosamente'
       };
-
       res.status(200).json(response);
     } catch (error) {
       const errorResponse: UserResponse = {
         success: false,
         message: 'Error interno del servidor'
       };
-
       res.status(500).json(errorResponse);
     }
   };
@@ -38,11 +35,9 @@ export class UserController {
    * Obtiene un miembro de la familia por su ID
    * GET /users/:id
    */
-  public getUserById = (req: Request, res: Response): void => {
+  public getUserById = async (req: Request, res: Response): Promise<void> => {
     try {
       const userId = parseInt(req.params.id, 10);
-
-      // Validar que el ID sea un número válido
       if (isNaN(userId)) {
         const errorResponse: UserResponse = {
           success: false,
@@ -51,9 +46,7 @@ export class UserController {
         res.status(400).json(errorResponse);
         return;
       }
-
-      const familyMember = this.userService.getFamilyMemberById(userId);
-
+      const familyMember = await this.userService.getFamilyMemberById(userId);
       if (!familyMember) {
         const notFoundResponse: UserResponse = {
           success: false,
@@ -62,20 +55,17 @@ export class UserController {
         res.status(404).json(notFoundResponse);
         return;
       }
-
       const response: UserResponse = {
         success: true,
         data: familyMember,
         message: 'Miembro de la familia obtenido exitosamente'
       };
-
       res.status(200).json(response);
     } catch (error) {
       const errorResponse: UserResponse = {
         success: false,
         message: 'Error interno del servidor'
       };
-
       res.status(500).json(errorResponse);
     }
   };
@@ -84,23 +74,20 @@ export class UserController {
    * Obtiene los líderes del hogar
    * GET /users/leaders
    */
-  public getFamilyLeaders = (req: Request, res: Response): void => {
+  public getFamilyLeaders = async (req: Request, res: Response): Promise<void> => {
     try {
-      const leaders = this.userService.getFamilyLeaders();
-      
+      const leaders = await this.userService.getFamilyLeaders();
       const response: UserResponse = {
         success: true,
         data: leaders,
         message: 'Líderes del hogar obtenidos exitosamente'
       };
-
       res.status(200).json(response);
     } catch (error) {
       const errorResponse: UserResponse = {
         success: false,
         message: 'Error interno del servidor'
       };
-
       res.status(500).json(errorResponse);
     }
   };
@@ -109,23 +96,20 @@ export class UserController {
    * Obtiene los miembros del hogar (hijos)
    * GET /users/members
    */
-  public getFamilyMembers = (req: Request, res: Response): void => {
+  public getFamilyMembers = async (req: Request, res: Response): Promise<void> => {
     try {
-      const members = this.userService.getFamilyMembers();
-      
+      const members = await this.userService.getFamilyMembers();
       const response: UserResponse = {
         success: true,
         data: members,
         message: 'Miembros del hogar obtenidos exitosamente'
       };
-
       res.status(200).json(response);
     } catch (error) {
       const errorResponse: UserResponse = {
         success: false,
         message: 'Error interno del servidor'
       };
-
       res.status(500).json(errorResponse);
     }
   };
@@ -134,23 +118,20 @@ export class UserController {
    * Obtiene estadísticas de la familia
    * GET /users/stats
    */
-  public getFamilyStats = (req: Request, res: Response): void => {
+  public getFamilyStats = async (req: Request, res: Response): Promise<void> => {
     try {
-      const stats = this.userService.getFamilyStats();
-      
+      const stats = await this.userService.getFamilyStats();
       const response = {
         success: true,
         data: stats,
         message: 'Estadísticas de la familia obtenidas exitosamente'
       };
-
       res.status(200).json(response);
     } catch (error) {
       const errorResponse = {
         success: false,
         message: 'Error interno del servidor'
       };
-
       res.status(500).json(errorResponse);
     }
   };
@@ -159,35 +140,38 @@ export class UserController {
    * Agrega un nuevo miembro a la familia
    * POST /users
    */
-  public addFamilyMember = (req: Request, res: Response): void => {
+  public addFamilyMember = async (req: Request, res: Response): Promise<void> => {
     try {
-      const { name, role, familyRole, age, avatar } = req.body;
+      const { username, email, firstName, lastName } = req.body;
+      let { role } = req.body as { role?: string };
+      // compatibilidad con valores antiguos
+      if (role === 'leader') role = 'head_of_household';
+      if (role === 'member') role = 'family_member';
 
-      // Validaciones básicas
-      if (!name || !role) {
+      if (!username || !email || !firstName || !lastName || !role) {
         const errorResponse: UserResponse = {
           success: false,
-          message: 'Nombre y rol son requeridos'
+          message: 'username, email, firstName, lastName y role son requeridos'
         };
         res.status(400).json(errorResponse);
         return;
       }
 
-      if (!['leader', 'member'].includes(role)) {
+      if (!['head_of_household', 'family_member'].includes(role)) {
         const errorResponse: UserResponse = {
           success: false,
-          message: 'Rol debe ser "leader" o "member"'
+          message: 'role debe ser "head_of_household" o "family_member"'
         };
         res.status(400).json(errorResponse);
         return;
       }
 
-      const newMember = this.userService.addFamilyMember({
-        name,
-        role,
-        familyRole,
-        age,
-        avatar
+      const newMember = await this.userService.addFamilyMember({
+        username,
+        email,
+        firstName,
+        lastName,
+        role: role as 'head_of_household' | 'family_member'
       });
 
       const response: UserResponse = {
@@ -195,14 +179,12 @@ export class UserController {
         data: newMember,
         message: 'Miembro de la familia agregado exitosamente'
       };
-
       res.status(201).json(response);
     } catch (error) {
       const errorResponse: UserResponse = {
         success: false,
         message: 'Error interno del servidor'
       };
-
       res.status(500).json(errorResponse);
     }
   };
@@ -211,10 +193,9 @@ export class UserController {
    * Actualiza un miembro de la familia
    * PUT /users/:id
    */
-  public updateFamilyMember = (req: Request, res: Response): void => {
+  public updateFamilyMember = async (req: Request, res: Response): Promise<void> => {
     try {
       const userId = parseInt(req.params.id, 10);
-
       if (isNaN(userId)) {
         const errorResponse: UserResponse = {
           success: false,
@@ -223,9 +204,10 @@ export class UserController {
         res.status(400).json(errorResponse);
         return;
       }
-
-      const updatedMember = this.userService.updateFamilyMember(userId, req.body);
-
+      const updateBody: any = { ...req.body };
+      if (updateBody.role === 'leader') updateBody.role = 'head_of_household';
+      if (updateBody.role === 'member') updateBody.role = 'family_member';
+      const updatedMember = await this.userService.updateFamilyMember(userId, updateBody);
       if (!updatedMember) {
         const notFoundResponse: UserResponse = {
           success: false,
@@ -234,20 +216,17 @@ export class UserController {
         res.status(404).json(notFoundResponse);
         return;
       }
-
       const response: UserResponse = {
         success: true,
         data: updatedMember,
         message: 'Miembro de la familia actualizado exitosamente'
       };
-
       res.status(200).json(response);
     } catch (error) {
       const errorResponse: UserResponse = {
         success: false,
         message: 'Error interno del servidor'
       };
-
       res.status(500).json(errorResponse);
     }
   };
@@ -256,10 +235,9 @@ export class UserController {
    * Desactiva un miembro de la familia
    * DELETE /users/:id
    */
-  public deactivateFamilyMember = (req: Request, res: Response): void => {
+  public deactivateFamilyMember = async (req: Request, res: Response): Promise<void> => {
     try {
       const userId = parseInt(req.params.id, 10);
-
       if (isNaN(userId)) {
         const errorResponse: UserResponse = {
           success: false,
@@ -268,9 +246,7 @@ export class UserController {
         res.status(400).json(errorResponse);
         return;
       }
-
-      const success = this.userService.deactivateFamilyMember(userId);
-
+      const success = await this.userService.deactivateFamilyMember(userId);
       if (!success) {
         const notFoundResponse: UserResponse = {
           success: false,
@@ -279,19 +255,16 @@ export class UserController {
         res.status(404).json(notFoundResponse);
         return;
       }
-
       const response: UserResponse = {
         success: true,
         message: 'Miembro de la familia desactivado exitosamente'
       };
-
       res.status(200).json(response);
     } catch (error) {
       const errorResponse: UserResponse = {
         success: false,
         message: 'Error interno del servidor'
       };
-
       res.status(500).json(errorResponse);
     }
   };

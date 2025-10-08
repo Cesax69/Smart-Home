@@ -40,12 +40,17 @@ class APIGateway {
 
     // CORS
     const corsOptions = {
-      origin: process.env.CORS_ORIGIN?.split(',') || ['http://localhost:3000'],
+      origin: process.env.CORS_ORIGIN?.split(',') || [
+        'http://localhost:3000',
+        'http://localhost:4200'
+      ],
       methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
       allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With'],
       credentials: true
     };
     this.app.use(cors(corsOptions));
+    // Manejo explícito de preflight para evitar problemas con el proxy
+    this.app.options('*', cors(corsOptions));
 
     // Logging
     const logFormat = process.env.LOG_FORMAT || 'combined';

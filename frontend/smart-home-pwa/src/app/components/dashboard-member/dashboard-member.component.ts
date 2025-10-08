@@ -22,25 +22,6 @@ import { User } from '../../models/user.model';
   ],
   template: `
     <div class="dashboard-container">
-      <!-- Header -->
-      <mat-toolbar color="accent" class="dashboard-header">
-        <span class="header-title">
-          <mat-icon>👨‍👩‍👧‍👦</mat-icon>
-          Panel de Miembro
-        </span>
-        <span class="spacer"></span>
-        <span class="user-info">Hola, {{ currentUser()?.firstName || 'Usuario' }}</span>
-        <button mat-icon-button [matMenuTriggerFor]="userMenu">
-          <mat-icon>account_circle</mat-icon>
-        </button>
-        <mat-menu #userMenu="matMenu">
-          <button mat-menu-item (click)="logout()">
-            <mat-icon>logout</mat-icon>
-            Cerrar Sesión
-          </button>
-        </mat-menu>
-      </mat-toolbar>
-
       <!-- Main Content -->
       <div class="dashboard-content">
         <div class="welcome-section">
@@ -153,30 +134,6 @@ import { User } from '../../models/user.model';
     .dashboard-container {
       min-height: 100vh;
       background-color: #f5f5f5;
-    }
-
-    .dashboard-header {
-      position: sticky;
-      top: 0;
-      z-index: 100;
-      box-shadow: 0 2px 4px rgba(0,0,0,0.1);
-    }
-
-    .header-title {
-      display: flex;
-      align-items: center;
-      gap: 8px;
-      font-size: 18px;
-      font-weight: 500;
-    }
-
-    .spacer {
-      flex: 1 1 auto;
-    }
-
-    .user-info {
-      margin-right: 16px;
-      font-size: 14px;
     }
 
     .dashboard-content {
