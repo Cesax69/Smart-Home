@@ -1,90 +1,66 @@
 import { Task, CreateTaskRequest, UpdateTaskRequest, DatabaseTask, TaskStatus, TaskCategory, TaskPriority, TaskStats } from '../types/Task';
 import { databaseService } from '../config/database';
 
-// Datos mockeados de tareas domésticas familiares
-const mockTasks: Task[] = [
-  {
-    id: 1,
-    title: "Lavar los platos",
-    description: "Lavar todos los platos del desayuno y almuerzo",
-    category: "cocina",
-    priority: "alta",
-    status: "pendiente",
-    assignedUserId: 3,
-    assignedUserName: "María García",
-    createdById: 1,
-    createdByName: "Papá García",
-    dueDate: new Date(Date.now() + 2 * 60 * 60 * 1000), // 2 horas desde ahora
-    estimatedTime: 30,
-    reward: "30 minutos extra de TV",
-    createdAt: new Date(Date.now() - 1 * 60 * 60 * 1000), // 1 hora atrás
-  },
-  {
-    id: 2,
-    title: "Sacar la basura",
-    description: "Sacar las bolsas de basura de la cocina y baños",
-    category: "limpieza",
-    priority: "media",
-    status: "completada",
-    assignedUserId: 4,
-    assignedUserName: "Carlos García",
-    createdById: 2,
-    createdByName: "Mamá García",
-    estimatedTime: 15,
-    reward: "Postre extra en la cena",
-    completedAt: new Date(Date.now() - 30 * 60 * 1000), // 30 minutos atrás
-    createdAt: new Date(Date.now() - 3 * 60 * 60 * 1000), // 3 horas atrás
-  },
-  {
-    id: 3,
-    title: "Ordenar el cuarto",
-    description: "Organizar la ropa, hacer la cama y limpiar el escritorio",
-    category: "organizacion",
-    priority: "baja",
-    status: "en_proceso",
-    assignedUserId: 3,
-    assignedUserName: "María García",
-    createdById: 1,
-    createdByName: "Papá García",
-    dueDate: new Date(Date.now() + 24 * 60 * 60 * 1000), // mañana
-    estimatedTime: 45,
-    reward: "Elegir la película del viernes",
-    createdAt: new Date(Date.now() - 2 * 60 * 60 * 1000), // 2 horas atrás
-  },
-  {
-    id: 4,
-    title: "Regar las plantas",
-    description: "Regar todas las plantas del jardín y balcón",
-    category: "jardin",
-    priority: "media",
-    status: "pendiente",
-    assignedUserId: 4,
-    assignedUserName: "Carlos García",
-    createdById: 2,
-    createdByName: "Mamá García",
-    dueDate: new Date(Date.now() + 4 * 60 * 60 * 1000), // 4 horas desde ahora
-    estimatedTime: 20,
-    reward: "Jugar videojuegos 1 hora extra",
-    createdAt: new Date(Date.now() - 30 * 60 * 1000), // 30 minutos atrás
-  },
-  {
-    id: 5,
-    title: "Doblar la ropa limpia",
-    description: "Doblar y guardar la ropa que está en el tendedero",
-    category: "lavanderia",
-    priority: "baja",
-    status: "pendiente",
-    assignedUserId: 3,
-    assignedUserName: "María García",
-    createdById: 2,
-    createdByName: "Mamá García",
-    estimatedTime: 25,
-    reward: "Salir con amigas el sábado",
-    createdAt: new Date(Date.now() - 45 * 60 * 1000), // 45 minutos atrás
-  }
-];
-
 export class TaskService {
+  /**
+   * Normaliza las categorías del esquema actual a las permitidas por la app
+   */
+  private normalizeCategory(category?: string | null): TaskCategory {
+    const c = (category || '').toLowerCase();
+    switch (c) {
+      case 'limpieza':
+        return 'limpieza';
+      case 'cocina':
+        return 'cocina';
+      case 'lavanderia':
+        return 'lavanderia';
+      case 'jardin':
+      case 'jardineria':
+        return 'jardin';
+      case 'mantenimiento':
+        return 'mantenimiento';
+      case 'organizacion':
+        return 'organizacion';
+      case 'mascotas':
+        return 'mascotas';
+      case 'compras':
+        return 'compras';
+      default:
+        return 'otros';
+    }
+  }
+
+  /**
+   * Mapea estado del DB (en inglés) al estado de la app (español)
+   */
+  private mapDbStatusToApp(status?: string | null): TaskStatus {
+    switch ((status || '').toLowerCase()) {
+      case 'pending':
+        return 'pendiente';
+      case 'in_progress':
+        return 'en_proceso';
+      case 'completed':
+        return 'completada';
+      default:
+        return 'pendiente';
+    }
+  }
+
+  /**
+   * Mapea estado de la app (español) al DB (inglés)
+   */
+  private mapAppStatusToDb(status?: TaskStatus | null): string {
+    switch (status) {
+      case 'pendiente':
+        return 'pending';
+      case 'en_proceso':
+        return 'in_progress';
+      case 'completada':
+        return 'completed';
+      default:
+        return 'pending';
+    }
+  }
   
   /**
    * Publica un evento real al servicio de notificaciones
@@ -158,10 +134,12 @@ export class TaskService {
       id: dbTask.id,
       title: dbTask.title,
       description: dbTask.description,
-      category: dbTask.category,
-      priority: dbTask.priority,
-      status: dbTask.status,
-      assignedUserId: dbTask.assigned_user_id,
+      category: this.normalizeCategory(dbTask.category as unknown as string),
+      priority: (['baja', 'media', 'alta', 'urgente'].includes((dbTask.priority as unknown as string) || '')
+        ? (dbTask.priority as unknown as TaskPriority)
+        : 'media'),
+      status: this.mapDbStatusToApp(dbTask.status as unknown as string),
+      assignedUserId: (dbTask.assigned_user_id as unknown as number) || (dbTask.created_by_id as unknown as number),
       assignedUserName: dbTask.assigned_user_name,
       createdById: dbTask.created_by_id,
       createdByName: dbTask.created_by_name,
@@ -232,30 +210,59 @@ export class TaskService {
         throw new Error('Prioridad de tarea inválida. Debe ser: baja, media, alta o urgente');
       }
 
-      // En un entorno real, aquí se insertaría en la base de datos
-      // Por ahora, simulamos con datos mockeados
-      const newTask: Task = {
-        id: Math.max(...mockTasks.map(t => t.id)) + 1,
-        title: taskData.title.trim(),
-        description: taskData.description.trim(),
-        category: taskData.category,
-        priority: priority,
-        status: status,
-        assignedUserId: taskData.assignedUserId,
-        createdById: taskData.createdById,
-        dueDate: taskData.dueDate,
-        estimatedTime: taskData.estimatedTime,
-        reward: taskData.reward,
-        fileUrl: taskData.fileUrl,
-        createdAt: new Date(),
-      };
+      // Insertar en la base de datos: tabla tasks + task_assignments
+      const client = await databaseService.getConnection();
+      try {
+        const insertTaskQuery = `
+          INSERT INTO public.tasks (user_id, title, description, status, priority, category, due_date)
+          VALUES ($1, $2, $3, $4, $5, $6, $7)
+          RETURNING id, user_id AS created_by_id, title, description, category, priority, status, due_date, completed_at, created_at, updated_at
+        `;
+        const insertTaskParams = [
+          taskData.createdById,
+          taskData.title.trim(),
+          taskData.description.trim(),
+          this.mapAppStatusToDb(status),
+          priority,
+          taskData.category,
+          taskData.dueDate || null
+        ];
 
-      mockTasks.push(newTask);
-      
-      // Publicar evento de tarea creada
-      await this.publishEvent('TareaCreada', newTask);
-      
-      return newTask;
+        const { rows: taskRows } = await client.query(insertTaskQuery, insertTaskParams);
+        const t = taskRows[0];
+
+        // Insertar asignación principal
+        const insertAssignQuery = `
+          INSERT INTO public.task_assignments (task_id, user_id, assigned_by, status)
+          VALUES ($1, $2, $3, $4)
+          ON CONFLICT (task_id, user_id) DO UPDATE SET assigned_by = EXCLUDED.assigned_by, status = EXCLUDED.status
+        `;
+        await client.query(insertAssignQuery, [t.id, taskData.assignedUserId, taskData.createdById, 'assigned']);
+
+        const dbTask: DatabaseTask = {
+          id: t.id,
+          title: t.title,
+          description: t.description,
+          category: t.category,
+          priority: t.priority,
+          status: t.status,
+          assigned_user_id: taskData.assignedUserId,
+          created_by_id: t.created_by_id,
+          due_date: t.due_date,
+          estimated_time: taskData.estimatedTime,
+          reward: taskData.reward,
+          file_url: taskData.fileUrl,
+          completed_at: t.completed_at,
+          created_at: t.created_at,
+          updated_at: t.updated_at
+        } as any;
+
+        const newTask = this.mapDatabaseTaskToTask(dbTask);
+        await this.publishEvent('TareaCreada', newTask);
+        return newTask;
+      } finally {
+        client.release();
+      }
     } catch (error) {
       console.error('Error en createTask:', error);
       throw error;
@@ -267,7 +274,44 @@ export class TaskService {
    */
   async getAllTasks(): Promise<Task[]> {
     try {
-      return mockTasks.sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());
+      const client = await databaseService.getConnection();
+      try {
+        const query = `
+          SELECT 
+            t.id,
+            t.user_id AS created_by_id,
+            t.title,
+            t.description,
+            t.category,
+            t.priority,
+            t.status,
+            t.due_date,
+            t.completed_at,
+            t.created_at,
+            t.updated_at,
+            (
+              SELECT ta.user_id 
+              FROM public.task_assignments ta 
+              WHERE ta.task_id = t.id 
+              ORDER BY ta.assigned_at DESC 
+              LIMIT 1
+            ) AS assigned_user_id,
+            (
+              SELECT tf.file_url 
+              FROM public.task_files tf 
+              WHERE tf.task_id = t.id AND tf.file_url IS NOT NULL 
+              ORDER BY tf.created_at DESC 
+              LIMIT 1
+            ) AS file_url
+          FROM public.tasks t
+          ORDER BY t.created_at DESC
+        `;
+        const { rows } = await client.query(query);
+        const tasks = rows.map((r: any) => this.mapDatabaseTaskToTask(r as DatabaseTask));
+        return tasks;
+      } finally {
+        client.release();
+      }
     } catch (error) {
       console.error('Error en getAllTasks:', error);
       throw error;
@@ -279,9 +323,39 @@ export class TaskService {
    */
   async getTasksByMember(userId: number): Promise<Task[]> {
     try {
-      return mockTasks
-        .filter(task => task.assignedUserId === userId)
-        .sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());
+      const client = await databaseService.getConnection();
+      try {
+        const query = `
+          SELECT 
+            t.id,
+            t.user_id AS created_by_id,
+            t.title,
+            t.description,
+            t.category,
+            t.priority,
+            t.status,
+            t.due_date,
+            t.completed_at,
+            t.created_at,
+            t.updated_at,
+            ta.user_id AS assigned_user_id,
+            (
+              SELECT tf.file_url 
+              FROM public.task_files tf 
+              WHERE tf.task_id = t.id AND tf.file_url IS NOT NULL 
+              ORDER BY tf.created_at DESC 
+              LIMIT 1
+            ) AS file_url
+          FROM public.tasks t
+          JOIN public.task_assignments ta ON ta.task_id = t.id
+          WHERE ta.user_id = $1
+          ORDER BY t.created_at DESC
+        `;
+        const { rows } = await client.query(query, [userId]);
+        return rows.map((r: any) => this.mapDatabaseTaskToTask(r as DatabaseTask));
+      } finally {
+        client.release();
+      }
     } catch (error) {
       console.error('Error en getTasksByMember:', error);
       throw error;
@@ -296,10 +370,44 @@ export class TaskService {
       if (!this.isValidCategory(category)) {
         throw new Error('Categoría inválida');
       }
-
-      return mockTasks
-        .filter(task => task.category === category)
-        .sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());
+      const client = await databaseService.getConnection();
+      try {
+        const query = `
+          SELECT 
+            t.id,
+            t.user_id AS created_by_id,
+            t.title,
+            t.description,
+            t.category,
+            t.priority,
+            t.status,
+            t.due_date,
+            t.completed_at,
+            t.created_at,
+            t.updated_at,
+            (
+              SELECT ta.user_id 
+              FROM public.task_assignments ta 
+              WHERE ta.task_id = t.id 
+              ORDER BY ta.assigned_at DESC 
+              LIMIT 1
+            ) AS assigned_user_id,
+            (
+              SELECT tf.file_url 
+              FROM public.task_files tf 
+              WHERE tf.task_id = t.id AND tf.file_url IS NOT NULL 
+              ORDER BY tf.created_at DESC 
+              LIMIT 1
+            ) AS file_url
+          FROM public.tasks t
+          WHERE LOWER(t.category) = LOWER($1)
+          ORDER BY t.created_at DESC
+        `;
+        const { rows } = await client.query(query, [category]);
+        return rows.map((r: any) => this.mapDatabaseTaskToTask(r as DatabaseTask));
+      } finally {
+        client.release();
+      }
     } catch (error) {
       console.error('Error en getTasksByCategory:', error);
       throw error;
@@ -314,10 +422,45 @@ export class TaskService {
       if (!this.isValidStatus(status)) {
         throw new Error('Estado inválido');
       }
-
-      return mockTasks
-        .filter(task => task.status === status)
-        .sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());
+      const client = await databaseService.getConnection();
+      try {
+        const dbStatus = this.mapAppStatusToDb(status);
+        const query = `
+          SELECT 
+            t.id,
+            t.user_id AS created_by_id,
+            t.title,
+            t.description,
+            t.category,
+            t.priority,
+            t.status,
+            t.due_date,
+            t.completed_at,
+            t.created_at,
+            t.updated_at,
+            (
+              SELECT ta.user_id 
+              FROM public.task_assignments ta 
+              WHERE ta.task_id = t.id 
+              ORDER BY ta.assigned_at DESC 
+              LIMIT 1
+            ) AS assigned_user_id,
+            (
+              SELECT tf.file_url 
+              FROM public.task_files tf 
+              WHERE tf.task_id = t.id AND tf.file_url IS NOT NULL 
+              ORDER BY tf.created_at DESC 
+              LIMIT 1
+            ) AS file_url
+          FROM public.tasks t
+          WHERE LOWER(t.status) = LOWER($1)
+          ORDER BY t.created_at DESC
+        `;
+        const { rows } = await client.query(query, [dbStatus]);
+        return rows.map((r: any) => this.mapDatabaseTaskToTask(r as DatabaseTask));
+      } finally {
+        client.release();
+      }
     } catch (error) {
       console.error('Error en getTasksByStatus:', error);
       throw error;
@@ -332,9 +475,44 @@ export class TaskService {
       if (!id || id <= 0) {
         throw new Error('ID de tarea inválido');
       }
-
-      const task = mockTasks.find(task => task.id === id);
-      return task || null;
+      const client = await databaseService.getConnection();
+      try {
+        const query = `
+          SELECT 
+            t.id,
+            t.user_id AS created_by_id,
+            t.title,
+            t.description,
+            t.category,
+            t.priority,
+            t.status,
+            t.due_date,
+            t.completed_at,
+            t.created_at,
+            t.updated_at,
+            (
+              SELECT ta.user_id 
+              FROM public.task_assignments ta 
+              WHERE ta.task_id = t.id 
+              ORDER BY ta.assigned_at DESC 
+              LIMIT 1
+            ) AS assigned_user_id,
+            (
+              SELECT tf.file_url 
+              FROM public.task_files tf 
+              WHERE tf.task_id = t.id AND tf.file_url IS NOT NULL 
+              ORDER BY tf.created_at DESC 
+              LIMIT 1
+            ) AS file_url
+          FROM public.tasks t
+          WHERE t.id = $1
+        `;
+        const { rows } = await client.query(query, [id]);
+        if (!rows.length) return null;
+        return this.mapDatabaseTaskToTask(rows[0] as DatabaseTask);
+      } finally {
+        client.release();
+      }
     } catch (error) {
       console.error('Error en getTaskById:', error);
       throw error;
@@ -349,12 +527,6 @@ export class TaskService {
       if (!id || id <= 0) {
         throw new Error('ID de tarea inválido');
       }
-
-      const taskIndex = mockTasks.findIndex(task => task.id === id);
-      if (taskIndex === -1) {
-        return null;
-      }
-
       // Validar datos de actualización
       if (updateData.status && !this.isValidStatus(updateData.status)) {
         throw new Error('Estado de tarea inválido. Debe ser: pendiente, en_proceso o completada');
@@ -368,21 +540,60 @@ export class TaskService {
         throw new Error('Prioridad de tarea inválida');
       }
 
-      // Actualizar la tarea
-      const updatedTask = {
-        ...mockTasks[taskIndex],
-        ...updateData,
-        updatedAt: new Date(),
-        // Si se marca como completada, agregar fecha de completación
-        completedAt: updateData.status === 'completada' ? new Date() : mockTasks[taskIndex].completedAt
-      };
+      const client = await databaseService.getConnection();
+      try {
+        const fields: string[] = [];
+        const params: any[] = [];
+        let idx = 1;
 
-      mockTasks[taskIndex] = updatedTask;
+        if (updateData.title !== undefined) { fields.push(`title = $${idx++}`); params.push(updateData.title); }
+        if (updateData.description !== undefined) { fields.push(`description = $${idx++}`); params.push(updateData.description); }
+        if (updateData.category !== undefined) { fields.push(`category = $${idx++}`); params.push(updateData.category); }
+        if (updateData.priority !== undefined) { fields.push(`priority = $${idx++}`); params.push(updateData.priority); }
+        if (updateData.status !== undefined) { fields.push(`status = $${idx++}`); params.push(this.mapAppStatusToDb(updateData.status)); }
+        if (updateData.dueDate !== undefined) { fields.push(`due_date = $${idx++}`); params.push(updateData.dueDate || null); }
+        if (updateData.completedAt !== undefined) { fields.push(`completed_at = $${idx++}`); params.push(updateData.completedAt || null); }
 
-      // Publicar evento de tarea actualizada
-      await this.publishEvent('TareaActualizada', updatedTask);
+        fields.push(`updated_at = NOW()`);
 
-      return updatedTask;
+        const updateQuery = `UPDATE public.tasks SET ${fields.join(', ')} WHERE id = $${idx} RETURNING id, user_id AS created_by_id, title, description, category, priority, status, due_date, completed_at, created_at, updated_at`;
+        params.push(id);
+
+        const { rows } = await client.query(updateQuery, params);
+        if (!rows.length) return null;
+
+        // Actualizar asignación si viene en el payload
+        if (updateData.assignedUserId !== undefined) {
+          await client.query(`DELETE FROM public.task_assignments WHERE task_id = $1`, [id]);
+          await client.query(`INSERT INTO public.task_assignments (task_id, user_id, assigned_by, status) VALUES ($1, $2, $3, $4)`,
+            [id, updateData.assignedUserId, rows[0].created_by_id, 'assigned']
+          );
+        }
+
+        const dbTask: DatabaseTask = {
+          id: rows[0].id,
+          title: rows[0].title,
+          description: rows[0].description,
+          category: rows[0].category,
+          priority: rows[0].priority,
+          status: rows[0].status,
+          assigned_user_id: updateData.assignedUserId ?? undefined as any,
+          created_by_id: rows[0].created_by_id,
+          due_date: rows[0].due_date,
+          estimated_time: updateData.estimatedTime,
+          reward: updateData.reward,
+          file_url: updateData.fileUrl,
+          completed_at: rows[0].completed_at,
+          created_at: rows[0].created_at,
+          updated_at: rows[0].updated_at
+        } as any;
+
+        const updatedTask = this.mapDatabaseTaskToTask(dbTask);
+        await this.publishEvent('TareaActualizada', updatedTask);
+        return updatedTask;
+      } finally {
+        client.release();
+      }
     } catch (error) {
       console.error('Error en updateTask:', error);
       throw error;
@@ -397,19 +608,18 @@ export class TaskService {
       if (!id || id <= 0) {
         throw new Error('ID de tarea inválido');
       }
-
-      const taskIndex = mockTasks.findIndex(task => task.id === id);
-      if (taskIndex === -1) {
-        return false;
+      const client = await databaseService.getConnection();
+      try {
+        const { rows } = await client.query(`SELECT id, user_id AS created_by_id, title, description, category, priority, status, due_date, completed_at, created_at, updated_at FROM public.tasks WHERE id = $1`, [id]);
+        if (!rows.length) return false;
+        const dbTaskBefore: DatabaseTask = rows[0] as any;
+        await client.query(`DELETE FROM public.tasks WHERE id = $1`, [id]);
+        const deletedTask = this.mapDatabaseTaskToTask(dbTaskBefore);
+        await this.publishEvent('TareaEliminada', deletedTask);
+        return true;
+      } finally {
+        client.release();
       }
-
-      const deletedTask = mockTasks[taskIndex];
-      mockTasks.splice(taskIndex, 1);
-
-      // Publicar evento de tarea eliminada
-      await this.publishEvent('TareaEliminada', deletedTask);
-
-      return true;
     } catch (error) {
       console.error('Error en deleteTask:', error);
       throw error;
@@ -421,65 +631,74 @@ export class TaskService {
    */
   async getTaskStats(): Promise<TaskStats> {
     try {
-      const totalTasks = mockTasks.length;
-      const pendingTasks = mockTasks.filter(task => task.status === 'pendiente').length;
-      const inProgressTasks = mockTasks.filter(task => task.status === 'en_proceso').length;
-      const completedTasks = mockTasks.filter(task => task.status === 'completada').length;
+      const client = await databaseService.getConnection();
+      try {
+        const { rows } = await client.query(`
+          SELECT 
+            COUNT(*) AS total,
+            COUNT(*) FILTER (WHERE status = 'pending') AS pending,
+            COUNT(*) FILTER (WHERE status = 'in_progress') AS in_progress,
+            COUNT(*) FILTER (WHERE status = 'completed') AS completed
+          FROM public.tasks
+        `);
+        const statsRow = rows[0];
 
-      // Estadísticas por categoría
-      const tasksByCategory: Record<TaskCategory, number> = {
-        limpieza: 0,
-        cocina: 0,
-        lavanderia: 0,
-        jardin: 0,
-        mantenimiento: 0,
-        organizacion: 0,
-        mascotas: 0,
-        compras: 0,
-        otros: 0
-      };
+        const tasksByCategoryInit: Record<TaskCategory, number> = {
+          limpieza: 0,
+          cocina: 0,
+          lavanderia: 0,
+          jardin: 0,
+          mantenimiento: 0,
+          organizacion: 0,
+          mascotas: 0,
+          compras: 0,
+          otros: 0
+        };
 
-      // Estadísticas por prioridad
-      const tasksByPriority: Record<TaskPriority, number> = {
-        baja: 0,
-        media: 0,
-        alta: 0,
-        urgente: 0
-      };
+        const { rows: catRows } = await client.query(`SELECT category, COUNT(*) AS count FROM public.tasks GROUP BY category`);
+        catRows.forEach((r: any) => {
+          const cat = this.normalizeCategory(r.category);
+          tasksByCategoryInit[cat] = (tasksByCategoryInit[cat] || 0) + Number(r.count || 0);
+        });
 
-      // Estadísticas por miembro
-      const tasksByMember: Record<number, { name: string; count: number; completed: number }> = {};
+        const tasksByPriority: Record<TaskPriority, number> = { baja: 0, media: 0, alta: 0, urgente: 0 };
+        const { rows: priRows } = await client.query(`SELECT priority, COUNT(*) AS count FROM public.tasks GROUP BY priority`);
+        priRows.forEach((r: any) => {
+          const p = (['baja','media','alta','urgente'].includes((r.priority || '').toLowerCase()) ? (r.priority as TaskPriority) : 'media');
+          tasksByPriority[p] = (tasksByPriority[p] || 0) + Number(r.count || 0);
+        });
 
-      mockTasks.forEach(task => {
-        // Contar por categoría
-        tasksByCategory[task.category]++;
-
-        // Contar por prioridad
-        tasksByPriority[task.priority]++;
-
-        // Contar por miembro
-        if (!tasksByMember[task.assignedUserId]) {
-          tasksByMember[task.assignedUserId] = {
-            name: task.assignedUserName || `Usuario ${task.assignedUserId}`,
-            count: 0,
-            completed: 0
+        // Miembros: contar por asignación
+        const tasksByMember: Record<number, { name: string; count: number; completed: number }> = {};
+        const { rows: memRows } = await client.query(`
+          SELECT ta.user_id, 
+                 COUNT(*) AS count,
+                 COUNT(*) FILTER (WHERE t.status = 'completed') AS completed
+          FROM public.task_assignments ta
+          JOIN public.tasks t ON t.id = ta.task_id
+          GROUP BY ta.user_id
+        `);
+        memRows.forEach((r: any) => {
+          const uid = Number(r.user_id);
+          tasksByMember[uid] = {
+            name: `Usuario ${uid}`,
+            count: Number(r.count || 0),
+            completed: Number(r.completed || 0)
           };
-        }
-        tasksByMember[task.assignedUserId].count++;
-        if (task.status === 'completada') {
-          tasksByMember[task.assignedUserId].completed++;
-        }
-      });
+        });
 
-      return {
-        totalTasks,
-        pendingTasks,
-        inProgressTasks,
-        completedTasks,
-        tasksByCategory,
-        tasksByPriority,
-        tasksByMember
-      };
+        return {
+          totalTasks: Number(statsRow.total || 0),
+          pendingTasks: Number(statsRow.pending || 0),
+          inProgressTasks: Number(statsRow.in_progress || 0),
+          completedTasks: Number(statsRow.completed || 0),
+          tasksByCategory: tasksByCategoryInit,
+          tasksByPriority,
+          tasksByMember
+        };
+      } finally {
+        client.release();
+      }
     } catch (error) {
       console.error('Error en getTaskStats:', error);
       throw error;
@@ -491,17 +710,43 @@ export class TaskService {
    */
   async getUpcomingTasks(): Promise<Task[]> {
     try {
-      const now = new Date();
-      const next24Hours = new Date(now.getTime() + 24 * 60 * 60 * 1000);
-
-      return mockTasks
-        .filter(task => 
-          task.status !== 'completada' && 
-          task.dueDate && 
-          task.dueDate <= next24Hours && 
-          task.dueDate > now
-        )
-        .sort((a, b) => (a.dueDate?.getTime() || 0) - (b.dueDate?.getTime() || 0));
+      const client = await databaseService.getConnection();
+      try {
+        const { rows } = await client.query(`
+          SELECT 
+            t.id,
+            t.user_id AS created_by_id,
+            t.title,
+            t.description,
+            t.category,
+            t.priority,
+            t.status,
+            t.due_date,
+            t.completed_at,
+            t.created_at,
+            t.updated_at,
+            (
+              SELECT ta.user_id 
+              FROM public.task_assignments ta 
+              WHERE ta.task_id = t.id 
+              ORDER BY ta.assigned_at DESC 
+              LIMIT 1
+            ) AS assigned_user_id,
+            (
+              SELECT tf.file_url 
+              FROM public.task_files tf 
+              WHERE tf.task_id = t.id AND tf.file_url IS NOT NULL 
+              ORDER BY tf.created_at DESC 
+              LIMIT 1
+            ) AS file_url
+          FROM public.tasks t
+          WHERE t.status <> 'completed' AND t.due_date IS NOT NULL AND t.due_date > NOW() AND t.due_date <= NOW() + INTERVAL '24 hours'
+          ORDER BY t.due_date ASC
+        `);
+        return rows.map((r: any) => this.mapDatabaseTaskToTask(r as DatabaseTask));
+      } finally {
+        client.release();
+      }
     } catch (error) {
       console.error('Error en getUpcomingTasks:', error);
       throw error;
@@ -513,15 +758,43 @@ export class TaskService {
    */
   async getOverdueTasks(): Promise<Task[]> {
     try {
-      const now = new Date();
-
-      return mockTasks
-        .filter(task => 
-          task.status !== 'completada' && 
-          task.dueDate && 
-          task.dueDate < now
-        )
-        .sort((a, b) => (a.dueDate?.getTime() || 0) - (b.dueDate?.getTime() || 0));
+      const client = await databaseService.getConnection();
+      try {
+        const { rows } = await client.query(`
+          SELECT 
+            t.id,
+            t.user_id AS created_by_id,
+            t.title,
+            t.description,
+            t.category,
+            t.priority,
+            t.status,
+            t.due_date,
+            t.completed_at,
+            t.created_at,
+            t.updated_at,
+            (
+              SELECT ta.user_id 
+              FROM public.task_assignments ta 
+              WHERE ta.task_id = t.id 
+              ORDER BY ta.assigned_at DESC 
+              LIMIT 1
+            ) AS assigned_user_id,
+            (
+              SELECT tf.file_url 
+              FROM public.task_files tf 
+              WHERE tf.task_id = t.id AND tf.file_url IS NOT NULL 
+              ORDER BY tf.created_at DESC 
+              LIMIT 1
+            ) AS file_url
+          FROM public.tasks t
+          WHERE t.status <> 'completed' AND t.due_date IS NOT NULL AND t.due_date < NOW()
+          ORDER BY t.due_date ASC
+        `);
+        return rows.map((r: any) => this.mapDatabaseTaskToTask(r as DatabaseTask));
+      } finally {
+        client.release();
+      }
     } catch (error) {
       console.error('Error en getOverdueTasks:', error);
       throw error;

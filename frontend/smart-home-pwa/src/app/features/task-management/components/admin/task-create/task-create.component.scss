@@ -43,6 +43,30 @@
   max-width: 300px;
 }
 
+.additional-fields-row {
+  display: flex;
+  gap: 16px;
+  margin-bottom: 16px;
+
+  .time-field,
+  .reward-field {
+    flex: 1;
+  }
+
+  .time-field {
+    max-width: 200px;
+  }
+
+  @media (max-width: 768px) {
+    flex-direction: column;
+    gap: 12px;
+
+    .time-field {
+      max-width: none;
+    }
+  }
+}
+
 .role-badge {
   font-size: 0.8em;
   color: #666;

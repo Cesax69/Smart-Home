@@ -1,0 +1,46 @@
+<mat-toolbar color="primary" class="app-navbar">
+      <button mat-button class="brand" (click)="goHome()">
+        <mat-icon>home</mat-icon>
+        <span>Smart Home</span>
+      </button>
+
+      <span class="spacer"></span>
+
+      <nav class="nav-links">
+        <button mat-button (click)="goToDashboard()">
+          <mat-icon>dashboard</mat-icon>
+          <span>Dashboard</span>
+        </button>
+        <button mat-button (click)="navigate('/tasks/list')">
+          <mat-icon>assignment</mat-icon>
+          <span>Tareas</span>
+        </button>
+        <button mat-button (click)="navigate('/tasks/my-tasks')">
+          <mat-icon>person</mat-icon>
+          <span>Mis Tareas</span>
+        </button>
+      </nav>
+
+      <span class="spacer"></span>
+
+      <div class="user-area" *ngIf="currentUser() as user">
+        <span class="user-name">{{ user.firstName || user.username }}</span>
+        <button mat-icon-button [matMenuTriggerFor]="userMenu">
+          <mat-icon>account_circle</mat-icon>
+        </button>
+        <mat-menu #userMenu="matMenu">
+          <button mat-menu-item (click)="goToDashboard()">
+            <mat-icon>home</mat-icon>
+            <span>Inicio</span>
+          </button>
+          <button mat-menu-item (click)="navigate('/tasks/list')">
+            <mat-icon>assignment</mat-icon>
+            <span>Tareas</span>
+          </button>
+          <button mat-menu-item (click)="logout()">
+            <mat-icon>logout</mat-icon>
+            <span>Cerrar Sesión</span>
+          </button>
+        </mat-menu>
+      </div>
+    </mat-toolbar>

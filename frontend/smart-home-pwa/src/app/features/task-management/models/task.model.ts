@@ -15,9 +15,16 @@ export interface Task {
 export interface CreateTaskRequest {
   title: string;
   description: string;
-  priority: 'low' | 'medium' | 'high';
-  assignedTo: number;
+  category: 'limpieza' | 'cocina' | 'lavanderia' | 'jardin' | 'mantenimiento' | 'organizacion' | 'mascotas' | 'compras' | 'otros';
+  priority: 'baja' | 'media' | 'alta' | 'urgente';
+  assignedUserId: number;
+  createdById: number;
   dueDate?: Date;
+  startDate?: Date;
+  isRecurring?: boolean;
+  recurrenceInterval?: string;
+  estimatedTime?: number;
+  reward?: string;
 }
 
 export interface UpdateTaskRequest {

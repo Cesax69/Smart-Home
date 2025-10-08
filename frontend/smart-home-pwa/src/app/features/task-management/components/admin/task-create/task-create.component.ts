@@ -18,7 +18,9 @@ import { MatTooltipModule } from '@angular/material/tooltip';
 
 // Imports actualizados para la nueva estructura
 import { AuthService } from '../../../../../services/auth.service';
+import { TaskService } from '../../../services/task.service';
 import { User } from '../../../../../models/user.model';
+import { CreateTaskRequest } from '../../../models/task.model';
 import { FormValidators } from '../../../../../shared/validators/form-validators';
 
 interface FilePreview {
@@ -66,6 +68,7 @@ export class TaskCreateComponent implements OnInit {
   constructor(
     private fb: FormBuilder,
     private authService: AuthService,
+    private taskService: TaskService,
     private snackBar: MatSnackBar,
     private dialogRef: MatDialogRef<TaskCreateComponent>
   ) {
@@ -89,8 +92,9 @@ export class TaskCreateComponent implements OnInit {
         Validators.minLength(10),
         Validators.maxLength(500)
       ]],
+      category: ['limpieza', Validators.required],
       assignedTo: ['', Validators.required],
-      priority: ['medium', [
+      priority: ['media', [
         Validators.required,
         FormValidators.priorityValidator()
       ]],
@@ -102,6 +106,8 @@ export class TaskCreateComponent implements OnInit {
         Validators.required,
         FormValidators.futureDateValidator()
       ]],
+      estimatedTime: ['', [Validators.min(1), Validators.max(480)]], // 1 minuto a 8 horas
+      reward: [''],
       isRecurring: [false],
       recurrenceInterval: [''],
       files: [[]]
@@ -263,30 +269,96 @@ export class TaskCreateComponent implements OnInit {
     return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
   }
 
-  getErrorMessage(fieldName: string): string {
-    const control = this.taskForm.get(fieldName);
-    if (!control || !control.errors) return '';
+  getErrorMessage(field: string): string {
+    const control = this.taskForm.get(field);
+    if (control?.hasError('required')) {
+      return `${this.getFieldDisplayName(field)} es requerido`;
+    }
+    if (control?.hasError('minlength')) {
+      const requiredLength = control.errors?.['minlength']?.requiredLength;
+      return `${this.getFieldDisplayName(field)} debe tener al menos ${requiredLength} caracteres`;
+    }
+    if (control?.hasError('min')) {
+      const min = control.errors?.['min']?.min;
+      return `El valor mínimo es ${min}`;
+    }
+    if (control?.hasError('max')) {
+      const max = control.errors?.['max']?.max;
+      return `El valor máximo es ${max}`;
+    }
+    if (control?.hasError('futureDate')) {
+      return 'La fecha debe ser futura';
+    }
+    return '';
+  }
 
-    return FormValidators.getErrorMessage(control, fieldName);
+  private getFieldDisplayName(field: string): string {
+    const fieldNames: { [key: string]: string } = {
+      'title': 'El título',
+      'description': 'La descripción',
+      'category': 'La categoría',
+      'assignedTo': 'El usuario asignado',
+      'priority': 'La prioridad',
+      'startDate': 'La fecha de inicio',
+      'dueDate': 'La fecha límite',
+      'estimatedTime': 'El tiempo estimado',
+      'reward': 'La recompensa',
+      'recurrenceInterval': 'El intervalo de recurrencia'
+    };
+    return fieldNames[field] || field;
   }
 
   onSubmit(): void {
     if (this.taskForm.valid && !this.isSubmitting()) {
       this.isSubmitting.set(true);
       
-      // Simular envío de datos
-      setTimeout(() => {
-        console.log('Task data:', this.taskForm.value);
-        console.log('Files:', this.filePreviews().map(p => p.file));
-        
-        this.snackBar.open('Tarea creada exitosamente', 'Cerrar', {
+      const formValue = this.taskForm.value;
+      const currentUser = this.authService.getCurrentUser();
+      
+      if (!currentUser) {
+        this.snackBar.open('Error: Usuario no autenticado', 'Cerrar', {
           duration: 3000,
-          panelClass: ['success-snackbar']
+          panelClass: ['error-snackbar']
         });
-        
         this.isSubmitting.set(false);
-        this.dialogRef.close(this.taskForm.value);
-      }, 2000);
+        return;
+      }
+
+      const taskData: CreateTaskRequest = {
+        title: formValue.title,
+        description: formValue.description,
+        category: formValue.category,
+        assignedUserId: formValue.assignedTo,
+        createdById: currentUser.id,
+        priority: formValue.priority,
+        dueDate: formValue.dueDate,
+        startDate: formValue.startDate,
+        isRecurring: formValue.isRecurring,
+        recurrenceInterval: formValue.recurrenceInterval,
+        estimatedTime: formValue.estimatedTime,
+        reward: formValue.reward
+      };
+
+      this.taskService.createTask(taskData).subscribe({
+        next: (createdTask) => {
+          console.log('Task created successfully:', createdTask);
+          this.snackBar.open('Tarea creada exitosamente', 'Cerrar', {
+            duration: 3000,
+            panelClass: ['success-snackbar']
+          });
+          
+          this.isSubmitting.set(false);
+          this.dialogRef.close(createdTask);
+        },
+        error: (error) => {
+          console.error('Error creating task:', error);
+          this.snackBar.open('Error al crear la tarea', 'Cerrar', {
+            duration: 3000,
+            panelClass: ['error-snackbar']
+          });
+          this.isSubmitting.set(false);
+        }
+      });
     } else {
       this.markFormGroupTouched();
     }

@@ -31,6 +31,53 @@
           }
         </mat-form-field>
 
+        <!-- Categoría -->
+        <mat-form-field appearance="outline" class="full-width">
+          <mat-label>Categoría</mat-label>
+          <mat-select formControlName="category">
+            <mat-option value="limpieza">
+              <mat-icon>cleaning_services</mat-icon>
+              Limpieza
+            </mat-option>
+            <mat-option value="cocina">
+              <mat-icon>kitchen</mat-icon>
+              Cocina
+            </mat-option>
+            <mat-option value="lavanderia">
+              <mat-icon>local_laundry_service</mat-icon>
+              Lavandería
+            </mat-option>
+            <mat-option value="jardin">
+              <mat-icon>yard</mat-icon>
+              Jardín
+            </mat-option>
+            <mat-option value="mantenimiento">
+              <mat-icon>build</mat-icon>
+              Mantenimiento
+            </mat-option>
+            <mat-option value="organizacion">
+              <mat-icon>inventory_2</mat-icon>
+              Organización
+            </mat-option>
+            <mat-option value="mascotas">
+              <mat-icon>pets</mat-icon>
+              Mascotas
+            </mat-option>
+            <mat-option value="compras">
+              <mat-icon>shopping_cart</mat-icon>
+              Compras
+            </mat-option>
+            <mat-option value="otros">
+              <mat-icon>more_horiz</mat-icon>
+              Otros
+            </mat-option>
+          </mat-select>
+          <mat-icon matSuffix>category</mat-icon>
+          @if (taskForm.get('category')?.invalid && taskForm.get('category')?.touched) {
+            <mat-error>{{ getErrorMessage('category') }}</mat-error>
+          }
+        </mat-form-field>
+
         <!-- Asignado a -->
         <mat-form-field appearance="outline" class="full-width">
           <mat-label>Asignar a</mat-label>
@@ -52,17 +99,21 @@
         <mat-form-field appearance="outline" class="full-width">
           <mat-label>Prioridad</mat-label>
           <mat-select formControlName="priority">
-            <mat-option value="low">
+            <mat-option value="baja">
               <mat-icon class="priority-icon low">keyboard_arrow_down</mat-icon>
               Baja
             </mat-option>
-            <mat-option value="medium">
+            <mat-option value="media">
               <mat-icon class="priority-icon medium">remove</mat-icon>
               Media
             </mat-option>
-            <mat-option value="high">
+            <mat-option value="alta">
               <mat-icon class="priority-icon high">keyboard_arrow_up</mat-icon>
               Alta
+            </mat-option>
+            <mat-option value="urgente">
+              <mat-icon class="priority-icon urgent">priority_high</mat-icon>
+              Urgente
             </mat-option>
           </mat-select>
           <mat-icon matSuffix>priority_high</mat-icon>
@@ -90,6 +141,27 @@
             <mat-datepicker #duePicker></mat-datepicker>
             @if (taskForm.get('dueDate')?.invalid && taskForm.get('dueDate')?.touched) {
               <mat-error>{{ getErrorMessage('dueDate') }}</mat-error>
+            }
+          </mat-form-field>
+        </div>
+
+        <!-- Tiempo estimado y recompensa -->
+        <div class="additional-fields-row">
+          <mat-form-field appearance="outline" class="time-field">
+            <mat-label>Tiempo estimado (minutos)</mat-label>
+            <input matInput type="number" formControlName="estimatedTime" placeholder="30">
+            <mat-icon matSuffix>schedule</mat-icon>
+            @if (taskForm.get('estimatedTime')?.invalid && taskForm.get('estimatedTime')?.touched) {
+              <mat-error>{{ getErrorMessage('estimatedTime') }}</mat-error>
+            }
+          </mat-form-field>
+
+          <mat-form-field appearance="outline" class="reward-field">
+            <mat-label>Recompensa (opcional)</mat-label>
+            <input matInput formControlName="reward" placeholder="Ej: 30 min extra de TV">
+            <mat-icon matSuffix>emoji_events</mat-icon>
+            @if (taskForm.get('reward')?.invalid && taskForm.get('reward')?.touched) {
+              <mat-error>{{ getErrorMessage('reward') }}</mat-error>
             }
           </mat-form-field>
         </div>

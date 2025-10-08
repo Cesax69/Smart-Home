@@ -1,13 +1,14 @@
 import { User, FamilyStats } from '../types/User';
+import { databaseService } from '../config/database';
 
 // Datos mockeados de miembros de la familia
 const mockFamilyMembers: User[] = [
   { 
     id: 1, 
-    name: "Papá García", 
+    name: "Admin Usuario", 
     role: "leader", 
-    familyRole: "padre",
-    age: 42,
+    familyRole: "jefe del hogar",
+    age: 35,
     avatar: "👨‍💼",
     tasksCompleted: 8,
     joinedAt: new Date('2020-01-01'),
@@ -15,64 +16,18 @@ const mockFamilyMembers: User[] = [
   },
   { 
     id: 2, 
-    name: "Mamá García", 
-    role: "leader", 
-    familyRole: "madre",
-    age: 38,
+    name: "Member Usuario", 
+    role: "member", 
+    familyRole: "miembro",
+    age: 30,
     avatar: "👩‍💼",
     tasksCompleted: 12,
-    joinedAt: new Date('2020-01-01'),
-    isActive: true
-  },
-  { 
-    id: 3, 
-    name: "María García", 
-    role: "member", 
-    familyRole: "hija",
-    age: 16,
-    avatar: "👧",
-    tasksCompleted: 5,
-    joinedAt: new Date('2020-01-01'),
-    isActive: true
-  },
-  { 
-    id: 4, 
-    name: "Carlos García", 
-    role: "member", 
-    familyRole: "hijo",
-    age: 12,
-    avatar: "👦",
-    tasksCompleted: 3,
     joinedAt: new Date('2020-01-01'),
     isActive: true
   }
 ];
 
-// Datos mockeados para autenticación
-const mockAuthUsers: any[] = [
-  {
-    id: 1,
-    username: "admin",
-    email: "admin@smarthome.com",
-    password: "$2b$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi", // password
-    firstName: "Admin",
-    lastName: "García",
-    role: "head_of_household",
-    createdAt: new Date('2020-01-01'),
-    updatedAt: new Date('2020-01-01')
-  },
-  {
-    id: 2,
-    username: "maria",
-    email: "maria@smarthome.com", 
-    password: "$2b$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi", // password
-    firstName: "María",
-    lastName: "García",
-    role: "family_member",
-    createdAt: new Date('2020-01-01'),
-    updatedAt: new Date('2020-01-01')
-  }
-];
+// Eliminados los datos mock de autenticación: ahora se usa PostgreSQL
 
 export class UserService {
   /**
@@ -195,7 +150,26 @@ export class UserService {
    * @returns Usuario encontrado o undefined
    */
   public async findById(id: number): Promise<any | undefined> {
-    return mockAuthUsers.find(user => user.id === id);
+    const query = `
+      SELECT id, username, email, password_hash, first_name, last_name, family_role_id, family_sub_role_id, created_at, updated_at
+      FROM users
+      WHERE id = $1
+    `;
+    const result = await databaseService.query(query, [id]);
+    if (!result.rows.length) return undefined;
+    const row = result.rows[0] as any;
+    // Mapear a la forma esperada por AuthController
+    return {
+      id: row.id,
+      username: row.username,
+      email: row.email,
+      password: row.password_hash,
+      firstName: row.first_name,
+      lastName: row.last_name,
+      role: row.family_role_id === 1 ? 'head_of_household' : 'family_member',
+      createdAt: row.created_at,
+      updatedAt: row.updated_at
+    };
   }
 
   /**
@@ -205,9 +179,26 @@ export class UserService {
    * @returns Usuario encontrado o undefined
    */
   public async findByUsernameOrEmail(username: string, email?: string): Promise<any | undefined> {
-    return mockAuthUsers.find(user => 
-      user.username === username || (email && user.email === email)
-    );
+    const query = `
+      SELECT id, username, email, password_hash, first_name, last_name, family_role_id, family_sub_role_id, created_at, updated_at
+      FROM users
+      WHERE username = $1 OR email = $2
+      LIMIT 1
+    `;
+    const result = await databaseService.query(query, [username, email || username]);
+    if (!result.rows.length) return undefined;
+    const row = result.rows[0] as any;
+    return {
+      id: row.id,
+      username: row.username,
+      email: row.email,
+      password: row.password_hash,
+      firstName: row.first_name,
+      lastName: row.last_name,
+      role: row.family_role_id === 1 ? 'head_of_household' : 'family_member',
+      createdAt: row.created_at,
+      updatedAt: row.updated_at
+    };
   }
 
   /**
@@ -223,13 +214,32 @@ export class UserService {
     lastName: string;
     role: string;
   }): Promise<any> {
-    const newUser = {
-      id: Math.max(...mockAuthUsers.map(u => u.id)) + 1,
-      ...userData,
-      createdAt: new Date(),
-      updatedAt: new Date()
+    // mapear role a family_role_id
+    const familyRoleId = userData.role === 'head_of_household' ? 1 : 2;
+    const query = `
+      INSERT INTO users (username, email, password_hash, first_name, last_name, family_role_id)
+      VALUES ($1, $2, $3, $4, $5, $6)
+      RETURNING id, username, email, password_hash, first_name, last_name, family_role_id, created_at, updated_at
+    `;
+    const result = await databaseService.query(query, [
+      userData.username,
+      userData.email,
+      userData.password,
+      userData.firstName,
+      userData.lastName,
+      familyRoleId
+    ]);
+    const row = result.rows[0] as any;
+    return {
+      id: row.id,
+      username: row.username,
+      email: row.email,
+      password: row.password_hash,
+      firstName: row.first_name,
+      lastName: row.last_name,
+      role: row.family_role_id === 1 ? 'head_of_household' : 'family_member',
+      createdAt: row.created_at,
+      updatedAt: row.updated_at
     };
-    mockAuthUsers.push(newUser);
-    return newUser;
   }
 }
