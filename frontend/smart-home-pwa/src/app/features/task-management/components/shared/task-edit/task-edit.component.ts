@@ -12,10 +12,10 @@ import { MatDatepickerModule } from '@angular/material/datepicker';
 import { MatNativeDateModule } from '@angular/material/core';
 import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
 import { MatSnackBar, MatSnackBarModule } from '@angular/material/snack-bar';
-import { TaskService } from '../../services/task.service';
-import { AuthService } from '../../services/auth.service';
-import { Task, UpdateTaskRequest } from '../../models/task.model';
-import { User } from '../../models/user.model';
+import { TaskService } from '../../../services/task.service';
+import { AuthService } from '../../../../../services/auth.service';
+import { Task, CreateTaskRequest, UpdateTaskRequest } from '../../../models/task.model';
+import { User } from '../../../../../models/user.model';
 
 @Component({
   selector: 'app-task-edit',
@@ -329,12 +329,12 @@ export class TaskEditComponent implements OnInit {
 
     this.isLoading.set(true);
     this.taskService.getTaskById(this.taskId).subscribe({
-      next: (task) => {
+      next: (task: any) => {
         this.task.set(task);
         this.populateForm(task);
         this.isLoading.set(false);
       },
-      error: (error) => {
+      error: (error: any) => {
         console.error('Error loading task:', error);
         this.snackBar.open('Error al cargar la tarea 😞', 'Cerrar', {
           duration: 3000,
@@ -382,14 +382,14 @@ export class TaskEditComponent implements OnInit {
       };
 
       this.taskService.updateTask(this.taskId, updateRequest).subscribe({
-        next: (updatedTask) => {
-          this.snackBar.open('¡Tarea actualizada con éxito! 🎉', 'Cerrar', {
+        next: (updatedTask: any) => {
+          this.snackBar.open('Tarea actualizada exitosamente 🎉', 'Cerrar', {
             duration: 3000,
             panelClass: ['success-snackbar']
           });
           this.router.navigate(['/tasks']);
         },
-        error: (error) => {
+        error: (error: any) => {
           console.error('Error updating task:', error);
           this.snackBar.open('Error al actualizar la tarea 😞', 'Cerrar', {
             duration: 3000,

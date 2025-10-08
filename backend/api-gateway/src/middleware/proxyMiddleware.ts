@@ -18,16 +18,16 @@ const createServiceProxy = (serviceUrl: string) => {
     parseReqBody: PROXY_CONFIG.parseReqBody,
     memoizeHost: PROXY_CONFIG.memoizeHost,
     
-    // Modificar la URL de la petición para remover el prefijo /api
+    // Modificar la URL de la petición para mantener el prefijo /api
     proxyReqPathResolver: (req: Request) => {
       const originalUrl = req.originalUrl;
       const service = getServiceByPath(originalUrl);
       
       if (service) {
-        // Remover el prefijo /api del path
-        const newPath = originalUrl.replace(service.path, '');
-        console.log(`🔄 [PROXY] ${req.method} ${originalUrl} -> ${service.url}${newPath || '/'}`);
-        return newPath || '/';
+        // Mantener el path completo incluyendo /api
+        const newPath = originalUrl.replace('/api', '/api');
+        console.log(`🔄 [PROXY] ${req.method} ${originalUrl} -> ${service.url}${newPath}`);
+        return newPath;
       }
       
       return req.originalUrl;

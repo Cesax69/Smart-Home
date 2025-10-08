@@ -60,7 +60,7 @@ import { User } from '../../models/user.model';
               <p>Ve las tareas que te han sido asignadas y actualiza su estado.</p>
             </mat-card-content>
             <mat-card-actions>
-              <button mat-raised-button color="accent" (click)="navigateTo('/my-tasks')">
+              <button mat-raised-button color="accent" (click)="navigateTo('/tasks/my-tasks')">
                 Ver Mis Tareas
               </button>
             </mat-card-actions>
@@ -273,9 +273,7 @@ export class DashboardMemberComponent implements OnInit {
   }
 
   navigateTo(route: string): void {
-    // Por ahora solo mostramos un mensaje, en el futuro se implementarán las rutas
-    console.log(`Navegando a: ${route}`);
-    alert(`Funcionalidad "${route}" será implementada en el futuro`);
+    this.router.navigate([route]);
   }
 
   logout(): void {

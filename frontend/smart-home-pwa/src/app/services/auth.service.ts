@@ -1,6 +1,6 @@
 import { Injectable, signal } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
-import { Observable, BehaviorSubject, tap, of } from 'rxjs';
+import { Observable, BehaviorSubject, tap, of, map } from 'rxjs';
 import { User, LoginRequest, LoginResponse } from '../models/user.model';
 import { environment } from '../../environments/environment';
 
@@ -144,8 +144,19 @@ export class AuthService {
   }
 
   getFamilyMembers(): Observable<User[]> {
-    // Obtener usuarios del almacenamiento local
-    return of(this.getStoredUsers());
+    if (this.USE_MOCK) {
+      // Obtener usuarios del almacenamiento local (modo mock)
+      return of(this.getStoredUsers());
+    } else {
+      // Consultar el microservicio de usuarios
+      return this.http.get<any>(`${this.API_URL}/users`).pipe(
+        tap(response => {
+          console.log('Family members from microservice:', response);
+        }),
+        // Extraer los datos del response del microservicio
+        map(response => response.data || response)
+      );
+    }
   }
 
   // Método para obtener miembros de la familia (simulado por ahora)

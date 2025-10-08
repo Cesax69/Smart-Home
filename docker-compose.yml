@@ -1,21 +1,42 @@
 services:
-  # Base de datos PostgreSQL
-  postgres:
+  # Base de datos PostgreSQL para Usuarios
+  postgres-users:
     image: postgres:15-alpine
-    container_name: smart-home-postgres
+    container_name: smart-home-postgres-users
     environment:
-      POSTGRES_DB: smart_home_db
+      POSTGRES_DB: users_db
       POSTGRES_USER: postgres
       POSTGRES_PASSWORD: linux
     ports:
       - "5432:5432"
     volumes:
-      - postgres_data:/var/lib/postgresql/data
-      - ./backend/setup-database.sql:/docker-entrypoint-initdb.d/setup-database.sql
+      - postgres_users_data:/var/lib/postgresql/data
+      - ./backend/setup-users-database.sql:/docker-entrypoint-initdb.d/setup-users-database.sql
     networks:
       - smart-home-network
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U postgres -d smart_home_db"]
+      test: ["CMD-SHELL", "pg_isready -U postgres -d users_db"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # Base de datos PostgreSQL para Tareas
+  postgres-tasks:
+    image: postgres:15-alpine
+    container_name: smart-home-postgres-tasks
+    environment:
+      POSTGRES_DB: tasks_db
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: linux
+    ports:
+      - "5433:5432"
+    volumes:
+      - postgres_tasks_data:/var/lib/postgresql/data
+      - ./backend/setup-tasks-database.sql:/docker-entrypoint-initdb.d/setup-tasks-database.sql
+    networks:
+      - smart-home-network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d tasks_db"]
       interval: 30s
       timeout: 10s
       retries: 3
@@ -53,14 +74,14 @@ services:
       - "3001:3001"
     environment:
       - NODE_ENV=production
-      - DB_HOST=postgres
+      - DB_HOST=postgres-users
       - DB_PORT=5432
-      - DB_NAME=smart_home_db
+      - DB_NAME=users_db
       - DB_USER=postgres
       - DB_PASSWORD=linux
       - JWT_SECRET=your-super-secret-jwt-key-change-in-production
     depends_on:
-      postgres:
+      postgres-users:
         condition: service_healthy
     networks:
       - smart-home-network
@@ -76,13 +97,13 @@ services:
       - "3002:3002"
     environment:
       - NODE_ENV=production
-      - DB_HOST=postgres
+      - DB_HOST=postgres-tasks
       - DB_PORT=5432
-      - DB_NAME=smart_home_db
+      - DB_NAME=tasks_db
       - DB_USER=postgres
       - DB_PASSWORD=linux
     depends_on:
-      postgres:
+      postgres-tasks:
         condition: service_healthy
     networks:
       - smart-home-network
@@ -129,7 +150,9 @@ networks:
     driver: bridge
 
 volumes:
-  postgres_data:
+  postgres_users_data:
+    driver: local
+  postgres_tasks_data:
     driver: local
   file_uploads:
     driver: local

@@ -12,9 +12,9 @@ import { MatInputModule } from '@angular/material/input';
 import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
 import { MatTabsModule } from '@angular/material/tabs';
 import { MatSnackBar, MatSnackBarModule } from '@angular/material/snack-bar';
-import { TaskService } from '../../services/task.service';
-import { AuthService } from '../../services/auth.service';
-import { Task } from '../../models/task.model';
+import { TaskService } from '../../../services/task.service';
+import { AuthService } from '../../../../../services/auth.service';
+import { Task } from '../../../models/task.model';
 
 @Component({
   selector: 'app-my-tasks',
@@ -548,12 +548,12 @@ export class MyTasksComponent implements OnInit {
 
   loadMyTasks(): void {
     this.taskService.getMyTasks().subscribe({
-      next: (tasks) => {
+      next: (tasks: any) => {
         this.tasks.set(tasks);
         this.categorizeTasksByStatus(tasks);
         this.isLoading.set(false);
       },
-      error: (error) => {
+      error: (error: any) => {
         console.error('Error loading my tasks:', error);
         this.isLoading.set(false);
         this.snackBar.open('Error al cargar tus tareas', 'Cerrar', { duration: 3000 });
@@ -580,7 +580,7 @@ export class MyTasksComponent implements OnInit {
           panelClass: ['success-snackbar']
         });
       },
-      error: (error) => {
+      error: (error: any) => {
         console.error('Error starting task:', error);
         this.snackBar.open('Error al iniciar la tarea', 'Cerrar', { duration: 3000 });
       }
@@ -596,7 +596,7 @@ export class MyTasksComponent implements OnInit {
           panelClass: ['success-snackbar']
         });
       },
-      error: (error) => {
+      error: (error: any) => {
         console.error('Error completing task:', error);
         this.snackBar.open('Error al completar la tarea', 'Cerrar', { duration: 3000 });
       }

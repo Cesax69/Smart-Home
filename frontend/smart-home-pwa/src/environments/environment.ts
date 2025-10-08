@@ -1,7 +1,7 @@
 export const environment = {
   production: false,
   apiUrl: 'http://localhost:3000/api',
-  useMockData: true, // Cambiar a false cuando el backend esté listo
+  useMockData: false, // Cambiado a false para usar microservicios reales
   services: {
     auth: 'http://localhost:3001/api',      // Users Service
     tasks: 'http://localhost:3002/api',     // Tasks Service  
