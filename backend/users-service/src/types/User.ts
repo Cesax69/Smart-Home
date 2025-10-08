@@ -1,13 +1,13 @@
+// Modelo de usuario alineado con los datos reales en la BD
 export interface User {
   id: number;
-  name: string;
-  role: 'leader' | 'member'; // 'leader' para líder del hogar (padre/madre/tutor), 'member' para miembro (hijo)
-  familyRole?: string; // Rol específico en la familia: 'padre', 'madre', 'tutor', 'hijo', 'hija'
-  age?: number; // Edad del miembro de la familia
-  avatar?: string; // Emoji o URL del avatar
-  tasksCompleted?: number; // Número de tareas completadas
-  joinedAt?: Date; // Fecha de incorporación a la familia
-  isActive?: boolean; // Si el miembro está activo
+  username: string;
+  email: string;
+  role: 'head_of_household' | 'family_member';
+  firstName: string;
+  lastName: string;
+  createdAt: Date;
+  updatedAt: Date;
 }
 
 export interface UserResponse {
@@ -18,7 +18,6 @@ export interface UserResponse {
 
 export interface FamilyStats {
   totalMembers: number;
-  leaders: number;
-  members: number;
-  activeMembers: number;
+  headsOfHousehold: number;
+  familyMembers: number;
 }

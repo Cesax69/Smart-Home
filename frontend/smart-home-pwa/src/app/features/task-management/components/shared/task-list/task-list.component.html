@@ -42,6 +42,10 @@
           <mat-icon>clear</mat-icon>
           Limpiar
         </button>
+        <button mat-stroked-button color="primary" (click)="reloadTasks()" [disabled]="isLoading()">
+          <mat-icon>refresh</mat-icon>
+          Recargar
+        </button>
       </div>
     </mat-card-content>
   </mat-card>
@@ -90,12 +94,12 @@
                 
                 <mat-menu #taskMenu="matMenu">
                   @if (task.status !== 'completed') {
-                    <button mat-menu-item (click)="editTask(task)">
+                    <button mat-menu-item (click)="openEditTask(task)">
                       <mat-icon>edit</mat-icon>
                       <span>Editar</span>
                     </button>
                     
-                    @if (task.assignedTo === currentUser()?.id) {
+                    @if (isAssignedToMe(task)) {
                       <button mat-menu-item (click)="completeTask(task)">
                         <mat-icon>check_circle</mat-icon>
                         <span>Marcar Completada</span>
@@ -128,8 +132,11 @@
 
             <div class="task-details">
               <div class="detail-item">
-                <mat-icon>person</mat-icon>
-                <span>Asignada a: {{ getAssignedUserName(task) }}</span>
+                <mat-icon>people</mat-icon>
+                <span>Asignada a:</span>
+                <mat-chip-set>
+                  <mat-chip *ngFor="let uid of getAssignedUsers(task)">{{ getUserName(uid) }}</mat-chip>
+                </mat-chip-set>
               </div>
               
               @if (task.dueDate) {
@@ -153,7 +160,7 @@
             </div>
           </mat-card-content>
 
-          @if (task.assignedTo === currentUser()?.id && task.status !== 'completed') {
+          @if (isAssignedToMe(task) && task.status !== 'completed') {
             <mat-card-actions>
               @if (task.status === 'pending') {
                 <button mat-button color="primary" (click)="startTask(task)">

@@ -1,6 +1,6 @@
 .task-create-container {
   padding: 20px;
-  max-width: 800px;
+  max-width: 1000px; /* más ancho */
   margin: 0 auto;
 }
 
@@ -12,6 +12,19 @@
   display: flex;
   flex-direction: column;
   gap: 16px;
+}
+
+.form-section {
+  padding-top: 8px;
+}
+
+.section-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0 0 8px 0;
+  font-size: 1.1em;
+  color: #444;
 }
 
 .full-width {
@@ -48,6 +61,12 @@
   gap: 16px;
   margin-bottom: 16px;
 
+  .time-field-group {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+
   .time-field,
   .reward-field {
     flex: 1;
@@ -55,6 +74,17 @@
 
   .time-field {
     max-width: 200px;
+  }
+
+  .time-presets {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+
+  .presets-label {
+    color: #666;
+    font-size: 0.9em;
   }
 
   @media (max-width: 768px) {
@@ -66,6 +96,8 @@
     }
   }
 }
+
+/* El cronómetro fue retirado */
 
 .role-badge {
   font-size: 0.8em;
@@ -201,6 +233,37 @@
   padding: 16px 24px;
 }
 
+.form-actions .spacer {
+  flex: 1 1 auto;
+}
+
+.assign-grid {
+  display: grid;
+  grid-template-columns: 1fr 240px;
+  gap: 16px;
+  align-items: start;
+}
+
+.assign-side {
+  background: #fafafa;
+  border: 1px solid #e0e0e0;
+  border-radius: 8px;
+  padding: 12px;
+}
+
+.assigned-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0 0 8px 0;
+  font-size: 1em;
+}
+
+.no-assigned {
+  color: #777;
+  margin: 6px 0 0 0;
+}
+
 @media (max-width: 600px) {
   .task-create-container {
     padding: 10px;
@@ -220,5 +283,9 @@
 
   .form-actions {
     flex-direction: column;
+  }
+
+  .assign-grid {
+    grid-template-columns: 1fr;
   }
 }

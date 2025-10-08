@@ -97,6 +97,55 @@ export class GoogleDriveService {
   }
 
   /**
+   * Subir archivo a una carpeta específica de Google Drive
+   */
+  async uploadFileToFolder(
+    fileBuffer: Buffer,
+    fileName: string,
+    mimeType: string,
+    parentFolderId?: string
+  ): Promise<UploadResult> {
+    try {
+      const fileStream = new Readable();
+      fileStream.push(fileBuffer);
+      fileStream.push(null);
+
+      const effectiveParent = parentFolderId || (this.folderId !== 'root' ? this.folderId : undefined);
+
+      const fileMetadata = {
+        name: fileName,
+        parents: effectiveParent ? [effectiveParent] : undefined
+      };
+
+      const response = await this.drive.files.create({
+        resource: fileMetadata,
+        media: {
+          mimeType: mimeType,
+          body: fileStream
+        },
+        fields: 'id, name, webViewLink, webContentLink'
+      });
+
+      const file = response.data;
+
+      await this.makeFilePublic(file.id);
+
+      const directLink = `https://drive.google.com/uc?id=${file.id}`;
+
+      return {
+        fileId: file.id,
+        fileName: file.name,
+        fileUrl: directLink,
+        webViewLink: file.webViewLink,
+        downloadLink: file.webContentLink || directLink
+      };
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : 'Error desconocido';
+      throw new Error(`Error al subir archivo a carpeta de Google Drive: ${errorMessage}`);
+    }
+  }
+
+  /**
    * Hacer archivo público para acceso directo
    */
   private async makeFilePublic(fileId: string): Promise<void> {

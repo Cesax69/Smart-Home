@@ -21,6 +21,7 @@ export interface Task {
   priority: TaskPriority;  // Prioridad de la tarea
   status: TaskStatus;
   assignedUserId: number;  // ID del miembro de la familia asignado
+  assignedUserIds?: number[]; // IDs de todos los miembros asignados
   assignedUserName?: string; // Nombre del miembro asignado (para facilitar la UI)
   createdById: number;     // ID del líder que creó la tarea
   createdByName?: string;  // Nombre del líder que creó la tarea
@@ -40,6 +41,7 @@ export interface CreateTaskRequest {
   priority?: TaskPriority;
   status?: TaskStatus;
   assignedUserId: number;
+  assignedUserIds?: number[];
   createdById: number;
   dueDate?: Date;
   estimatedTime?: number;
@@ -54,6 +56,7 @@ export interface UpdateTaskRequest {
   priority?: TaskPriority;
   status?: TaskStatus;
   assignedUserId?: number;
+  assignedUserIds?: number[];
   dueDate?: Date;
   estimatedTime?: number;
   reward?: string;
@@ -85,6 +88,7 @@ export interface DatabaseTask {
   priority: TaskPriority;
   status: TaskStatus;
   assigned_user_id: number;
+  assigned_user_ids?: number[];
   assigned_user_name?: string;
   created_by_id: number;
   created_by_name?: string;

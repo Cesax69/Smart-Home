@@ -38,22 +38,137 @@ export class UploadController {
         return;
       }
 
-      const file = req.file;
-      const storageType = process.env.STORAGE_TYPE || 'local';
-
-      if (storageType === 'google_drive') {
-        // Subir a Google Drive
-        await UploadController.uploadToGoogleDrive(req, res);
-      } else {
-        // Subir localmente (comportamiento original)
-        await UploadController.uploadLocally(req, res);
-      }
+      // Forzar siempre Google Drive
+      await UploadController.uploadToGoogleDrive(req, res);
 
     } catch (error) {
       console.error('❌ Error en uploadFile:', error);
       res.status(500).json({
         success: false,
         message: 'Error interno del servidor al procesar el archivo'
+      });
+    }
+  }
+
+  /**
+   * Maneja la carga de múltiples archivos
+   */
+  public static async uploadFiles(req: Request, res: Response): Promise<void> {
+    try {
+      const files = (req.files as Express.Multer.File[]) || [];
+
+      if (!files.length) {
+        res.status(400).json({
+          success: false,
+          message: 'No se proporcionaron archivos'
+        });
+        return;
+      }
+
+      // Verificar configuración de Google Drive
+      if (!process.env.GOOGLE_DRIVE_CLIENT_ID || !process.env.GOOGLE_DRIVE_CLIENT_SECRET || 
+          !process.env.GOOGLE_DRIVE_REFRESH_TOKEN) {
+        throw new Error('Configuración de Google Drive incompleta');
+      }
+
+      // Inicializar servicio de Google Drive
+      const driveService = UploadController.initializeGoogleDrive();
+
+      // Obtener título de la tarea y construir nombre de carpeta
+      const rawTitle = (req.body?.taskTitle || req.body?.title || req.query?.taskTitle || '').toString().trim();
+      const taskTitle = rawTitle.length > 0 ? rawTitle : 'Sin título';
+      const dateISO = new Date().toISOString().slice(0, 10); // YYYY-MM-DD
+      const safeTitle = taskTitle.replace(/[\\/:*?"<>|]/g, '-');
+      const folderName = `${safeTitle} - ${dateISO}`;
+
+      // Crear carpeta bajo la carpeta base (si existe en env)
+      const parentFolderId = process.env.GOOGLE_DRIVE_FOLDER_ID || undefined;
+      let targetFolderId: string;
+      try {
+        targetFolderId = await driveService.createFolder(folderName, parentFolderId);
+      } catch (err) {
+        console.error('❌ Error creando carpeta destino en Google Drive:', err);
+        throw new Error('No se pudo crear la carpeta de destino para la tarea');
+      }
+
+      const uploaded: any[] = [];
+      const failed: any[] = [];
+
+      for (const file of files) {
+        try {
+          const fileBuffer = fs.readFileSync(file.path);
+
+          const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
+          const extension = path.extname(file.originalname);
+          const baseName = path.basename(file.originalname, extension);
+          const uniqueFileName = `${baseName}-${uniqueSuffix}${extension}`;
+
+          const uploadResult = await driveService.uploadFileToFolder(
+            fileBuffer,
+            uniqueFileName,
+            file.mimetype,
+            targetFolderId
+          );
+
+          // Eliminar archivo temporal
+          fs.unlinkSync(file.path);
+
+          console.log(`📁 Archivo subido a Google Drive: ${file.originalname} -> ${uniqueFileName}`);
+
+          uploaded.push({
+            originalName: file.originalname,
+            filename: uploadResult.fileName,
+            fileId: uploadResult.fileId,
+            mimetype: file.mimetype,
+            size: file.size,
+            uploadDate: new Date().toISOString(),
+            webViewLink: uploadResult.webViewLink,
+            downloadLink: uploadResult.downloadLink,
+            fileUrl: uploadResult.fileUrl,
+            storage: 'google_drive',
+            folderId: targetFolderId,
+            folderName: folderName
+          });
+        } catch (err) {
+          console.error(`❌ Error subiendo archivo ${file.originalname}:`, err);
+          failed.push({
+            originalName: file.originalname,
+            error: err instanceof Error ? err.message : 'Error desconocido'
+          });
+          // Intentar limpiar temporal si existe
+          if (fs.existsSync(file.path)) {
+            try { fs.unlinkSync(file.path); } catch {}
+          }
+        }
+      }
+
+      // Obtener enlace de la carpeta creada para incluirlo en la respuesta
+      let folderInfo: any = { id: targetFolderId, name: folderName };
+      try {
+        const info = await driveService.getFileInfo(targetFolderId);
+        folderInfo = {
+          id: targetFolderId,
+          name: folderName,
+          webViewLink: info.webViewLink || undefined
+        };
+      } catch {}
+
+      const statusCode = uploaded.length > 0 ? 200 : 500;
+      res.status(statusCode).json({
+        success: uploaded.length > 0,
+        message: uploaded.length > 0
+          ? `Subida completada a carpeta "${folderName}": ${uploaded.length} archivos OK, ${failed.length} fallidos`
+          : 'No se pudo subir ningún archivo',
+        folder: folderInfo,
+        uploaded,
+        failed
+      });
+
+    } catch (error) {
+      console.error('❌ Error en uploadFiles:', error);
+      res.status(500).json({
+        success: false,
+        message: 'Error interno del servidor al procesar los archivos'
       });
     }
   }
@@ -131,52 +246,20 @@ export class UploadController {
     }
   }
 
-  /**
-   * Subir archivo localmente (comportamiento original)
-   */
-  private static async uploadLocally(req: Request, res: Response): Promise<void> {
-    const file = req.file!;
-    const baseUrl = process.env.BASE_URL || `http://localhost:${process.env.PORT || 3003}`;
-    const fileUrl = `${baseUrl}/files/${file.filename}`;
-
-    // Log de la operación
-    console.log(`📁 Archivo subido exitosamente: ${file.originalname} -> ${file.filename}`);
-    console.log(`📊 Tamaño: ${(file.size / 1024).toFixed(2)} KB`);
-    console.log(`🔗 URL de acceso: ${fileUrl}`);
-
-    // Respuesta exitosa con la URL del archivo
-    res.status(200).json({
-      success: true,
-      message: 'Archivo subido exitosamente',
-      fileUrl: fileUrl,
-      fileInfo: {
-        originalName: file.originalname,
-        filename: file.filename,
-        mimetype: file.mimetype,
-        size: file.size,
-        uploadDate: new Date().toISOString(),
-        storage: 'local'
-      }
-    });
-  }
+  // Eliminado soporte de subida local. El servicio funciona exclusivamente con Google Drive.
 
   /**
    * Endpoint de salud del servicio
    */
   public static async healthCheck(req: Request, res: Response): Promise<void> {
-    const storageType = process.env.STORAGE_TYPE || 'local';
     let driveStatus = 'N/A';
-
-    // Si está configurado para Google Drive, verificar conexión
-    if (storageType === 'google_drive') {
-      try {
-        const driveService = UploadController.initializeGoogleDrive();
-        const isConnected = await driveService.testConnection();
-        driveStatus = isConnected ? 'Conectado ✅' : 'Error de conexión';
-      } catch (error) {
-        const errorMessage = error instanceof Error ? error.message : 'Error desconocido';
-        driveStatus = `Error: ${errorMessage}`;
-      }
+    try {
+      const driveService = UploadController.initializeGoogleDrive();
+      const isConnected = await driveService.testConnection();
+      driveStatus = isConnected ? 'Conectado ✅' : 'Error de conexión';
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : 'Error desconocido';
+      driveStatus = `Error: ${errorMessage}`;
     }
 
     res.status(200).json({
@@ -186,7 +269,7 @@ export class UploadController {
       service: 'file-upload-service',
       version: '1.0.0',
       storage: {
-        type: storageType,
+        type: 'google_drive',
         googleDriveStatus: driveStatus
       }
     });
@@ -196,30 +279,25 @@ export class UploadController {
    * Información del servicio
    */
   public static async getServiceInfo(req: Request, res: Response): Promise<void> {
-    const storageType = process.env.STORAGE_TYPE || 'local';
-    
     res.status(200).json({
       success: true,
       message: 'File Upload Service - Microservicio para carga y gestión de archivos',
       version: '1.0.0',
       storage: {
-        type: storageType,
-        description: storageType === 'google_drive' 
-          ? 'Archivos almacenados en Google Drive' 
-          : 'Archivos almacenados localmente'
+        type: 'google_drive',
+        description: 'Archivos almacenados en Google Drive'
       },
       endpoints: {
         upload: 'POST /upload',
-        files: storageType === 'local' ? 'GET /files/:filename' : 'N/A (Google Drive)',
         health: 'GET /health',
-        driveFiles: storageType === 'google_drive' ? 'GET /drive/files' : 'N/A'
+        driveFiles: 'GET /drive/files'
       },
       features: [
         'Carga de archivos con multer',
-        storageType === 'google_drive' ? 'Integración con Google Drive API' : 'Servicio de archivos estáticos',
+        'Integración con Google Drive API',
         'Validación de tipos de archivo',
         'Límites de tamaño configurables',
-        storageType === 'google_drive' ? 'URLs públicas de Google Drive' : 'URLs de acceso público'
+        'URLs públicas de Google Drive'
       ],
       limits: {
         maxFileSize: '10MB',
@@ -237,16 +315,6 @@ export class UploadController {
    */
   public static async listDriveFiles(req: Request, res: Response): Promise<void> {
     try {
-      const storageType = process.env.STORAGE_TYPE || 'local';
-      
-      if (storageType !== 'google_drive') {
-        res.status(400).json({
-          success: false,
-          message: 'Este endpoint solo está disponible cuando STORAGE_TYPE=google_drive'
-        });
-        return;
-      }
-
       const driveService = UploadController.initializeGoogleDrive();
       const pageSize = parseInt(req.query.pageSize as string) || 10;
       
@@ -274,16 +342,6 @@ export class UploadController {
    */
   public static async getDriveFileInfo(req: Request, res: Response): Promise<void> {
     try {
-      const storageType = process.env.STORAGE_TYPE || 'local';
-      
-      if (storageType !== 'google_drive') {
-        res.status(400).json({
-          success: false,
-          message: 'Este endpoint solo está disponible cuando STORAGE_TYPE=google_drive'
-        });
-        return;
-      }
-
       const fileId = req.params.fileId;
       if (!fileId) {
         res.status(400).json({
@@ -317,16 +375,6 @@ export class UploadController {
    */
   public static async deleteDriveFile(req: Request, res: Response): Promise<void> {
     try {
-      const storageType = process.env.STORAGE_TYPE || 'local';
-      
-      if (storageType !== 'google_drive') {
-        res.status(400).json({
-          success: false,
-          message: 'Este endpoint solo está disponible cuando STORAGE_TYPE=google_drive'
-        });
-        return;
-      }
-
       const fileId = req.params.fileId;
       if (!fileId) {
         res.status(400).json({

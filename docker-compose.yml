@@ -135,6 +135,8 @@ services:
     container_name: smart-home-file-upload-service
     ports:
       - "3004:3004"
+    env_file:
+      - ./backend/file-upload-service/.env
     environment:
       - NODE_ENV=production
       - MAX_FILE_SIZE=10485760

@@ -9,9 +9,10 @@ const router = Router();
  * Endpoint principal para subir archivos
  */
 router.post('/upload', 
-  upload.single('file'), // 'file' es el nombre del campo en el form-data
+  // Soporta múltiples archivos enviando varios campos 'file'
+  upload.array('file', 20),
   handleMulterError,
-  UploadController.uploadFile
+  UploadController.uploadFiles
 );
 
 /**
