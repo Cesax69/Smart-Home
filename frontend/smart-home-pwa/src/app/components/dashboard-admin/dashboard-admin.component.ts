@@ -273,9 +273,7 @@ export class DashboardAdminComponent implements OnInit {
   }
 
   navigateTo(route: string): void {
-    // Por ahora solo mostramos un mensaje, en el futuro se implementarán las rutas
-    console.log(`Navegando a: ${route}`);
-    alert(`Funcionalidad "${route}" será implementada en el futuro`);
+    this.router.navigate([route]);
   }
 
   logout(): void {

@@ -1,0 +1,175 @@
+<div class="task-list-container">
+  <div class="header">
+    <h1>📋 Gestión de Tareas</h1>
+    <button mat-raised-button color="primary" (click)="goToCreateTask()" 
+            *ngIf="currentUser()?.role === 'head_of_household'">
+      <mat-icon>add</mat-icon>
+      Nueva Tarea
+    </button>
+  </div>
+
+  <!-- Filtros -->
+  <mat-card class="filters-card">
+    <mat-card-content>
+      <div class="filters-row">
+        <mat-form-field appearance="outline">
+          <mat-label>Buscar tareas</mat-label>
+          <input matInput [(ngModel)]="searchTerm" (input)="applyFilters()" placeholder="Título o descripción...">
+          <mat-icon matSuffix>search</mat-icon>
+        </mat-form-field>
+
+        <mat-form-field appearance="outline">
+          <mat-label>Estado</mat-label>
+          <mat-select [(ngModel)]="statusFilter" (selectionChange)="applyFilters()">
+            <mat-option value="">Todos</mat-option>
+            <mat-option value="pending">Pendiente</mat-option>
+            <mat-option value="in_progress">En Progreso</mat-option>
+            <mat-option value="completed">Completada</mat-option>
+          </mat-select>
+        </mat-form-field>
+
+        <mat-form-field appearance="outline">
+          <mat-label>Prioridad</mat-label>
+          <mat-select [(ngModel)]="priorityFilter" (selectionChange)="applyFilters()">
+            <mat-option value="">Todas</mat-option>
+            <mat-option value="low">Baja</mat-option>
+            <mat-option value="medium">Media</mat-option>
+            <mat-option value="high">Alta</mat-option>
+          </mat-select>
+        </mat-form-field>
+
+        <button mat-button (click)="clearFilters()">
+          <mat-icon>clear</mat-icon>
+          Limpiar
+        </button>
+      </div>
+    </mat-card-content>
+  </mat-card>
+
+  <!-- Lista de Tareas -->
+  @if (isLoading()) {
+    <div class="loading-container">
+      <mat-spinner></mat-spinner>
+      <p>Cargando tareas...</p>
+    </div>
+  } @else if (filteredTasks().length === 0) {
+    <mat-card class="empty-state">
+      <mat-card-content>
+        <mat-icon class="empty-icon">assignment</mat-icon>
+        <h3>No hay tareas</h3>
+        <p>{{ tasks().length === 0 ? 'Aún no se han creado tareas.' : 'No se encontraron tareas con los filtros aplicados.' }}</p>
+        @if (currentUser()?.role === 'head_of_household' && tasks().length === 0) {
+          <button mat-raised-button color="primary" (click)="goToCreateTask()">
+            Crear Primera Tarea
+          </button>
+        }
+      </mat-card-content>
+    </mat-card>
+  } @else {
+    <div class="tasks-grid">
+      @for (task of filteredTasks(); track task.id) {
+        <mat-card class="task-card" [class]="getTaskCardClass(task)">
+          <mat-card-header>
+            <div class="task-header">
+              <div class="task-title-section">
+                <h3>{{ task.title }}</h3>
+                <div class="task-badges">
+                  <mat-chip [class]="'priority-' + task.priority">
+                    {{ getPriorityLabel(task.priority) }}
+                  </mat-chip>
+                  <mat-chip [class]="'status-' + task.status">
+                    {{ getStatusLabel(task.status) }}
+                  </mat-chip>
+                </div>
+              </div>
+              
+              @if (canManageTask(task)) {
+                <button mat-icon-button [matMenuTriggerFor]="taskMenu">
+                  <mat-icon>more_vert</mat-icon>
+                </button>
+                
+                <mat-menu #taskMenu="matMenu">
+                  @if (task.status !== 'completed') {
+                    <button mat-menu-item (click)="editTask(task)">
+                      <mat-icon>edit</mat-icon>
+                      <span>Editar</span>
+                    </button>
+                    
+                    @if (task.assignedTo === currentUser()?.id) {
+                      <button mat-menu-item (click)="completeTask(task)">
+                        <mat-icon>check_circle</mat-icon>
+                        <span>Marcar Completada</span>
+                      </button>
+                    }
+                    
+                    @if (currentUser()?.role === 'head_of_household') {
+                      <button mat-menu-item (click)="reassignTask(task)">
+                        <mat-icon>person_add</mat-icon>
+                        <span>Reasignar</span>
+                      </button>
+                    }
+                  }
+                  
+                  @if (currentUser()?.role === 'head_of_household') {
+                    <button mat-menu-item (click)="deleteTask(task)" class="delete-option">
+                      <mat-icon>delete</mat-icon>
+                      <span>Eliminar</span>
+                    </button>
+                  }
+                </mat-menu>
+              }
+            </div>
+          </mat-card-header>
+
+          <mat-card-content>
+            @if (task.description) {
+              <p class="task-description">{{ task.description }}</p>
+            }
+
+            <div class="task-details">
+              <div class="detail-item">
+                <mat-icon>person</mat-icon>
+                <span>Asignada a: {{ getAssignedUserName(task) }}</span>
+              </div>
+              
+              @if (task.dueDate) {
+                <div class="detail-item" [class.overdue]="isOverdue(task)">
+                  <mat-icon>schedule</mat-icon>
+                  <span>Vence: {{ formatDate(task.dueDate) }}</span>
+                </div>
+              }
+              
+              <div class="detail-item">
+                <mat-icon>calendar_today</mat-icon>
+                <span>Creada: {{ formatDate(task.createdAt) }}</span>
+              </div>
+              
+              @if (task.completedAt) {
+                <div class="detail-item">
+                  <mat-icon>check</mat-icon>
+                  <span>Completada: {{ formatDate(task.completedAt) }}</span>
+                </div>
+              }
+            </div>
+          </mat-card-content>
+
+          @if (task.assignedTo === currentUser()?.id && task.status !== 'completed') {
+            <mat-card-actions>
+              @if (task.status === 'pending') {
+                <button mat-button color="primary" (click)="startTask(task)">
+                  <mat-icon>play_arrow</mat-icon>
+                  Comenzar
+                </button>
+              }
+              
+              <button mat-raised-button color="accent" (click)="completeTask(task)">
+                <mat-icon>check_circle</mat-icon>
+                Completar
+              </button>
+            </mat-card-actions>
+          }
+        </mat-card>
+      }
+    </div>
+  }
+</div>

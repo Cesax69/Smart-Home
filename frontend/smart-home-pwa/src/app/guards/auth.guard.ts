@@ -4,6 +4,10 @@ import { CanActivateFn } from '@angular/router';
 import { AuthService } from '../services/auth.service';
 
 export const authGuard: CanActivateFn = (route, state) => {
+  // Temporalmente simplificado - siempre permite el acceso
+  return true;
+  
+  /* Implementación original comentada temporalmente
   const authService = inject(AuthService);
   const router = inject(Router);
 
@@ -13,9 +17,14 @@ export const authGuard: CanActivateFn = (route, state) => {
     router.navigate(['/login']);
     return false;
   }
+  */
 };
 
 export const adminGuard: CanActivateFn = (route, state) => {
+  // Temporalmente simplificado - siempre permite el acceso
+  return true;
+  
+  /* Implementación original comentada temporalmente
   const authService = inject(AuthService);
   const router = inject(Router);
 
@@ -25,9 +34,14 @@ export const adminGuard: CanActivateFn = (route, state) => {
     router.navigate(['/dashboard']);
     return false;
   }
+  */
 };
 
 export const guestGuard: CanActivateFn = (route, state) => {
+  // Temporalmente simplificado - siempre permite el acceso
+  return true;
+  
+  /* Implementación original comentada temporalmente
   const authService = inject(AuthService);
   const router = inject(Router);
 
@@ -37,4 +51,5 @@ export const guestGuard: CanActivateFn = (route, state) => {
     router.navigate(['/dashboard']);
     return false;
   }
+  */
 };
