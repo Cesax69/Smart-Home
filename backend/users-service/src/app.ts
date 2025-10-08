@@ -1,6 +1,11 @@
 import express, { Application, Request, Response, NextFunction } from 'express';
 import cors from 'cors';
+import dotenv from 'dotenv';
 import routes from './routes';
+import { databaseService } from './config/database';
+
+// Cargar variables de entorno
+dotenv.config();
 
 class App {
   public app: Application;
@@ -8,10 +13,11 @@ class App {
 
   constructor() {
     this.app = express();
-    this.port = 3001;
+    this.port = parseInt(process.env.PORT || '3001');
     this.initializeMiddlewares();
     this.initializeRoutes();
     this.initializeErrorHandling();
+    this.initializeDatabase();
   }
 
   /**
@@ -85,6 +91,23 @@ class App {
   }
 
   /**
+   * Inicializa la conexión a la base de datos
+   */
+  private async initializeDatabase(): Promise<void> {
+    try {
+      console.log('Inicializando conexión a la base de datos (Users Service)...');
+      const isConnected = await databaseService.testConnection();
+      if (!isConnected) {
+        throw new Error('No se pudo establecer conexión con PostgreSQL (Users Service)');
+      }
+      const cfg = databaseService.getConfig();
+      console.log(`✅ Conectado a PostgreSQL: host=${cfg.host} db=${cfg.database} schema=${cfg.schema}`);
+    } catch (error) {
+      console.error('❌ Error inicializando la base de datos en Users Service:', error);
+    }
+  }
+
+  /**
    * Inicia el servidor
    */
   public listen(): void {
@@ -95,6 +118,7 @@ class App {
       console.log(`📍 URL: http://localhost:${this.port}`);
       console.log(`🏥 Health Check: http://localhost:${this.port}/api/health`);
       console.log(`👥 Usuarios: http://localhost:${this.port}/api/users`);
+      console.log(`💾 DB: ${process.env.DB_NAME || 'users_db'} @ ${process.env.DB_HOST || 'localhost'}:${process.env.DB_PORT || '5432'}`);
       console.log('=================================');
     });
   }

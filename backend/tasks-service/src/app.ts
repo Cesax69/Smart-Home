@@ -13,7 +13,7 @@ class App {
 
   constructor() {
     this.app = express();
-    this.port = parseInt(process.env.PORT || '3003');
+    this.port = parseInt(process.env.PORT || '3002');
     
     this.initializeMiddlewares();
     this.initializeRoutes();
