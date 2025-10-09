@@ -14,7 +14,7 @@ import { MatExpansionModule } from '@angular/material/expansion';
 import { MatAccordion } from '@angular/material/expansion';
 import { MatChipsModule } from '@angular/material/chips';
 import { MatProgressBarModule } from '@angular/material/progress-bar';
-import { MatSnackBar, MatSnackBarModule } from '@angular/material/snack-bar';
+// MatSnackBar removido: usamos AlertCenter
 import { MatDialogRef } from '@angular/material/dialog';
 import { MatTooltipModule } from '@angular/material/tooltip';
 import { MatButtonToggleModule } from '@angular/material/button-toggle';
@@ -28,6 +28,7 @@ import { forkJoin, of, switchMap, catchError } from 'rxjs';
 import { HttpClient } from '@angular/common/http';
 import { environment } from '../../../../../../environments/environment';
 import { FormValidators } from '../../../../../shared/validators/form-validators';
+import { AlertService } from '../../../../../services/alert.service';
 
 interface FilePreview {
   file: File;
@@ -55,7 +56,6 @@ interface FilePreview {
     MatExpansionModule,
     MatChipsModule,
     MatProgressBarModule,
-    MatSnackBarModule,
     MatTooltipModule,
     MatButtonToggleModule
   ],
@@ -86,14 +86,16 @@ export class TaskCreateComponent implements OnInit {
     private fb: FormBuilder,
     private authService: AuthService,
     private taskService: TaskService,
-    private snackBar: MatSnackBar,
     private dialogRef: MatDialogRef<TaskCreateComponent>,
-    private http: HttpClient
+    private http: HttpClient,
+    private alertService: AlertService
   ) {
     this.taskForm = this.createForm();
   }
 
   ngOnInit(): void {
+    // Bloquear cierre por clic fuera del modal
+    this.dialogRef.disableClose = true;
     this.loadFamilyMembers();
   }
 
@@ -106,8 +108,7 @@ export class TaskCreateComponent implements OnInit {
         FormValidators.noWhitespaceValidator()
       ]],
       description: ['', [
-        Validators.required,
-        Validators.minLength(3),
+        // Descripción opcional, solo limitamos longitud máxima
         Validators.maxLength(500)
       ]],
       category: ['limpieza', Validators.required],
@@ -146,10 +147,7 @@ export class TaskCreateComponent implements OnInit {
       },
       error: (error: any) => {
         console.error('Error loading family members:', error);
-        this.snackBar.open('Error al cargar los miembros de la familia', 'Cerrar', {
-          duration: 3000,
-          panelClass: ['error-snackbar']
-        });
+        this.alertService.error('Error al cargar miembros', 'No se pudieron obtener los miembros de la familia.', { duration: 4000, dismissible: true });
         this.isLoadingMembers.set(false);
       }
     });
@@ -190,10 +188,7 @@ export class TaskCreateComponent implements OnInit {
     const totalFiles = currentPreviews.length + files.length;
 
     if (totalFiles > this.maxFiles) {
-      this.snackBar.open(`Máximo ${this.maxFiles} archivos permitidos`, 'Cerrar', {
-        duration: 3000,
-        panelClass: ['error-snackbar']
-      });
+      this.alertService.warning('Límite de archivos', `Máximo ${this.maxFiles} archivos permitidos.`, { duration: 3000, dismissible: true });
       return;
     }
 
@@ -222,10 +217,7 @@ export class TaskCreateComponent implements OnInit {
     });
 
     if (errors.length > 0) {
-      this.snackBar.open(errors.join(', '), 'Cerrar', {
-        duration: 5000,
-        panelClass: ['error-snackbar']
-      });
+      this.alertService.warning('Archivos inválidos', errors.map(e => `• ${e}`).join('\n'), { duration: 5000, dismissible: true });
     }
 
     if (validFiles.length > 0) {
@@ -359,15 +351,13 @@ export class TaskCreateComponent implements OnInit {
   onSubmit(): void {
     if (this.taskForm.valid && !this.isSubmitting()) {
       this.isSubmitting.set(true);
+      const progressId = this.alertService.info('Creando tarea', 'Subiendo archivos y guardando...', { loading: true, dismissible: false, duration: 0 });
       
       const formValue = this.taskForm.value as any;
       const currentUser = this.authService.getCurrentUser();
       
       if (!currentUser) {
-        this.snackBar.open('Error: Usuario no autenticado', 'Cerrar', {
-          duration: 3000,
-          panelClass: ['error-snackbar']
-        });
+        this.alertService.error('Error de autenticación', 'Usuario no autenticado', { dismissible: true, duration: 4000 });
         this.isSubmitting.set(false);
         return;
       }
@@ -418,7 +408,7 @@ export class TaskCreateComponent implements OnInit {
           }),
           catchError((error) => {
             console.error('Error subiendo archivo:', error);
-            this.snackBar.open('No se pudo subir el archivo. La tarea no se creó.', 'Cerrar', { duration: 4000, panelClass: ['error-snackbar'] });
+            this.alertService.update(progressId, { type: 'error', loading: false, title: 'Error subiendo archivo', message: 'No se pudo subir el archivo. La tarea no se creó.', duration: 5000 });
             this.isSubmitting.set(false);
             throw error;
           })
@@ -426,10 +416,7 @@ export class TaskCreateComponent implements OnInit {
         .subscribe({
           next: (createdTask) => {
             console.log('Task created successfully:', createdTask);
-            this.snackBar.open('Tarea creada exitosamente', 'Cerrar', {
-              duration: 3000,
-              panelClass: ['success-snackbar']
-            });
+            this.alertService.update(progressId, { type: 'success', loading: false, title: 'Tarea creada', message: 'La tarea fue creada exitosamente', duration: 4000 });
             // Cerrar todas las secciones del accordion al guardar
             this.accordion?.closeAll();
             this.isSubmitting.set(false);
@@ -437,15 +424,13 @@ export class TaskCreateComponent implements OnInit {
           },
           error: (error) => {
             console.error('Error creating tasks:', error);
-            this.snackBar.open('Error al crear la tarea(s)', 'Cerrar', {
-              duration: 3000,
-              panelClass: ['error-snackbar']
-            });
+            this.alertService.update(progressId, { type: 'error', loading: false, title: 'Error creando tarea', message: 'No se pudo crear la tarea', duration: 5000 });
             this.isSubmitting.set(false);
           }
         });
     } else {
       this.markFormGroupTouched();
+      this.alertService.warning('Formulario inválido', this.getInvalidSummary(), { dismissible: true, duration: 4000 });
     }
   }
 
@@ -458,18 +443,18 @@ export class TaskCreateComponent implements OnInit {
     // Enviar todos los archivos seleccionados (el backend acepta múltiples 'file')
     previews.forEach(p => formData.append('file', p.file));
     // Enviar el título para que la carpeta se nombre correctamente
-    const title = (this.taskForm.get('title')?.value || '').toString().trim();
-    if (title) {
-      // Incluimos ambos campos por compatibilidad con el backend
-      formData.append('taskTitle', title);
-      formData.append('title', title);
-    }
+    const titleRaw = (this.taskForm.get('title')?.value || '').toString().trim();
+    const title = titleRaw || 'tarea';
+    // Incluimos ambos campos por compatibilidad con el backend y evitar "sin título"
+    formData.append('taskTitle', title);
+    formData.append('title', title);
 
     const uploadUrl = `${environment.services.fileUpload}/files/upload`;
     return this.http.post<any>(uploadUrl, formData);
   }
 
   onCancel(): void {
+    if (this.isSubmitting()) return; // Evitar cierre durante procesos
     this.dialogRef.close();
   }
 
@@ -478,6 +463,29 @@ export class TaskCreateComponent implements OnInit {
       const control = this.taskForm.get(key);
       control?.markAsTouched();
     });
+  }
+  
+  private getInvalidSummary(): string {
+    const messages: string[] = [];
+    const controls = this.taskForm.controls as any;
+    Object.keys(controls).forEach(key => {
+      const ctrl = controls[key];
+      if (!ctrl || ctrl.valid) return;
+      const name = this.getFieldDisplayName(key);
+      if (ctrl.hasError('required')) messages.push(`${name}: es requerido`);
+      const minLength = ctrl.errors?.['minlength']?.requiredLength;
+      if (minLength) messages.push(`${name}: mínimo ${minLength} caracteres`);
+      const min = ctrl.errors?.['min']?.min;
+      if (typeof min === 'number') messages.push(`${name}: mínimo ${min}`);
+      const max = ctrl.errors?.['max']?.max;
+      if (typeof max === 'number') messages.push(`${name}: máximo ${max}`);
+      if (ctrl.hasError('futureDate')) messages.push(`${name}: debe ser una fecha futura`);
+      if (ctrl.hasError('invalidPriority')) messages.push(`${name}: valor de prioridad inválido`);
+    });
+    if (this.taskForm.hasError('dateRange')) {
+      messages.push('Rango de fechas: la fecha límite debe ser posterior a la de inicio');
+    }
+    return messages.length ? messages.map(m => `• ${m}`).join('\n') : 'Revisa los campos con errores.';
   }
   
   // Miembros seleccionados para mostrar al costado
@@ -510,6 +518,6 @@ export class TaskCreateComponent implements OnInit {
 
   onReload(): void {
     this.loadFamilyMembers();
-    this.snackBar.open('Miembros recargados', 'Cerrar', { duration: 2000 });
+    this.alertService.info('Miembros recargados', undefined, { duration: 2000 });
   }
 }

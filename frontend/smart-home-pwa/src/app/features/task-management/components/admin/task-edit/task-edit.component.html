@@ -201,7 +201,7 @@
 
                 <mat-form-field appearance="outline" class="recurrence-field" *ngIf="taskForm.get('isRecurring')?.value">
                   <mat-label>Repetir cada</mat-label>
-                  <mat-select formControlName="recurrenceInterval">
+                  <mat-select formControlName="recurrenceInterval" [required]="taskForm.get('isRecurring')?.value">
                     <mat-option value="daily">Diariamente</mat-option>
                     <mat-option value="weekly">Semanalmente</mat-option>
                     <mat-option value="monthly">Mensualmente</mat-option>
@@ -249,7 +249,7 @@
             <mat-icon>cancel</mat-icon>
             Cancelar
           </button>
-          <button mat-raised-button color="primary" type="submit" [disabled]="taskForm.invalid || submitting">
+          <button mat-raised-button color="primary" type="submit" [disabled]="submitting">
             <mat-icon>save</mat-icon>
             Guardar cambios
           </button>

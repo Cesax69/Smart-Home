@@ -12,7 +12,7 @@ import { MatDatepickerModule } from '@angular/material/datepicker';
 import { MatNativeDateModule } from '@angular/material/core';
 import { MatCardModule } from '@angular/material/card';
 import { MatExpansionModule, MatAccordion } from '@angular/material/expansion';
-import { MatSnackBar, MatSnackBarModule } from '@angular/material/snack-bar';
+// MatSnackBar removido: usamos AlertCenter
 import { MatButtonToggleModule } from '@angular/material/button-toggle';
 import { MAT_DIALOG_DATA, MatDialogRef } from '@angular/material/dialog';
 import { HttpClient, HttpClientModule } from '@angular/common/http';
@@ -22,6 +22,7 @@ import { AuthService } from '../../../../../services/auth.service';
 import { Task, UpdateTaskRequest, TaskFile } from '../../../models/task.model';
 import { User } from '../../../../../models/user.model';
 import { FormValidators } from '../../../../../shared/validators/form-validators';
+import { AlertService } from '../../../../../services/alert.service';
 
 interface FilePreview {
   file: File;
@@ -47,7 +48,6 @@ interface FilePreview {
     MatNativeDateModule,
     MatCardModule,
     MatExpansionModule,
-    MatSnackBarModule,
     MatCheckboxModule,
     MatButtonToggleModule,
     MatChipsModule
@@ -73,9 +73,9 @@ export class AdminTaskEditComponent implements OnInit {
     private fb: FormBuilder,
     private taskService: TaskService,
     private authService: AuthService,
-    private snackBar: MatSnackBar,
     private http: HttpClient,
     private dialogRef: MatDialogRef<AdminTaskEditComponent>,
+    private alertService: AlertService,
     @Inject(MAT_DIALOG_DATA) public data: any
   ) {
     this.taskForm = this.fb.group({
@@ -98,9 +98,11 @@ export class AdminTaskEditComponent implements OnInit {
   }
 
   ngOnInit(): void {
+    // Bloquear cierre por clic fuera del modal
+    this.dialogRef.disableClose = true;
     this.taskId = this.data?.taskId ? Number(this.data.taskId) : null;
     if (!this.taskId || this.taskId <= 0) {
-      this.snackBar.open('Tarea inválida para editar', 'Cerrar', { duration: 3000 });
+      this.alertService.error('Tarea inválida', 'No se puede editar esta tarea.', { duration: 4000, dismissible: true });
       this.close();
       return;
     }
@@ -139,7 +141,7 @@ export class AdminTaskEditComponent implements OnInit {
         });
       },
       error: () => {
-        this.snackBar.open('No se pudo cargar la tarea', 'Cerrar', { duration: 3000 });
+        this.alertService.error('Error cargando tarea', 'No se pudo cargar la tarea.', { duration: 3000, dismissible: true });
       }
     });
   }
@@ -231,13 +233,20 @@ export class AdminTaskEditComponent implements OnInit {
   }
 
   private addFiles(files: File[]): void {
+    if (!files || files.length === 0) return;
+    const errors: string[] = [];
+    let remaining = this.maxFiles - this.filePreviews.length;
+    if (remaining <= 0) {
+      this.alertService.warning('Límite de archivos', `Máximo ${this.maxFiles} archivos permitidos.`, { duration: 3000, dismissible: true });
+      return;
+    }
     for (const file of files) {
-      if (this.filePreviews.length >= this.maxFiles) {
-        this.snackBar.open(`Máximo ${this.maxFiles} archivos`, 'Cerrar', { duration: 2000 });
+      if (remaining <= 0) {
+        errors.push(`Se alcanzó el máximo de ${this.maxFiles} archivos.`);
         break;
       }
       if (file.size > this.maxFileSize) {
-        this.snackBar.open('Archivo demasiado grande (max 10MB)', 'Cerrar', { duration: 3000 });
+        errors.push(`Demasiado grande: ${file.name}`);
         continue;
       }
       const isImage = file.type.startsWith('image/');
@@ -249,7 +258,49 @@ export class AdminTaskEditComponent implements OnInit {
         size: this.formatSize(file.size)
       };
       this.filePreviews.push(preview);
+      remaining--;
     }
+    if (errors.length > 0) {
+      this.alertService.warning('Algunos archivos no se agregaron', errors.map(e => `• ${e}`).join('\n'), { duration: 5000, dismissible: true });
+    }
+  }
+
+  private getFieldDisplayName(field: string): string {
+    const map: Record<string, string> = {
+      title: 'Título',
+      description: 'Descripción',
+      priority: 'Prioridad',
+      startDate: 'Fecha de inicio',
+      dueDate: 'Fecha límite',
+      assignedUserIds: 'Asignados',
+      estimatedTime: 'Tiempo estimado',
+      estimatedTimeDuration: 'Tiempo estimado',
+      recurrenceInterval: 'Periodo de recurrencia'
+    };
+    return map[field] ?? field;
+  }
+
+  private getInvalidSummary(): string {
+    const messages: string[] = [];
+    const controls = this.taskForm.controls as any;
+    Object.keys(controls).forEach(key => {
+      const ctrl = controls[key];
+      if (!ctrl || ctrl.valid) return;
+      const name = this.getFieldDisplayName(key);
+      if (ctrl.hasError('required')) messages.push(`${name}: es requerido`);
+      const minLength = ctrl.errors?.['minlength']?.requiredLength;
+      if (minLength) messages.push(`${name}: mínimo ${minLength} caracteres`);
+      const min = ctrl.errors?.['min']?.min;
+      if (typeof min === 'number') messages.push(`${name}: mínimo ${min}`);
+      const max = ctrl.errors?.['max']?.max;
+      if (typeof max === 'number') messages.push(`${name}: máximo ${max}`);
+      if (ctrl.hasError('futureDate')) messages.push(`${name}: debe ser una fecha futura`);
+      if (ctrl.hasError('invalidPriority')) messages.push(`${name}: valor de prioridad inválido`);
+    });
+    if (this.taskForm.hasError('dateRange')) {
+      messages.push('Rango de fechas: la fecha límite debe ser posterior a la de inicio');
+    }
+    return messages.length ? messages.map(m => `• ${m}`).join('\n') : 'Revisa los campos con errores.';
   }
 
   removeFile(preview: FilePreview): void {
@@ -261,7 +312,8 @@ export class AdminTaskEditComponent implements OnInit {
     const deleteDrive$ = driveId ? this.http.delete(`${environment.services.fileUpload}/files/drive/files/${driveId}`) : null;
     const deleteRecord$ = this.taskService.deleteTaskFile(file.id);
 
-    // Ejecutar ambas operaciones, tolerando fallos en Drive
+    // Mostrar progreso en AlertCenter y ejecutar ambas operaciones, tolerando fallos en Drive
+    const alertId = this.alertService.info('Eliminando archivo', 'Procesando eliminación...', { loading: true, dismissible: false, duration: 0 });
     if (deleteDrive$) {
       deleteDrive$.subscribe({
         next: () => {},
@@ -271,10 +323,10 @@ export class AdminTaskEditComponent implements OnInit {
     deleteRecord$.subscribe({
       next: () => {
         this.existingFiles = this.existingFiles.filter(f => f.id !== file.id);
-        this.snackBar.open('Archivo eliminado', 'Cerrar', { duration: 2000 });
+        this.alertService.update(alertId, { type: 'success', title: 'Archivo eliminado', message: 'Se eliminó correctamente', loading: false, duration: 2500 });
       },
       error: () => {
-        this.snackBar.open('No se pudo eliminar el archivo', 'Cerrar', { duration: 3000 });
+        this.alertService.update(alertId, { type: 'error', title: 'Error eliminando archivo', message: 'No se pudo eliminar el archivo', loading: false, dismissible: true, duration: 5000 });
       }
     });
   }
@@ -285,26 +337,33 @@ export class AdminTaskEditComponent implements OnInit {
     if (!selected) return;
 
     if (selected.size > this.maxFileSize) {
-      this.snackBar.open('Archivo demasiado grande (max 10MB)', 'Cerrar', { duration: 3000 });
+      this.alertService.warning('Archivo demasiado grande', 'Máximo permitido: 10MB', { duration: 4000, dismissible: true });
       return;
     }
 
     const formData = new FormData();
     formData.append('file', selected);
-    const title = (this.taskForm.value?.title || '') as string;
-    if (title) formData.append('taskTitle', title);
+    const title = ((this.taskForm.value?.title || this.task?.title || '').toString().trim());
+    if (title) {
+      formData.append('taskTitle', title);
+      formData.append('title', title);
+    } else {
+      formData.append('taskTitle', 'tarea');
+      formData.append('title', 'tarea');
+    }
     const folderId = file.folderId || this.existingFiles[0]?.folderId;
     if (folderId) formData.append('folderId', folderId);
     const uploadUrl = `${environment.services.fileUpload}/files/upload`;
     const driveId = file.googleDriveId || this.extractDriveFileId(file.fileUrl || undefined);
     const deleteUrl = driveId ? `${environment.services.fileUpload}/files/drive/files/${driveId}` : null;
 
+    const alertId = this.alertService.info('Reemplazando archivo', 'Subiendo y actualizando...', { loading: true, dismissible: false, duration: 0 });
     const uploadAfterDelete = () => this.http.post<any>(uploadUrl, formData).subscribe({
       next: (resp: any) => {
         const uploaded = Array.isArray(resp?.uploaded) ? resp.uploaded : [];
         const u = uploaded[0];
         if (!u) {
-          this.snackBar.open('No se pudo subir el archivo de reemplazo', 'Cerrar', { duration: 3000 });
+          this.alertService.update(alertId, { type: 'error', title: 'Error subiendo archivo', message: 'No se pudo subir el archivo de reemplazo', loading: false, dismissible: true, duration: 5000 });
           return;
         }
         this.taskService.replaceTaskFile(file.id, u).subscribe({
@@ -323,15 +382,15 @@ export class AdminTaskEditComponent implements OnInit {
               folderId: updated.folderId,
               folderName: updated.folderName
             } : f);
-            this.snackBar.open('Archivo reemplazado', 'Cerrar', { duration: 2000 });
+            this.alertService.update(alertId, { type: 'success', title: 'Archivo reemplazado', message: 'Se actualizó correctamente', loading: false, duration: 2500 });
           },
           error: () => {
-            this.snackBar.open('No se pudo actualizar el archivo en BD', 'Cerrar', { duration: 3000 });
+            this.alertService.update(alertId, { type: 'error', title: 'Error actualizando registro', message: 'No se pudo actualizar el archivo en BD', loading: false, dismissible: true, duration: 5000 });
           }
         });
       },
       error: () => {
-        this.snackBar.open('Error subiendo archivo de reemplazo', 'Cerrar', { duration: 3000 });
+        this.alertService.update(alertId, { type: 'error', title: 'Error subiendo archivo', message: 'No se pudo subir el archivo de reemplazo', loading: false, dismissible: true, duration: 5000 });
       }
     });
     if (deleteUrl) {
@@ -414,8 +473,13 @@ export class AdminTaskEditComponent implements OnInit {
 
   // ====== Guardar cambios ======
   onSubmit(): void {
-    if (this.taskForm.invalid || !this.taskId) return;
+    if (this.taskForm.invalid || !this.taskId) {
+      this.markFormGroupTouched();
+      this.alertService.warning('Formulario inválido', this.getInvalidSummary(), { dismissible: true, duration: 4000 });
+      return;
+    }
     this.submitting = true;
+    const progressId = this.alertService.info('Actualizando tarea', 'Procesando archivos y cambios...', { loading: true, dismissible: false, duration: 0 });
 
     const v = this.taskForm.value;
     const updates: UpdateTaskRequest = {
@@ -449,31 +513,42 @@ export class AdminTaskEditComponent implements OnInit {
           const uploaded = Array.isArray(resp?.uploaded) ? resp.uploaded : [];
           // registrar en BD
           this.taskService.registerTaskFiles(this.taskId!, uploaded).subscribe({
-            next: () => this.finalizeUpdate(updates, uploaded[0]?.fileUrl || undefined),
-            error: () => this.finalizeUpdate(updates)
+            next: () => this.finalizeUpdate(updates, uploaded[0]?.fileUrl || undefined, progressId),
+            error: () => this.finalizeUpdate(updates, undefined, progressId)
           });
         },
-        error: () => this.finalizeUpdate(updates)
+        error: () => this.finalizeUpdate(updates, undefined, progressId)
       });
     } else {
-      this.finalizeUpdate(updates);
+      this.finalizeUpdate(updates, undefined, progressId);
     }
   }
 
-  private finalizeUpdate(updates: UpdateTaskRequest, firstFileUrl?: string): void {
+  private markFormGroupTouched(): void {
+    Object.keys(this.taskForm.controls).forEach(key => {
+      const control = this.taskForm.get(key);
+      control?.markAsTouched();
+    });
+  }
+
+  private finalizeUpdate(updates: UpdateTaskRequest, firstFileUrl?: string, progressId?: string): void {
     if (firstFileUrl) {
       (updates as any).fileUrl = firstFileUrl;
     }
     this.taskService.updateTask(this.taskId!, updates).subscribe({
       next: (t) => {
-        this.snackBar.open('Tarea actualizada', 'Cerrar', { duration: 2000 });
+        if (progressId) {
+          this.alertService.update(progressId, { type: 'success', loading: false, title: 'Tarea actualizada', message: 'Los cambios se guardaron correctamente', duration: 3000 });
+        }
         // Cerrar todas las secciones del accordion al guardar
         this.accordion?.closeAll();
         this.dialogRef.close(t);
         this.submitting = false;
       },
       error: () => {
-        this.snackBar.open('No se pudo actualizar la tarea', 'Cerrar', { duration: 3000 });
+        if (progressId) {
+          this.alertService.update(progressId, { type: 'error', loading: false, title: 'Error actualizando', message: 'No se pudo actualizar la tarea', duration: 5000 });
+        }
         this.submitting = false;
       }
     });
@@ -482,11 +557,10 @@ export class AdminTaskEditComponent implements OnInit {
   private uploadSelectedFiles(title: string) {
     const formData = new FormData();
     this.filePreviews.forEach(p => formData.append('file', p.file));
-    if (title) {
-      // Incluimos ambos campos por compatibilidad con el backend
-      formData.append('taskTitle', title);
-      formData.append('title', title);
-    }
+    const safeTitle = (title || 'tarea').toString().trim();
+    // Incluimos ambos campos por compatibilidad con el backend y evitar "sin título"
+    formData.append('taskTitle', safeTitle);
+    formData.append('title', safeTitle);
     const folderId = this.existingFiles[0]?.folderId;
     if (folderId) formData.append('folderId', folderId);
     const uploadUrl = `${environment.services.fileUpload}/files/upload`;
@@ -494,6 +568,7 @@ export class AdminTaskEditComponent implements OnInit {
   }
 
   close(): void {
+    if (this.submitting) return; // Evitar cierre durante procesos
     this.dialogRef.close();
   }
 }

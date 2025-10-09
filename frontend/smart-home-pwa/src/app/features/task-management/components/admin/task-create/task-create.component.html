@@ -250,7 +250,7 @@
             @if (taskForm.get('isRecurring')?.value) {
               <mat-form-field appearance="outline" class="recurrence-field">
                 <mat-label>Repetir cada</mat-label>
-                <mat-select formControlName="recurrenceInterval">
+                <mat-select formControlName="recurrenceInterval" [required]="taskForm.get('isRecurring')?.value">
                   <mat-option value="daily">Diariamente</mat-option>
                   <mat-option value="weekly">Semanalmente</mat-option>
                   <mat-option value="monthly">Mensualmente</mat-option>
@@ -319,7 +319,7 @@
       </button>
       <button type="submit" mat-raised-button color="primary" 
               (click)="onSubmit()" 
-              [disabled]="taskForm.invalid || isSubmitting()">
+              [disabled]="isSubmitting()">
         <mat-icon>save</mat-icon>
         @if (isSubmitting()) {
           Guardando...

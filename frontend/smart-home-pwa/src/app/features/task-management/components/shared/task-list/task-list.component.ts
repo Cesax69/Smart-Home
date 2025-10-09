@@ -12,7 +12,7 @@ import { MatInputModule } from '@angular/material/input';
 import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
 import { MatMenuModule } from '@angular/material/menu';
 import { MatDialogModule, MatDialog } from '@angular/material/dialog';
-import { MatSnackBar, MatSnackBarModule } from '@angular/material/snack-bar';
+// MatSnackBar removido: usamos AlertCenter
 import { AlertService } from '../../../../../services/alert.service';
 
 // Imports actualizados para la nueva estructura
@@ -40,7 +40,6 @@ import { AdminTaskEditComponent } from '../../admin/task-edit/task-edit.componen
     MatProgressSpinnerModule,
     MatMenuModule,
     MatDialogModule,
-    MatSnackBarModule
   ],
   templateUrl: './task-list.component.html',
   styleUrl: './task-list.component.scss'
@@ -61,7 +60,6 @@ export class TaskListComponent implements OnInit {
     private authService: AuthService,
     private router: Router,
     private dialog: MatDialog,
-    private snackBar: MatSnackBar,
     private alerts: AlertService
   ) {}
 
@@ -87,7 +85,7 @@ export class TaskListComponent implements OnInit {
       },
       error: (error: any) => {
         console.error('Error loading tasks:', error);
-        this.snackBar.open('Error al cargar las tareas', 'Cerrar', { duration: 3000 });
+        this.alerts.error('Error al cargar tareas', 'No se pudieron cargar las tareas.', { duration: 3000, dismissible: true });
         this.isLoading.set(false);
       }
     });
@@ -136,11 +134,12 @@ export class TaskListComponent implements OnInit {
     const dialogRef = this.dialog.open(AdminTaskEditComponent, {
       width: '760px',
       maxWidth: '95vw',
+      disableClose: true,
       data: { taskId: task.id }
     });
     dialogRef.afterClosed().subscribe(result => {
       if (result) {
-        this.snackBar.open('Tarea actualizada', 'Cerrar', { duration: 2000 });
+        // Evitar alerta duplicada: el diálogo ya muestra éxito
         this.reloadTasks();
       }
     });
@@ -208,11 +207,11 @@ export class TaskListComponent implements OnInit {
           this.tasks.set([...tasks]);
           this.applyFilters();
         }
-        this.snackBar.open('Tarea iniciada', 'Cerrar', { duration: 2000 });
+        this.alerts.success('Tarea iniciada', 'La tarea está en progreso.', { duration: 2500, dismissible: true });
       },
       error: (error: any) => {
         console.error('Error starting task:', error);
-        this.snackBar.open('Error al iniciar la tarea', 'Cerrar', { duration: 3000 });
+        this.alerts.error('Error al iniciar', 'No se pudo iniciar la tarea.', { duration: 4000, dismissible: true });
       }
     });
   }
@@ -227,11 +226,11 @@ export class TaskListComponent implements OnInit {
           this.tasks.set([...tasks]);
           this.applyFilters();
         }
-        this.snackBar.open('Tarea completada', 'Cerrar', { duration: 2000 });
+        this.alerts.success('Tarea completada', 'Se marcó como completada.', { duration: 2500, dismissible: true });
       },
       error: (error: any) => {
         console.error('Error completing task:', error);
-        this.snackBar.open('Error al completar la tarea', 'Cerrar', { duration: 3000 });
+        this.alerts.error('Error al completar', 'No se pudo completar la tarea.', { duration: 4000, dismissible: true });
       }
     });
   }
@@ -281,18 +280,14 @@ export class TaskListComponent implements OnInit {
       width: '800px',
       maxWidth: '90vw',
       maxHeight: '90vh',
-      disableClose: false,
+      disableClose: true,
       data: {}
     });
 
     dialogRef.afterClosed().subscribe(result => {
       if (result) {
-        // Si se creó una tarea, recargar la lista
+        // Si se creó una tarea, recargar la lista (sin alerta para evitar duplicados)
         this.loadTasks();
-        this.snackBar.open('Tarea creada exitosamente', 'Cerrar', { 
-          duration: 3000,
-          panelClass: ['success-snackbar']
-        });
       }
     });
   }
