@@ -104,6 +104,7 @@ services:
       - DB_NAME=tasks_db
       - DB_USER=postgres
       - DB_PASSWORD=linux
+      - API_GATEWAY_URL=http://api-gateway:3000
     depends_on:
       postgres-tasks:
         condition: service_healthy
@@ -121,6 +122,7 @@ services:
       - "3003:3003"
     environment:
       - NODE_ENV=production
+      - PORT=3003
       - WHATSAPP_API_URL=https://api.whatsapp.com/send
       - WEBHOOK_SECRET=your-webhook-secret-change-in-production
     networks:

@@ -14,7 +14,9 @@ CREATE TABLE IF NOT EXISTS tasks (
     status VARCHAR(20) DEFAULT 'pending',
     priority VARCHAR(10) DEFAULT 'medium',
     category VARCHAR(50),
+    start_date TIMESTAMP,
     due_date TIMESTAMP,
+    estimated_time INTEGER,
     completed_at TIMESTAMP,
     -- Campos para manejo de períodos y repeticiones
     is_recurring BOOLEAN DEFAULT false,
@@ -81,6 +83,9 @@ CREATE INDEX IF NOT EXISTS idx_task_assignments_task_id ON task_assignments(task
 CREATE INDEX IF NOT EXISTS idx_task_assignments_user_id ON task_assignments(user_id);
 CREATE INDEX IF NOT EXISTS idx_task_files_task_id ON task_files(task_id);
 CREATE INDEX IF NOT EXISTS idx_task_files_storage_type ON task_files(storage_type);
+
+-- Asegurar columna start_date si la tabla ya existía previamente
+ALTER TABLE IF NOT EXISTS tasks ADD COLUMN IF NOT EXISTS start_date TIMESTAMP;
 
 -- ========================================
 -- DATOS DE EJEMPLO - TAREAS

@@ -25,6 +25,7 @@ router.delete('/tasks/:id', (req, res) => taskController.deleteTask(req, res));
 // Rutas de archivos por tarea
 router.get('/tasks/:id/files', (req, res) => taskController.getTaskFiles(req, res));
 router.post('/tasks/:id/files', (req, res) => taskController.addTaskFiles(req, res));
+router.put('/tasks/files/:fileRecordId', (req, res) => taskController.updateTaskFile(req, res));
 router.delete('/tasks/files/:fileRecordId', (req, res) => taskController.deleteTaskFile(req, res));
 
 // Health check

@@ -21,7 +21,7 @@ import { Task } from '../../../models/task.model';
 import { User } from '../../../../../models/user.model';
 import { ConfirmDialogComponent } from '../../../../../components/confirm-dialog/confirm-dialog.component';
 import { TaskCreateComponent } from '../../admin/task-create/task-create.component';
-import { TaskEditComponent } from '../task-edit/task-edit.component';
+import { AdminTaskEditComponent } from '../../admin/task-edit/task-edit.component';
 
 @Component({
   selector: 'app-task-list',
@@ -131,7 +131,7 @@ export class TaskListComponent implements OnInit {
   }
 
   openEditTask(task: Task): void {
-    const dialogRef = this.dialog.open(TaskEditComponent, {
+    const dialogRef = this.dialog.open(AdminTaskEditComponent, {
       width: '760px',
       maxWidth: '95vw',
       data: { taskId: task.id }

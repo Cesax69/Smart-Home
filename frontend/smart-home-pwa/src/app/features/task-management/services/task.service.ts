@@ -99,6 +99,25 @@ export class TaskService {
     }
   }
 
+  // Mapear prioridad del frontend (en) a backend (es)
+  private mapPriorityToBackend(priority: string | undefined): 'baja' | 'media' | 'alta' | 'urgente' {
+    switch ((priority || '').toLowerCase()) {
+      case 'low':
+      case 'baja':
+        return 'baja';
+      case 'medium':
+      case 'media':
+        return 'media';
+      case 'high':
+      case 'alta':
+        return 'alta';
+      case 'urgente':
+        return 'urgente';
+      default:
+        return 'media';
+    }
+  }
+
   private mapTaskToFrontend(task: any): Task {
     return {
       id: task.id,
@@ -109,7 +128,12 @@ export class TaskService {
       assignedTo: task.assignedUserId ?? task.assigned_to ?? task.assignedUserId,
       assignedUserIds: task.assignedUserIds ?? task.assigned_user_ids ?? ((task.assignedUserId ?? task.assigned_to) ? [task.assignedUserId ?? task.assigned_to] : undefined),
       assignedBy: task.createdById ?? task.assignedBy ?? task.user_id,
+      startDate: task.startDate ?? task.start_date ?? undefined,
       dueDate: task.dueDate ?? task.due_date ?? undefined,
+      estimatedTime: task.estimatedTime ?? task.estimated_time ?? undefined,
+      isRecurring: task.isRecurring ?? task.is_recurring ?? undefined,
+      // Mapear correctamente desde backend: puede venir como recurrence_type
+      recurrenceInterval: task.recurrenceInterval ?? task.recurrence_type ?? task.recurrence_interval ?? undefined,
       createdAt: task.createdAt ?? task.created_at,
       updatedAt: task.updatedAt ?? task.updated_at,
       completedAt: task.completedAt ?? task.completed_at ?? undefined,
@@ -204,6 +228,9 @@ export class TaskService {
     if (payload.status) {
       payload.status = this.mapStatusToBackend(payload.status);
     }
+    if (payload.priority) {
+      payload.priority = this.mapPriorityToBackend(payload.priority);
+    }
     return this.http.put<any>(`${this.API_URL}/tasks/${id}`, payload).pipe(
       map((res: any) => this.mapTaskToFrontend(res?.data ?? res)),
       catchError(this.handleError<Task>('actualizar tarea'))
@@ -262,6 +289,8 @@ export class TaskService {
               uploadedBy: f.uploaded_by,
               storageType: f.storage_type,
               googleDriveId: f.google_drive_id,
+              folderId: f.folder_id,
+              folderName: f.folder_name,
               isImage: f.is_image,
               thumbnailPath: f.thumbnail_path,
               createdAt: f.created_at
@@ -290,6 +319,8 @@ export class TaskService {
               uploadedBy: f.uploaded_by,
               storageType: f.storage_type,
               googleDriveId: f.google_drive_id,
+              folderId: f.folder_id,
+              folderName: f.folder_name,
               isImage: f.is_image,
               thumbnailPath: f.thumbnail_path,
               createdAt: f.created_at
@@ -305,6 +336,46 @@ export class TaskService {
     return this.http.delete<any>(`${this.API_URL}/tasks/files/${fileRecordId}`).pipe(
       map(() => void 0),
       catchError(this.handleError<void>('eliminar archivo de tarea'))
+    );
+  }
+
+  /** Reemplazar/actualizar un archivo existente en BD (actualiza rutas y metadatos) */
+  replaceTaskFile(fileRecordId: number, uploadedFile: any): Observable<TaskFile> {
+    // Mapear desde respuesta del servicio de subida a snake_case esperado por backend
+    const payload: any = {
+      file_name: uploadedFile.filename ?? uploadedFile.fileName,
+      file_url: uploadedFile.fileUrl,
+      file_size: uploadedFile.size,
+      mime_type: uploadedFile.mimetype,
+      storage_type: uploadedFile.storage ?? 'google_drive',
+      google_drive_id: uploadedFile.fileId,
+      is_image: typeof uploadedFile.mimetype === 'string' ? uploadedFile.mimetype.startsWith('image/') : undefined,
+      folder_id: uploadedFile.folderId,
+      folder_name: uploadedFile.folderName
+    };
+    return this.http.put<any>(`${this.API_URL}/tasks/files/${fileRecordId}`, payload).pipe(
+      map((f: any) => {
+        const r = f?.data ?? f;
+        return {
+          id: r.id,
+          taskId: r.task_id,
+          fileName: r.file_name,
+          filePath: r.file_path,
+          fileUrl: r.file_url,
+          fileSize: r.file_size,
+          fileType: r.file_type,
+          mimeType: r.mime_type,
+          uploadedBy: r.uploaded_by,
+          storageType: r.storage_type,
+          googleDriveId: r.google_drive_id,
+          folderId: r.folder_id,
+          folderName: r.folder_name,
+          isImage: r.is_image,
+          thumbnailPath: r.thumbnail_path,
+          createdAt: r.created_at
+        } as TaskFile;
+      }),
+      catchError(this.handleError<TaskFile>('reemplazar archivo de tarea'))
     );
   }
 

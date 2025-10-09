@@ -74,21 +74,45 @@ export class UploadController {
       // Inicializar servicio de Google Drive
       const driveService = UploadController.initializeGoogleDrive();
 
-      // Obtener título de la tarea y construir nombre de carpeta
-      const rawTitle = (req.body?.taskTitle || req.body?.title || req.query?.taskTitle || '').toString().trim();
-      const taskTitle = rawTitle.length > 0 ? rawTitle : 'Sin título';
-      const dateISO = new Date().toISOString().slice(0, 10); // YYYY-MM-DD
-      const safeTitle = taskTitle.replace(/[\\/:*?"<>|]/g, '-');
-      const folderName = `${safeTitle} - ${dateISO}`;
-
-      // Crear carpeta bajo la carpeta base (si existe en env)
-      const parentFolderId = process.env.GOOGLE_DRIVE_FOLDER_ID || undefined;
+      // Determinar carpeta destino: si viene folderId, reutilizarla; si no, reutilizar por título o crear
+      const providedFolderId = (req.body?.folderId || req.query?.folderId || '').toString().trim();
       let targetFolderId: string;
-      try {
-        targetFolderId = await driveService.createFolder(folderName, parentFolderId);
-      } catch (err) {
-        console.error('❌ Error creando carpeta destino en Google Drive:', err);
-        throw new Error('No se pudo crear la carpeta de destino para la tarea');
+      let folderName: string;
+      if (providedFolderId) {
+        targetFolderId = providedFolderId;
+        try {
+          const info = await driveService.getFileInfo(targetFolderId);
+          folderName = info?.name || 'Carpeta existente';
+        } catch {
+          folderName = 'Carpeta existente';
+        }
+      } else {
+        const rawTitle = (req.body?.taskTitle || req.body?.title || req.query?.taskTitle || '').toString().trim();
+        const taskTitle = rawTitle.length > 0 ? rawTitle : 'Sin título';
+        const safeTitle = taskTitle.replace(/[\\/:*?"<>|]/g, '-');
+        const parentFolderId = process.env.GOOGLE_DRIVE_FOLDER_ID || undefined;
+        // Buscar carpeta existente por nombre estable (sin fecha)
+        const exact = await driveService.findFolderByExactName(safeTitle, parentFolderId);
+        const byPrefix = exact ? null : await driveService.findFolderByPrefix(`${safeTitle} - `, parentFolderId);
+        const found = exact || byPrefix;
+        if (found && found.id) {
+          targetFolderId = found.id;
+          folderName = found.name || safeTitle;
+          // Renombrar a nombre estable si difiere
+          if (folderName !== safeTitle) {
+            await driveService.renameFolder(targetFolderId, safeTitle).catch(() => {});
+            folderName = safeTitle;
+          }
+        } else {
+          // Crear nueva carpeta con nombre estable
+          try {
+            targetFolderId = await driveService.createFolder(safeTitle, parentFolderId);
+            folderName = safeTitle;
+          } catch (err) {
+            console.error('❌ Error creando carpeta destino en Google Drive:', err);
+            throw new Error('No se pudo crear la carpeta de destino para la tarea');
+          }
+        }
       }
 
       const uploaded: any[] = [];
@@ -338,6 +362,28 @@ export class UploadController {
   }
 
   /**
+   * Listar archivos de Google Drive en una carpeta específica
+   * GET /drive/folders/:folderId/files
+   */
+  public static async listDriveFilesInFolder(req: Request, res: Response): Promise<void> {
+    try {
+      const folderId = req.params.folderId;
+      if (!folderId) {
+        res.status(400).json({ success: false, message: 'folderId requerido' });
+        return;
+      }
+      const pageSize = parseInt(req.query.pageSize as string) || 10;
+      const driveService = UploadController.initializeGoogleDrive();
+      const files = await driveService.listFilesInFolder(folderId, pageSize);
+      res.status(200).json({ success: true, message: 'Archivos obtenidos exitosamente', files, count: files.length });
+    } catch (error) {
+      console.error('❌ Error listando archivos por carpeta:', error);
+      const errorMessage = error instanceof Error ? error.message : 'Error desconocido';
+      res.status(500).json({ success: false, message: `Error obteniendo archivos por carpeta: ${errorMessage}` });
+    }
+  }
+
+  /**
    * Obtener información de un archivo específico de Google Drive
    */
   public static async getDriveFileInfo(req: Request, res: Response): Promise<void> {
@@ -385,13 +431,33 @@ export class UploadController {
       }
 
       const driveService = UploadController.initializeGoogleDrive();
+      // Obtener carpeta contenedora antes de borrar
+      let parentFolderId: string | null = null;
+      try {
+        const info = await driveService.getFileInfo(fileId);
+        const parents: string[] = Array.isArray(info?.parents) ? info.parents : [];
+        parentFolderId = parents.length ? parents[0] : null;
+      } catch {}
+
       const deleted = await driveService.deleteFile(fileId);
       
       if (deleted) {
+        // Si conocemos la carpeta, verificar si quedó vacía y eliminarla
+        let folderDeleted = false;
+        if (parentFolderId) {
+          try {
+            const remaining = await driveService.listFilesInFolder(parentFolderId, 10);
+            if (!remaining || remaining.length === 0) {
+              folderDeleted = await driveService.deleteFolder(parentFolderId);
+            }
+          } catch {}
+        }
         res.status(200).json({
           success: true,
           message: 'Archivo eliminado exitosamente',
-          fileId: fileId
+          fileId: fileId,
+          folderDeleted: folderDeleted || false,
+          folderId: parentFolderId || undefined
         });
       } else {
         res.status(500).json({

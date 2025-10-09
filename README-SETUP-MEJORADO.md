@@ -1,25 +1,11 @@
 # 🏠 Smart Home - Sistema de Gestión Familiar con PWA
 
-## 🚀 Configuración Ultra-Rápida (3 pasos)
+## 🚀 Configuración Ultra-Rápida (Docker Compose)
 
-### 1️⃣ Configurar Infraestructura
 ```powershell
-.\setup-simple.ps1
+docker-compose up -d --build
 ```
-Este script:
-- ✅ Configura PostgreSQL para usuarios y tareas
-- ✅ Crea toda la estructura de directorios para archivos
-- ✅ Verifica que todo esté funcionando correctamente
-
-### 2️⃣ Instalar Dependencias
-```powershell
-.\install-simple.ps1
-```
-
-### 3️⃣ Iniciar Sistema Completo
-```powershell
-.\start-simple.ps1
-```
+Esto inicia PostgreSQL (users_db y tasks_db) y todos los microservicios listos para usar.
 
 ## 🎯 Arquitectura del Sistema
 
@@ -32,41 +18,28 @@ Smart-Home/
 │   ├── tasks-service/      # Gestión de tareas familiares
 │   ├── file-upload-service/# Subida y organización de archivos
 │   ├── notifications-service/# Sistema de notificaciones
-│   └── file-storage/       # Almacenamiento local organizado
 └── frontend/               # Aplicación PWA Angular
     └── smart-home-pwa/     # Interfaz web progresiva
 ```
 
 ### 🔄 Arquitectura Simplificada
 - **PostgreSQL**: Almacena usuarios, roles y tareas familiares
-- **Almacenamiento Local**: Archivos organizados automáticamente por tipo
+- **Almacenamiento de Archivos**: Integración con Google Drive vía file-upload-service
 - **PWA Angular**: Interfaz moderna con funcionalidad offline
 - **Roles Familiares**: Jefe de hogar y miembros de familia con permisos diferenciados
 
-### 📁 Organización Automática de Archivos
-```
-file-storage/
-├── uploads/
-│   ├── images/          # jpg, png, gif, etc.
-│   ├── documents/       # pdf, doc, txt, etc.
-│   ├── videos/          # mp4, avi, mov, etc.
-│   ├── others/          # otros tipos
-│   └── user_X/          # carpetas por usuario (opcional)
-├── temp/                # archivos temporales
-└── quarantine/          # archivos sospechosos
-```
+El almacenamiento local directo fue deprecado. Los contenedores montan volúmenes para `uploads`, `temp` y `quarantine` para manejo temporal; los archivos finales se almacenan en Google Drive.
 
-### ⚡ Scripts Simplificados
-- **setup-simple.ps1**: Configuración automática de PostgreSQL
-- **install-simple.ps1**: Instalación de dependencias para todos los servicios
-- **start-simple.ps1**: Inicio coordinado de backend y frontend
+### ⚡ Arranque rápido
+Usa Docker Compose para levantar todo el sistema con un solo comando.
 
 ## 🛠️ Configuración Manual (Opcional)
 
-### Configurar PostgreSQL
+### Configurar PostgreSQL (manual)
 ```powershell
-# Configurar base de datos
-psql -U postgres -h localhost -d smart_home_db -f backend/setup-database.sql
+# Crear y poblar bases de datos (usuarios y tareas)
+psql -U postgres -h localhost -d users_db -f backend/setup-users-database.sql
+psql -U postgres -h localhost -d tasks_db -f backend/setup-tasks-database.sql
 ```
 
 ### Iniciar Servicios Individualmente
@@ -90,17 +63,16 @@ cd frontend/smart-home-pwa && npm start
 | **API Gateway** | http://localhost:3000 | Punto de entrada de APIs |
 | **Users Service** | http://localhost:3001 | Gestión de usuarios y roles |
 | **Tasks Service** | http://localhost:3002 | Gestión de tareas familiares |
-| **File Upload** | http://localhost:3003 | Subida y organización de archivos |
-| **Notifications** | http://localhost:3004 | Sistema de notificaciones |
+| **File Upload** | http://localhost:3004 | Subida y organización de archivos |
+| **Notifications** | http://localhost:3003 | Sistema de notificaciones |
 
 ## 🗄️ Configuración de Base de Datos
 
 ### PostgreSQL
-- **Host**: localhost:5432
-- **Database**: smart_home_db
-- **Usuario**: postgres
-- **Contraseña**: linux
-- **Esquemas**: `users_schema`, `tasks_schema`
+- **Bases de datos**: `users_db` y `tasks_db`
+- **Usuario**: `postgres`
+- **Contraseña**: `linux`
+- **Esquema**: `public`
 
 ## 📋 Características Mejoradas
 
@@ -111,17 +83,13 @@ cd frontend/smart-home-pwa && npm start
 - ✅ Limpieza automática de temporales
 - ✅ Estadísticas de almacenamiento
 
-### 🚀 Notificaciones con Redis
-- ✅ Colas de notificaciones
-- ✅ TTL automático
-- ✅ Pub/Sub para tiempo real
-- ✅ Reintentos automáticos
+### 🚀 Notificaciones
+- Implementación actual basada en endpoints del `notifications-service` (sin Redis).
 
 ### 🛡️ Seguridad
 - ✅ Validación de tipos de archivo
 - ✅ Límites de tamaño
 - ✅ Cuarentena para archivos sospechosos
-- ✅ Tokens de sesión en Redis
 
 ## 🔍 Verificación del Sistema
 
@@ -129,9 +97,6 @@ cd frontend/smart-home-pwa && npm start
 ```powershell
 # Verificar PostgreSQL
 Test-NetConnection localhost -Port 5432
-
-# Verificar Redis
-Test-NetConnection localhost -Port 6379
 
 # Verificar servicios web
 curl http://localhost:3000/health
@@ -158,9 +123,10 @@ npm install
 ```
 
 ### Base de Datos
+Para recrear los esquemas manualmente, utiliza los scripts por servicio:
 ```powershell
-# Recrear esquemas
-psql -U postgres -d smart_home_db -f setup-database.sql
+psql -U postgres -d users_db -f backend/setup-users-database.sql
+psql -U postgres -d tasks_db -f backend/setup-tasks-database.sql
 ```
 
 ## 🎉 Ventajas de esta Configuración

@@ -32,6 +32,12 @@ router.get('/health', UploadController.healthCheck);
 router.get('/drive/files', UploadController.listDriveFiles);
 
 /**
+ * GET /drive/folders/:folderId/files
+ * Listar archivos de una carpeta específica de Google Drive
+ */
+router.get('/drive/folders/:folderId/files', UploadController.listDriveFilesInFolder);
+
+/**
  * GET /drive/files/:fileId
  * Obtener información de un archivo específico de Google Drive
  */

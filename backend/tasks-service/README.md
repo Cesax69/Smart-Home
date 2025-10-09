@@ -54,8 +54,8 @@ cp .env.example .env
 ```
 
 3. **Configurar PostgreSQL:**
-   - Crear base de datos `smart_home_db`
-   - El servicio creará automáticamente el esquema `tasks_schema` y la tabla `tasks`
+   - Crear base de datos `tasks_db` (o usa Docker Compose que la crea por ti)
+   - El esquema es `public` y las tablas se crean mediante `backend/setup-tasks-database.sql`
 
 4. **Compilar TypeScript:**
 ```bash
@@ -78,16 +78,7 @@ El servicio estará disponible en: `http://localhost:3002`
 
 ## 📊 Modelo de Datos
 
-### Tabla: tasks (esquema: tasks_schema)
-
-| Campo | Tipo | Descripción |
-|-------|------|-------------|
-| `id` | SERIAL PRIMARY KEY | Identificador único |
-| `description` | TEXT NOT NULL | Descripción de la tarea |
-| `status` | VARCHAR(20) | Estado: 'pendiente', 'en_proceso', 'completada' |
-| `assigned_user_id` | INTEGER NOT NULL | ID del usuario asignado |
-| `file_url` | VARCHAR(500) | URL de archivo adjunto (opcional) |
-| `created_at` | TIMESTAMP | Fecha de creación |
+El esquema completo de tablas (tareas, asignaciones, archivos, subtareas) está definido en `backend/setup-tasks-database.sql` y se aplica automáticamente al iniciar con Docker Compose.
 
 ## 🌐 API Endpoints
 
@@ -208,10 +199,10 @@ EVENTO PUBLICADO: TareaCreada, UsuarioID: 1, TareaID: 5, Descripción: Limpiar l
 # Base de datos
 DB_HOST=localhost
 DB_PORT=5432
-DB_NAME=smart_home_db
+DB_NAME=tasks_db
 DB_USER=postgres
 DB_PASSWORD=tu_password
-DB_SCHEMA=tasks_schema
+DB_SCHEMA=public
 
 # Servidor
 PORT=3002
@@ -233,9 +224,8 @@ El servicio incluye manejo comprehensivo de errores:
 2. Agregar paginación para listado de tareas
 3. Implementar búsqueda por texto
 4. Agregar métricas y monitoreo
-5. Implementar cache con Redis
-6. Agregar tests unitarios e integración
-7. Configurar CI/CD pipeline
+5. Agregar tests unitarios e integración
+6. Configurar CI/CD pipeline
 
 ## 📞 Soporte
 

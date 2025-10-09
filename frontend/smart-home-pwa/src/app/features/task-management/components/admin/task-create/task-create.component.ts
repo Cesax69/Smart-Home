@@ -1,4 +1,4 @@
-import { Component, OnInit, signal } from '@angular/core';
+import { Component, OnInit, signal, ViewChild } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { ReactiveFormsModule, FormBuilder, FormGroup, Validators } from '@angular/forms';
 import { MatFormFieldModule } from '@angular/material/form-field';
@@ -11,6 +11,7 @@ import { MatCheckboxModule } from '@angular/material/checkbox';
 import { MatIconModule } from '@angular/material/icon';
 import { MatCardModule } from '@angular/material/card';
 import { MatExpansionModule } from '@angular/material/expansion';
+import { MatAccordion } from '@angular/material/expansion';
 import { MatChipsModule } from '@angular/material/chips';
 import { MatProgressBarModule } from '@angular/material/progress-bar';
 import { MatSnackBar, MatSnackBarModule } from '@angular/material/snack-bar';
@@ -75,6 +76,7 @@ export class TaskCreateComponent implements OnInit {
   isSubmitting = signal(false);
   isLoadingMembers = signal(false);
   showAttachments = signal(false);
+  @ViewChild(MatAccordion) accordion?: MatAccordion;
 
 
   private readonly maxFiles = 5;
@@ -379,9 +381,10 @@ export class TaskCreateComponent implements OnInit {
         formValue.estimatedTime = this.parseDurationToMinutes(formValue.estimatedTimeDuration) || '';
       }
 
-      this.uploadSelectedFile()
+      this.uploadSelectedFiles()
         .pipe(
-          switchMap((fileUrl: string | null) => {
+          switchMap((uploadResp: any) => {
+            const fileUrl: string | null = uploadResp?.fileUrl || (Array.isArray(uploadResp?.uploaded) ? uploadResp.uploaded[0]?.fileUrl : null);
             const primaryAssignee = selectedAssignees.length > 0 ? selectedAssignees[0] : currentUser.id;
             const payload: CreateTaskRequest = {
               title: formValue.title,
@@ -400,7 +403,18 @@ export class TaskCreateComponent implements OnInit {
               fileUrl: fileUrl || undefined
             };
 
-            return this.taskService.createTask(payload);
+            return this.taskService.createTask(payload).pipe(
+              switchMap((createdTask) => {
+                const uploaded = Array.isArray(uploadResp?.uploaded) ? uploadResp.uploaded : [];
+                if (uploaded.length) {
+                  return this.taskService.registerTaskFiles(createdTask.id, uploaded).pipe(
+                    // devolver la tarea creada tras registrar archivos
+                    switchMap(() => of(createdTask))
+                  );
+                }
+                return of(createdTask);
+              })
+            );
           }),
           catchError((error) => {
             console.error('Error subiendo archivo:', error);
@@ -416,6 +430,8 @@ export class TaskCreateComponent implements OnInit {
               duration: 3000,
               panelClass: ['success-snackbar']
             });
+            // Cerrar todas las secciones del accordion al guardar
+            this.accordion?.closeAll();
             this.isSubmitting.set(false);
             this.dialogRef.close(createdTask);
           },
@@ -433,7 +449,7 @@ export class TaskCreateComponent implements OnInit {
     }
   }
 
-  private uploadSelectedFile() {
+  private uploadSelectedFiles() {
     const previews = this.filePreviews();
     if (!previews.length) {
       return of(null);
@@ -444,21 +460,13 @@ export class TaskCreateComponent implements OnInit {
     // Enviar el título para que la carpeta se nombre correctamente
     const title = (this.taskForm.get('title')?.value || '').toString().trim();
     if (title) {
+      // Incluimos ambos campos por compatibilidad con el backend
       formData.append('taskTitle', title);
+      formData.append('title', title);
     }
 
     const uploadUrl = `${environment.services.fileUpload}/files/upload`;
-    return this.http.post<any>(uploadUrl, formData).pipe(
-      switchMap((res: any) => {
-        // Compatibilidad: si el servicio retornó single-file, usa fileUrl
-        // Nuevo formato: usa el primer elemento de 'uploaded'
-        const url = res?.fileUrl || (Array.isArray(res?.uploaded) ? res.uploaded[0]?.fileUrl : null);
-        if (!url) {
-          throw new Error('Respuesta de subida sin fileUrl');
-        }
-        return of(url);
-      })
-    );
+    return this.http.post<any>(uploadUrl, formData);
   }
 
   onCancel(): void {

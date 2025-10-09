@@ -8,6 +8,10 @@ export interface Task {
   assignedUserIds?: number[]; // Todos los asignados
   assignedBy: number; // User ID
   dueDate?: Date;
+  startDate?: Date;
+  estimatedTime?: number; // minutos
+  isRecurring?: boolean;
+  recurrenceInterval?: string;
   createdAt: Date;
   updatedAt: Date;
   completedAt?: Date;
@@ -39,7 +43,12 @@ export interface UpdateTaskRequest {
   priority?: 'low' | 'medium' | 'high';
   assignedTo?: number;
   assignedUserIds?: number[];
+  startDate?: Date;
   dueDate?: Date;
+  estimatedTime?: number;
+  reward?: string;
+  isRecurring?: boolean;
+  recurrenceInterval?: string;
 }
 
 export interface TaskStats {
@@ -65,4 +74,6 @@ export interface TaskFile {
   isImage?: boolean | null;
   thumbnailPath?: string | null;
   createdAt?: Date | string;
+  folderId?: string | null;
+  folderName?: string | null;
 }

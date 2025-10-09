@@ -50,8 +50,10 @@ export interface ConfirmDialogData {
   `,
   styles: [`
     .confirm-dialog {
-      min-width: 350px;
-      max-width: 500px;
+      min-width: 360px;
+      max-width: 600px;
+      width: 100%;
+      box-sizing: border-box;
     }
 
     .dialog-header {
@@ -87,16 +89,22 @@ export interface ConfirmDialogData {
 
     .dialog-content {
       margin-bottom: 24px;
+      max-width: 100%;
+      max-height: 40vh;
+      overflow: auto;
     }
 
     .dialog-content p {
       margin: 0;
-      color: rgba(0, 0, 0, 0.7);
+      color: rgba(0, 0, 0, 0.8);
       line-height: 1.5;
+      white-space: pre-wrap;
+      word-break: break-word;
     }
 
     .dialog-actions {
       display: flex;
+      flex-wrap: wrap;
       justify-content: flex-end;
       gap: 8px;
       margin: 0;
@@ -108,7 +116,22 @@ export interface ConfirmDialogData {
     }
 
     .confirm-button {
-      min-width: 100px;
+      min-width: 110px;
+    }
+
+    .dialog-actions button {
+      flex: 1 1 auto;
+    }
+
+    @media (max-width: 420px) {
+      .dialog-actions {
+        flex-direction: column;
+        align-items: stretch;
+      }
+
+      .dialog-actions button {
+        width: 100%;
+      }
     }
   `]
 })

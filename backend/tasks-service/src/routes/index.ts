@@ -21,6 +21,12 @@ router.get('/', (req, res) => {
         update: 'PUT /api/tasks/:id',
         delete: 'DELETE /api/tasks/:id'
       },
+      files: {
+        listByTask: 'GET /api/tasks/:id/files',
+        registerForTask: 'POST /api/tasks/:id/files',
+        updateRecord: 'PUT /api/tasks/files/:fileRecordId',
+        deleteRecord: 'DELETE /api/tasks/files/:fileRecordId'
+      },
       queryParams: {
         filterByUser: 'GET /api/tasks?userId=:userId',
         filterByStatus: 'GET /api/tasks?status=:status'

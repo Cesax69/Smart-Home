@@ -25,8 +25,14 @@ export interface Task {
   assignedUserName?: string; // Nombre del miembro asignado (para facilitar la UI)
   createdById: number;     // ID del líder que creó la tarea
   createdByName?: string;  // Nombre del líder que creó la tarea
+  startDate?: Date;        // Fecha de inicio del rango
   dueDate?: Date;          // Fecha límite para completar la tarea
   estimatedTime?: number;  // Tiempo estimado en minutos
+  // Recurrencia
+  isRecurring?: boolean;
+  // En el frontend se usa "recurrenceInterval" para el tipo ('daily','weekly','monthly','yearly')
+  // lo mapeamos a recurrence_type en BD
+  recurrenceInterval?: string;
   reward?: string;         // Recompensa por completar la tarea
   fileUrl?: string;        // URL de archivo adjunto (foto de referencia, etc.)
   completedAt?: Date;      // Fecha y hora de completación
@@ -43,8 +49,12 @@ export interface CreateTaskRequest {
   assignedUserId: number;
   assignedUserIds?: number[];
   createdById: number;
+  startDate?: Date;
   dueDate?: Date;
   estimatedTime?: number;
+  // Recurrencia desde el frontend
+  isRecurring?: boolean;
+  recurrenceInterval?: string; // 'daily' | 'weekly' | 'monthly' | 'yearly'
   reward?: string;
   fileUrl?: string;
 }
@@ -57,11 +67,15 @@ export interface UpdateTaskRequest {
   status?: TaskStatus;
   assignedUserId?: number;
   assignedUserIds?: number[];
+  startDate?: Date;
   dueDate?: Date;
   estimatedTime?: number;
   reward?: string;
   fileUrl?: string;
   completedAt?: Date;
+  // Recurrencia desde el frontend
+  isRecurring?: boolean;
+  recurrenceInterval?: string; // 'daily' | 'weekly' | 'monthly' | 'yearly'
 }
 
 export interface TaskResponse {
@@ -92,8 +106,16 @@ export interface DatabaseTask {
   assigned_user_name?: string;
   created_by_id: number;
   created_by_name?: string;
+  start_date?: Date;
   due_date?: Date;
   estimated_time?: number;
+  // Campos de recurrencia en BD
+  is_recurring?: boolean;
+  recurrence_type?: string | null;
+  recurrence_interval?: number | null;
+  recurrence_days?: any;
+  recurrence_end_date?: Date | null;
+  parent_task_id?: number | null;
   reward?: string;
   file_url?: string;
   completed_at?: Date;
