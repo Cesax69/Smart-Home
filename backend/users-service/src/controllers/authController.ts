@@ -16,8 +16,10 @@ export class AuthController {
   public login = async (req: Request, res: Response): Promise<void> => {
     try {
       const { username, password } = req.body;
+      console.log('🔐 LOGIN ATTEMPT:', { username, passwordLength: password?.length });
 
       if (!username || !password) {
+        console.log('❌ Missing credentials');
         res.status(400).json({
           success: false,
           message: 'Username y password son requeridos'
@@ -26,9 +28,11 @@ export class AuthController {
       }
 
       // Buscar usuario por username o email
+      console.log('🔍 Searching user:', username);
       const user = await this.userService.findByUsernameOrEmail(username);
       
       if (!user) {
+        console.log('❌ User not found:', username);
         res.status(401).json({
           success: false,
           message: 'Credenciales inválidas'
@@ -36,16 +40,28 @@ export class AuthController {
         return;
       }
 
+      console.log('✅ User found:', { id: user.id, username: user.username, hasPassword: !!user.password });
+
       // Verificar contraseña
+      console.log('🔒 Verifying password...');
+      console.log('   Password to check:', password);
+      console.log('   Stored hash:', user.password);
+      console.log('   Hash type:', typeof user.password);
+      console.log('   Hash length:', user.password?.length);
+      
       const isValidPassword = await bcrypt.compare(password, user.password);
+      console.log('   bcrypt.compare result:', isValidPassword);
       
       if (!isValidPassword) {
+        console.log('❌ Invalid password for user:', username);
         res.status(401).json({
           success: false,
           message: 'Credenciales inválidas'
         });
         return;
       }
+
+      console.log('✅ Password valid for user:', username);
 
       // Generar token JWT
       const token = jwt.sign(

@@ -35,7 +35,7 @@ class DatabaseService {
       password: this.config.password,
       max: 20, // Máximo número de conexiones en el pool
       idleTimeoutMillis: 30000, // Tiempo de espera antes de cerrar conexiones inactivas
-      connectionTimeoutMillis: 2000, // Tiempo de espera para establecer conexión
+      connectionTimeoutMillis: 10000, // Tiempo de espera para establecer conexión aumentado
     };
 
     this.pool = new Pool(poolConfig);

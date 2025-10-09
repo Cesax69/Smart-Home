@@ -3,6 +3,32 @@ import { databaseService } from '../config/database';
 
 // Ahora todas las lecturas de usuarios usan PostgreSQL (tabla `users`)
 
+// Datos mock para autenticación cuando no hay conexión a BD
+const mockAuthUsers = [
+  {
+    id: 1,
+    username: 'admin',
+    email: 'admin@smarthome.com',
+    password: '$2b$10$hash_for_admin_password',
+    firstName: 'Admin',
+    lastName: 'Usuario',
+    role: 'head_of_household',
+    createdAt: new Date('2024-01-01'),
+    updatedAt: new Date('2024-01-01')
+  },
+  {
+    id: 2,
+    username: 'member',
+    email: 'member@smarthome.com',
+    password: '$2b$10$hash_for_member_password',
+    firstName: 'Member',
+    lastName: 'Usuario',
+    role: 'family_member',
+    createdAt: new Date('2024-01-02'),
+    updatedAt: new Date('2024-01-02')
+  }
+];
+
 export class UserService {
   /**
    * Mapea una fila de BD al modelo público User

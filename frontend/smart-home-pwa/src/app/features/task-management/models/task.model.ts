@@ -11,8 +11,11 @@ export interface Task {
   createdAt: Date;
   updatedAt: Date;
   completedAt?: Date;
+  estimatedTime?: number; // Tiempo estimado en minutos
+  reward?: string; // Recompensa por completar la tarea
   fileUrl?: string;
   files?: TaskFile[];
+  progress?: number; // Progreso de la tarea (0-100)
 }
 
 export interface CreateTaskRequest {
@@ -40,6 +43,7 @@ export interface UpdateTaskRequest {
   assignedTo?: number;
   assignedUserIds?: number[];
   dueDate?: Date;
+  progress?: number; // Progreso de la tarea (0-100)
 }
 
 export interface TaskStats {

@@ -22,6 +22,30 @@ import { User } from '../../models/user.model';
   ],
   template: `
     <div class="dashboard-container">
+      <!-- Header con indicador de rol -->
+      <div class="role-header">
+        <div class="role-indicator admin-role">
+          <mat-icon class="role-icon">👑</mat-icon>
+          <div class="role-info">
+            <h2>Jefe del Hogar</h2>
+            <p>{{ currentUser()?.firstName }} {{ currentUser()?.lastName }}</p>
+          </div>
+        </div>
+        <button mat-icon-button [matMenuTriggerFor]="userMenu" class="user-menu-btn">
+          <mat-icon>account_circle</mat-icon>
+        </button>
+        <mat-menu #userMenu="matMenu">
+          <button mat-menu-item (click)="navigateTo('/profile')">
+            <mat-icon>person</mat-icon>
+            <span>Mi Perfil</span>
+          </button>
+          <button mat-menu-item (click)="logout()">
+            <mat-icon>logout</mat-icon>
+            <span>Cerrar Sesión</span>
+          </button>
+        </mat-menu>
+      </div>
+
       <!-- Main Content -->
       <div class="dashboard-content">
         <div class="welcome-section">

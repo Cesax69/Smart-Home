@@ -75,7 +75,16 @@ class App {
             getAll: 'GET /api/tasks',
             getById: 'GET /api/tasks/:id',
             update: 'PUT /api/tasks/:id',
-            delete: 'DELETE /api/tasks/:id'
+            delete: 'DELETE /api/tasks/:id',
+            comments: {
+              get: 'GET /api/tasks/:id/comments',
+              add: 'POST /api/tasks/:id/comments'
+            },
+            files: {
+              get: 'GET /api/tasks/:id/files',
+              add: 'POST /api/tasks/:id/files',
+              delete: 'DELETE /api/tasks/files/:fileRecordId'
+            }
           }
         }
       });
@@ -159,6 +168,11 @@ class App {
       console.log('   GET    /api/tasks/:id        - Obtener tarea por ID');
       console.log('   PUT    /api/tasks/:id        - Actualizar tarea');
       console.log('   DELETE /api/tasks/:id        - Eliminar tarea');
+      console.log('   GET    /api/tasks/:id/comments - Obtener comentarios de tarea');
+      console.log('   POST   /api/tasks/:id/comments - Agregar comentario a tarea');
+      console.log('   GET    /api/tasks/:id/files  - Obtener archivos de tarea');
+      console.log('   POST   /api/tasks/:id/files  - Agregar archivos a tarea');
+      console.log('   DELETE /api/tasks/files/:fileRecordId - Eliminar archivo de tarea');
       console.log('='.repeat(50));
       console.log('🔍 Query Parameters:');
       console.log('   GET /api/tasks?userId=:id    - Filtrar por usuario');

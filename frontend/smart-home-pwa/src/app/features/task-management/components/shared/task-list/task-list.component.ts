@@ -229,6 +229,26 @@ export class TaskListComponent implements OnInit {
     return user ? `${user.firstName} ${user.lastName}` : `Usuario ${task.assignedTo}`;
   }
 
+  // Método para obtener los usuarios asignados a una tarea
+  getAssignedUsers(task: Task): number[] {
+    // Si la tarea tiene assignedUserIds (múltiples usuarios), usar esos
+    if (task.assignedUserIds && Array.isArray(task.assignedUserIds) && task.assignedUserIds.length > 0) {
+      return task.assignedUserIds;
+    }
+    // Si no, usar assignedTo (usuario único)
+    if (task.assignedTo) {
+      return [task.assignedTo];
+    }
+    // Si no hay ninguno, devolver array vacío
+    return [];
+  }
+
+  // Método para obtener el nombre de un usuario por ID
+  getUserName(userId: number): string {
+    const user = this.familyMembers().find(u => u.id === userId);
+    return user ? `${user.firstName} ${user.lastName}` : `Usuario ${userId}`;
+  }
+
   isOverdue(task: Task): boolean {
     return task.dueDate ? new Date(task.dueDate) < new Date() && task.status !== 'completed' : false;
   }

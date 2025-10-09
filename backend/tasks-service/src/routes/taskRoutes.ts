@@ -20,12 +20,18 @@ router.post('/tasks', (req, res) => taskController.createTask(req, res));
 router.get('/tasks', (req, res) => taskController.getAllTasks(req, res));
 router.get('/tasks/:id', (req, res) => taskController.getTaskById(req, res));
 router.put('/tasks/:id', (req, res) => taskController.updateTask(req, res));
+router.patch('/tasks/:id/start', (req, res) => taskController.startTask(req, res));
+router.patch('/tasks/:id/complete', (req, res) => taskController.completeTask(req, res));
 router.delete('/tasks/:id', (req, res) => taskController.deleteTask(req, res));
 
 // Rutas de archivos por tarea
 router.get('/tasks/:id/files', (req, res) => taskController.getTaskFiles(req, res));
 router.post('/tasks/:id/files', (req, res) => taskController.addTaskFiles(req, res));
 router.delete('/tasks/files/:fileRecordId', (req, res) => taskController.deleteTaskFile(req, res));
+
+// Rutas de comentarios por tarea
+router.get('/tasks/:id/comments', (req, res) => taskController.getTaskComments(req, res));
+router.post('/tasks/:id/comments', (req, res) => taskController.addTaskComment(req, res));
 
 // Health check
 router.get('/health', (req, res) => {

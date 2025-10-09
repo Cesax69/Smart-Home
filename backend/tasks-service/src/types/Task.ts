@@ -32,6 +32,7 @@ export interface Task {
   completedAt?: Date;      // Fecha y hora de completación
   createdAt: Date;
   updatedAt?: Date;
+  progress?: number;       // Progreso de la tarea (0-100)
 }
 
 export interface CreateTaskRequest {
@@ -62,6 +63,7 @@ export interface UpdateTaskRequest {
   reward?: string;
   fileUrl?: string;
   completedAt?: Date;
+  progress?: number;       // Progreso de la tarea (0-100)
 }
 
 export interface TaskResponse {
@@ -99,4 +101,5 @@ export interface DatabaseTask {
   completed_at?: Date;
   created_at: Date;
   updated_at?: Date;
+  progress?: number;       // Progreso de la tarea (0-100)
 }

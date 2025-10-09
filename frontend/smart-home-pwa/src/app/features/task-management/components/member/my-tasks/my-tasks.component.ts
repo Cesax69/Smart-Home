@@ -1,4 +1,4 @@
-import { Component, OnInit, signal } from '@angular/core';
+import { Component, OnInit, signal, inject } from '@angular/core';
 import { Router } from '@angular/router';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
@@ -10,6 +10,7 @@ import { MatSelectModule } from '@angular/material/select';
 import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatInputModule } from '@angular/material/input';
 import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
+import { MatProgressBarModule } from '@angular/material/progress-bar';
 import { MatTabsModule } from '@angular/material/tabs';
 import { MatSnackBar, MatSnackBarModule } from '@angular/material/snack-bar';
 import { MatDialog, MatDialogModule } from '@angular/material/dialog';
@@ -33,6 +34,7 @@ import { TaskActionsDialogComponent } from './task-actions-dialog.component';
     MatFormFieldModule,
     MatInputModule,
     MatProgressSpinnerModule,
+    MatProgressBarModule,
     MatTabsModule,
     MatSnackBarModule,
     MatDialogModule
@@ -43,15 +45,15 @@ import { TaskActionsDialogComponent } from './task-actions-dialog.component';
         <h1>👤 Mis Tareas</h1>
         <div class="header-stats">
           <div class="stat-item">
-            <span class="stat-number">{{ pendingTasks().length }}</span>
+            <span class="stat-number">{{ filteredPendingTasks().length }}</span>
             <span class="stat-label">Pendientes</span>
           </div>
           <div class="stat-item">
-            <span class="stat-number">{{ inProgressTasks().length }}</span>
+            <span class="stat-number">{{ filteredInProgressTasks().length }}</span>
             <span class="stat-label">En Progreso</span>
           </div>
           <div class="stat-item">
-            <span class="stat-number">{{ completedTasks().length }}</span>
+            <span class="stat-number">{{ filteredCompletedTasks().length }}</span>
             <span class="stat-label">Completadas</span>
           </div>
         </div>
@@ -63,229 +65,298 @@ import { TaskActionsDialogComponent } from './task-actions-dialog.component';
         </div>
       </div>
 
+      <!-- Filtros -->
+      <mat-card class="filters-card">
+        <mat-card-header>
+          <mat-card-title>
+            <mat-icon>filter_list</mat-icon>
+            Filtros
+          </mat-card-title>
+        </mat-card-header>
+        <mat-card-content>
+          <div class="filters-container">
+            <mat-form-field appearance="outline">
+              <mat-label>Buscar tareas</mat-label>
+              <input matInput [(ngModel)]="searchTerm" (input)="applyFilters()" placeholder="Buscar por título o descripción">
+              <mat-icon matSuffix>search</mat-icon>
+            </mat-form-field>
+
+            <mat-form-field appearance="outline">
+              <mat-label>Prioridad</mat-label>
+              <mat-select [(ngModel)]="priorityFilter" (selectionChange)="applyFilters()">
+                <mat-option value="">Todas</mat-option>
+                <mat-option value="low">Baja</mat-option>
+                <mat-option value="medium">Media</mat-option>
+                <mat-option value="high">Alta</mat-option>
+              </mat-select>
+            </mat-form-field>
+
+            <mat-form-field appearance="outline">
+              <mat-label>Fecha de Vencimiento</mat-label>
+              <mat-select [(ngModel)]="dueDateFilter" (selectionChange)="applyFilters()">
+                <mat-option value="">Todas</mat-option>
+                <mat-option value="overdue">Vencidas</mat-option>
+                <mat-option value="today">Hoy</mat-option>
+                <mat-option value="tomorrow">Mañana</mat-option>
+                <mat-option value="this_week">Esta Semana</mat-option>
+                <mat-option value="no_date">Sin Fecha</mat-option>
+              </mat-select>
+            </mat-form-field>
+
+            <button mat-button (click)="clearFilters()">
+              <mat-icon>clear</mat-icon>
+              Limpiar
+            </button>
+          </div>
+        </mat-card-content>
+      </mat-card>
+
       @if (isLoading()) {
         <div class="loading-container">
           <mat-spinner></mat-spinner>
           <p>Cargando tus tareas...</p>
         </div>
       } @else {
-        <mat-tab-group class="tasks-tabs" (selectedTabChange)="onTabChange($event)">
-          <!-- Tareas Pendientes -->
-          <mat-tab>
-            <ng-template mat-tab-label>
-              <mat-icon>schedule</mat-icon>
-              Pendientes
-              @if (pendingTasks().length > 0) {
-                <span class="tab-badge">{{ pendingTasks().length }}</span>
-              }
-            </ng-template>
-            
-            <div class="tab-content">
-              @if (pendingTasks().length === 0) {
-                <div class="empty-state">
-                  <mat-icon class="empty-icon">check_circle_outline</mat-icon>
-                  <h3>¡Genial!</h3>
-                  <p>No tienes tareas pendientes por el momento.</p>
-                </div>
-              } @else {
-                <div class="tasks-grid">
-                  @for (task of pendingTasks(); track task.id) {
-                    <mat-card class="task-card pending-card">
-                      <mat-card-header>
-                        <div class="task-header">
-                          <h3>{{ task.title }}</h3>
+        <mat-tab-group (selectedTabChange)="onTabChange($event)">
+          <!-- Tab Pendientes -->
+          <mat-tab label="Pendientes">
+            @if (filteredPendingTasks().length === 0) {
+              <div class="empty-state">
+                <mat-icon class="empty-icon">pending_actions</mat-icon>
+                @if (pendingTasks().length === 0) {
+                  <h3>¡Genial! No tienes tareas pendientes</h3>
+                  <p>Todas tus tareas están en progreso o completadas.</p>
+                } @else {
+                  <h3>No hay tareas pendientes con los filtros aplicados</h3>
+                  <p>Intenta cambiar los filtros para ver más tareas.</p>
+                }
+              </div>
+            } @else {
+              <div class="tasks-grid">
+                @for (task of filteredPendingTasks(); track task.id) {
+                  <mat-card class="task-card pending-card">
+                    <mat-card-header>
+                      <div class="task-header">
+                        <h3>{{ task.title }}</h3>
+                        <div class="task-badges">
                           <mat-chip [class]="'priority-' + task.priority">
                             {{ getPriorityLabel(task.priority) }}
                           </mat-chip>
-                        </div>
-                      </mat-card-header>
-
-                      <mat-card-content>
-                        @if (task.description) {
-                          <p class="task-description">{{ task.description }}</p>
-                        }
-
-                        <div class="task-details">
-                          @if (task.dueDate) {
-                            <div class="detail-item" [class.overdue]="isOverdue(task)">
-                              <mat-icon>schedule</mat-icon>
-                              <span>Vence: {{ formatDate(task.dueDate) }}</span>
-                              @if (isOverdue(task)) {
-                                <mat-icon class="warning-icon">warning</mat-icon>
-                              }
-                            </div>
+                          <mat-chip class="status-pending">
+                            <mat-icon>schedule</mat-icon>
+                            Pendiente
+                          </mat-chip>
+                          @if (isOverdue(task)) {
+                            <mat-icon class="warning-icon" matTooltip="Tarea vencida">warning</mat-icon>
                           }
-                          
-                          <div class="detail-item">
-                            <mat-icon>calendar_today</mat-icon>
-                            <span>Creada: {{ formatDate(task.createdAt) }}</span>
-                          </div>
                         </div>
-                      </mat-card-content>
+                      </div>
+                    </mat-card-header>
 
-                      <mat-card-actions>
-                        <button mat-raised-button color="primary" (click)="startTask(task)">
-                          <mat-icon>play_arrow</mat-icon>
-                          Comenzar
-                        </button>
-                        <button mat-button (click)="viewTaskDetails(task)">
-                          <mat-icon>visibility</mat-icon>
-                          Ver Detalles
-                        </button>
-                      </mat-card-actions>
-                    </mat-card>
-                  }
-                </div>
-              }
-            </div>
+                    <mat-card-content>
+                      @if (task.description) {
+                        <p class="task-description">{{ task.description }}</p>
+                      }
+
+                      <div class="task-details">
+                        @if (task.dueDate) {
+                          <div class="detail-item" [class.overdue]="isOverdue(task)">
+                            <mat-icon>schedule</mat-icon>
+                            <span>Vence: {{ formatDate(task.dueDate) }}</span>
+                          </div>
+                        }
+                        @if (task.estimatedTime) {
+                          <div class="detail-item">
+                            <mat-icon>timer</mat-icon>
+                            <span>Tiempo estimado: {{ task.estimatedTime }}</span>
+                          </div>
+                        }
+                        @if (task.reward) {
+                          <div class="detail-item">
+                            <mat-icon>star</mat-icon>
+                            <span>Recompensa: {{ task.reward }}</span>
+                          </div>
+                        }
+                      </div>
+                    </mat-card-content>
+
+                    <mat-card-actions>
+                      <button mat-raised-button color="primary" (click)="startTask(task)">
+                        <mat-icon>play_arrow</mat-icon>
+                        Iniciar
+                      </button>
+                      <button mat-button (click)="openTaskActions(task)">
+                        <mat-icon>more_vert</mat-icon>
+                        Más
+                      </button>
+                    </mat-card-actions>
+                  </mat-card>
+                }
+              </div>
+            }
           </mat-tab>
 
-          <!-- Tareas En Progreso -->
-          <mat-tab>
-            <ng-template mat-tab-label>
-              <mat-icon>hourglass_empty</mat-icon>
-              En Progreso
-              @if (inProgressTasks().length > 0) {
-                <span class="tab-badge">{{ inProgressTasks().length }}</span>
-              }
-            </ng-template>
-            
-            <div class="tab-content">
-              @if (inProgressTasks().length === 0) {
-                <div class="empty-state">
-                  <mat-icon class="empty-icon">hourglass_empty</mat-icon>
-                  <h3>Sin tareas en progreso</h3>
-                  <p>Comienza una tarea pendiente para verla aquí.</p>
-                </div>
-              } @else {
-                <div class="tasks-grid">
-                  @for (task of inProgressTasks(); track task.id) {
-                    <mat-card class="task-card progress-card">
-                      <mat-card-header>
-                        <div class="task-header">
-                          <h3>{{ task.title }}</h3>
-                          <div class="task-badges">
-                            <mat-chip [class]="'priority-' + task.priority">
-                              {{ getPriorityLabel(task.priority) }}
-                            </mat-chip>
-                            <mat-chip class="status-in-progress">
-                              En Progreso
-                            </mat-chip>
-                          </div>
-                        </div>
-                      </mat-card-header>
-
-                      <mat-card-content>
-                        @if (task.description) {
-                          <p class="task-description">{{ task.description }}</p>
-                        }
-
-                        <div class="task-details">
-                          @if (task.dueDate) {
-                            <div class="detail-item" [class.overdue]="isOverdue(task)">
-                              <mat-icon>schedule</mat-icon>
-                              <span>Vence: {{ formatDate(task.dueDate) }}</span>
-                              @if (isOverdue(task)) {
-                                <mat-icon class="warning-icon">warning</mat-icon>
-                              }
-                            </div>
+          <!-- Tab En Progreso -->
+          <mat-tab label="En Progreso">
+            @if (filteredInProgressTasks().length === 0) {
+              <div class="empty-state">
+                <mat-icon class="empty-icon">hourglass_empty</mat-icon>
+                @if (inProgressTasks().length === 0) {
+                  <h3>No tienes tareas en progreso</h3>
+                  <p>Inicia una tarea pendiente para comenzar a trabajar.</p>
+                } @else {
+                  <h3>No hay tareas en progreso con los filtros aplicados</h3>
+                  <p>Intenta cambiar los filtros para ver más tareas.</p>
+                }
+              </div>
+            } @else {
+              <div class="tasks-grid">
+                @for (task of filteredInProgressTasks(); track task.id) {
+                  <mat-card class="task-card in-progress-card">
+                    <mat-card-header>
+                      <div class="task-header">
+                        <h3>{{ task.title }}</h3>
+                        <div class="task-badges">
+                          <mat-chip [class]="'priority-' + task.priority">
+                            {{ getPriorityLabel(task.priority) }}
+                          </mat-chip>
+                          <mat-chip class="status-in-progress">
+                            <mat-icon>hourglass_empty</mat-icon>
+                            En Progreso
+                          </mat-chip>
+                          @if (isOverdue(task)) {
+                            <mat-icon class="warning-icon" matTooltip="Tarea vencida">warning</mat-icon>
                           }
-                          
-                          <div class="detail-item">
-                            <mat-icon>play_arrow</mat-icon>
-                            <span>Iniciada: {{ formatDate(task.updatedAt) }}</span>
-                          </div>
                         </div>
-                      </mat-card-content>
+                      </div>
+                    </mat-card-header>
 
-                      <mat-card-actions>
-                        <button mat-raised-button color="accent" (click)="completeTask(task)">
-                          <mat-icon>check_circle</mat-icon>
-                          Completar
-                        </button>
-                        <button mat-button (click)="openTaskActions(task)">
-                          <mat-icon>more_horiz</mat-icon>
-                          Acciones
-                        </button>
-                        <button mat-button (click)="viewTaskDetails(task)">
-                          <mat-icon>visibility</mat-icon>
-                          Ver Detalles
-                        </button>
-                      </mat-card-actions>
-                    </mat-card>
-                  }
-                </div>
-              }
-            </div>
+                    <mat-card-content>
+                      @if (task.description) {
+                        <p class="task-description">{{ task.description }}</p>
+                      }
+
+                      <!-- Barra de progreso para tareas en proceso -->
+                      <div class="progress-section">
+                        <div class="progress-header">
+                          <span class="progress-label">Progreso</span>
+                          <span class="progress-percentage">{{ task.progress || 0 }}%</span>
+                        </div>
+                        <mat-progress-bar 
+                          mode="determinate" 
+                          [value]="task.progress || 0"
+                          class="task-progress-bar">
+                        </mat-progress-bar>
+                        <div class="progress-controls">
+                          <button mat-icon-button (click)="updateProgress(task, -10)" [disabled]="(task.progress || 0) <= 0">
+                            <mat-icon>remove</mat-icon>
+                          </button>
+                          <span class="progress-text">Actualizar progreso</span>
+                          <button mat-icon-button (click)="updateProgress(task, 10)" [disabled]="(task.progress || 0) >= 100">
+                            <mat-icon>add</mat-icon>
+                          </button>
+                        </div>
+                      </div>
+
+                      <div class="task-details">
+                        @if (task.dueDate) {
+                          <div class="detail-item" [class.overdue]="isOverdue(task)">
+                            <mat-icon>schedule</mat-icon>
+                            <span>Vence: {{ formatDate(task.dueDate) }}</span>
+                          </div>
+                        }
+                        @if (task.estimatedTime) {
+                          <div class="detail-item">
+                            <mat-icon>timer</mat-icon>
+                            <span>Tiempo estimado: {{ task.estimatedTime }}</span>
+                          </div>
+                        }
+                        @if (task.reward) {
+                          <div class="detail-item">
+                            <mat-icon>star</mat-icon>
+                            <span>Recompensa: {{ task.reward }}</span>
+                          </div>
+                        }
+                      </div>
+                    </mat-card-content>
+
+                    <mat-card-actions>
+                      <button mat-raised-button color="accent" (click)="completeTask(task)" [disabled]="(task.progress || 0) < 100">
+                        <mat-icon>check</mat-icon>
+                        Completar
+                      </button>
+                      <button mat-button (click)="openTaskActions(task)">
+                        <mat-icon>more_vert</mat-icon>
+                        Más
+                      </button>
+                    </mat-card-actions>
+                  </mat-card>
+                }
+              </div>
+            }
           </mat-tab>
 
-          <!-- Tareas Completadas -->
-          <mat-tab>
-            <ng-template mat-tab-label>
-              <mat-icon>check_circle</mat-icon>
-              Completadas
-              @if (completedTasks().length > 0) {
-                <span class="tab-badge">{{ completedTasks().length }}</span>
-              }
-            </ng-template>
-            
-            <div class="tab-content">
-              @if (completedTasks().length === 0) {
-                <div class="empty-state">
-                  <mat-icon class="empty-icon">assignment_turned_in</mat-icon>
+          <!-- Tab Completadas -->
+          <mat-tab label="Completadas">
+            @if (filteredCompletedTasks().length === 0) {
+              <div class="empty-state">
+                <mat-icon class="empty-icon">check_circle</mat-icon>
+                @if (completedTasks().length === 0) {
                   <h3>Sin tareas completadas</h3>
                   <p>Las tareas que completes aparecerán aquí.</p>
-                </div>
-              } @else {
-                <div class="tasks-grid">
-                  @for (task of completedTasks(); track task.id) {
-                    <mat-card class="task-card completed-card">
-                      <mat-card-header>
-                        <div class="task-header">
-                          <h3>{{ task.title }}</h3>
-                          <div class="task-badges">
-                            <mat-chip [class]="'priority-' + task.priority">
-                              {{ getPriorityLabel(task.priority) }}
-                            </mat-chip>
-                            <mat-chip class="status-completed">
-                              <mat-icon>check</mat-icon>
-                              Completada
-                            </mat-chip>
-                          </div>
+                } @else {
+                  <h3>No hay tareas completadas con los filtros aplicados</h3>
+                  <p>Intenta cambiar los filtros para ver más tareas.</p>
+                }
+              </div>
+            } @else {
+              <div class="tasks-grid">
+                @for (task of filteredCompletedTasks(); track task.id) {
+                  <mat-card class="task-card completed-card">
+                    <mat-card-header>
+                      <div class="task-header">
+                        <h3>{{ task.title }}</h3>
+                        <div class="task-badges">
+                          <mat-chip [class]="'priority-' + task.priority">
+                            {{ getPriorityLabel(task.priority) }}
+                          </mat-chip>
+                          <mat-chip class="status-completed">
+                            <mat-icon>check</mat-icon>
+                            Completada
+                          </mat-chip>
                         </div>
-                      </mat-card-header>
+                      </div>
+                    </mat-card-header>
 
-                      <mat-card-content>
-                        @if (task.description) {
-                          <p class="task-description">{{ task.description }}</p>
+                    <mat-card-content>
+                      @if (task.description) {
+                        <p class="task-description">{{ task.description }}</p>
+                      }
+
+                      <div class="task-details">
+                        <div class="detail-item success">
+                          <mat-icon>check_circle</mat-icon>
+                          <span>Completada el {{ formatDate(task.completedAt || task.updatedAt) }}</span>
+                        </div>
+                        @if (task.reward) {
+                          <div class="detail-item">
+                            <mat-icon>star</mat-icon>
+                            <span>Recompensa: {{ task.reward }}</span>
+                          </div>
                         }
+                      </div>
+                    </mat-card-content>
 
-                        <div class="task-details">
-                          <div class="detail-item success">
-                            <mat-icon>check_circle</mat-icon>
-                            <span>Completada: {{ formatDate(task.completedAt!) }}</span>
-                          </div>
-                          
-                          @if (task.dueDate) {
-                            <div class="detail-item">
-                              <mat-icon>schedule</mat-icon>
-                              <span>Fecha límite: {{ formatDate(task.dueDate) }}</span>
-                            </div>
-                          }
-                        </div>
-                      </mat-card-content>
-
-                      <mat-card-actions>
-                        <button mat-button (click)="viewTaskDetails(task)">
-                          <mat-icon>visibility</mat-icon>
-                          Ver Detalles
-                        </button>
-                      </mat-card-actions>
-                    </mat-card>
-                  }
-                </div>
-              }
-            </div>
+                    <mat-card-actions>
+                      <button mat-button (click)="openTaskActions(task)">
+                        <mat-icon>visibility</mat-icon>
+                        Ver Detalles
+                      </button>
+                    </mat-card-actions>
+                  </mat-card>
+                }
+              </div>
+            }
           </mat-tab>
         </mat-tab-group>
       }
@@ -303,21 +374,19 @@ import { TaskActionsDialogComponent } from './task-actions-dialog.component';
       justify-content: space-between;
       align-items: center;
       margin-bottom: 24px;
+      flex-wrap: wrap;
+      gap: 16px;
     }
 
     .header h1 {
       margin: 0;
       color: #333;
+      font-size: 2rem;
     }
 
     .header-stats {
       display: flex;
       gap: 24px;
-    }
-
-    .header-actions {
-      display: flex;
-      align-items: center;
     }
 
     .stat-item {
@@ -326,15 +395,34 @@ import { TaskActionsDialogComponent } from './task-actions-dialog.component';
 
     .stat-number {
       display: block;
-      font-size: 24px;
-      font-weight: 600;
-      color: #2196f3;
+      font-size: 2rem;
+      font-weight: bold;
+      color: #1976d2;
     }
 
     .stat-label {
-      font-size: 12px;
+      font-size: 0.875rem;
       color: #666;
-      text-transform: uppercase;
+    }
+
+    .header-actions {
+      display: flex;
+      gap: 12px;
+    }
+
+    .filters-card {
+      margin-bottom: 24px;
+    }
+
+    .filters-container {
+      display: flex;
+      gap: 16px;
+      flex-wrap: wrap;
+      align-items: center;
+    }
+
+    .filters-container mat-form-field {
+      min-width: 200px;
     }
 
     .loading-container {
@@ -342,77 +430,59 @@ import { TaskActionsDialogComponent } from './task-actions-dialog.component';
       flex-direction: column;
       align-items: center;
       justify-content: center;
-      height: 300px;
-      gap: 16px;
-    }
-
-    .tasks-tabs {
-      margin-top: 24px;
-    }
-
-    .tab-badge {
-      background: #f44336;
-      color: white;
-      border-radius: 10px;
-      padding: 2px 6px;
-      font-size: 11px;
-      margin-left: 8px;
-    }
-
-    .tab-content {
-      padding: 24px 0;
-    }
-
-    .empty-state {
+      padding: 48px;
       text-align: center;
-      padding: 48px 24px;
     }
 
-    .empty-icon {
-      font-size: 64px;
-      width: 64px;
-      height: 64px;
-      color: #ccc;
+    .loading-container mat-spinner {
       margin-bottom: 16px;
     }
 
-    .empty-state h3 {
-      margin: 0 0 8px 0;
-      color: #333;
+    .empty-state {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      padding: 48px;
+      text-align: center;
+      color: #666;
     }
 
-    .empty-state p {
-      margin: 0;
-      color: #666;
+    .empty-icon {
+      font-size: 4rem;
+      width: 4rem;
+      height: 4rem;
+      margin-bottom: 16px;
+      color: #ccc;
     }
 
     .tasks-grid {
       display: grid;
       grid-template-columns: repeat(auto-fill, minmax(350px, 1fr));
-      gap: 24px;
+      gap: 20px;
+      margin-top: 20px;
     }
 
     .task-card {
-      transition: all 0.3s ease;
-      border-left: 4px solid transparent;
+      transition: transform 0.2s ease-in-out, box-shadow 0.2s ease-in-out;
     }
 
     .task-card:hover {
       transform: translateY(-2px);
-      box-shadow: 0 8px 16px rgba(0,0,0,0.15);
+      box-shadow: 0 4px 12px rgba(0,0,0,0.15);
     }
 
     .pending-card {
-      border-left-color: #2196f3;
+      border-left: 4px solid #ff9800;
     }
 
-    .progress-card {
-      border-left-color: #9c27b0;
+    .in-progress-card {
+      border-left: 4px solid #2196f3;
     }
 
     .completed-card {
-      border-left-color: #4caf50;
-      opacity: 0.9;
+      border-left: 4px solid #4caf50;
+      opacity: 0.8;
     }
 
     .task-header {
@@ -420,14 +490,14 @@ import { TaskActionsDialogComponent } from './task-actions-dialog.component';
       justify-content: space-between;
       align-items: flex-start;
       width: 100%;
-      gap: 16px;
+      gap: 12px;
     }
 
     .task-header h3 {
       margin: 0;
-      color: #333;
-      font-size: 18px;
       flex: 1;
+      font-size: 1.1rem;
+      line-height: 1.3;
     }
 
     .task-badges {
@@ -438,19 +508,8 @@ import { TaskActionsDialogComponent } from './task-actions-dialog.component';
     }
 
     .task-badges mat-chip {
-      font-size: 11px;
-      height: 20px;
-      min-height: 20px;
-    }
-
-    .priority-high {
-      background-color: #ffebee;
-      color: #c62828;
-    }
-
-    .priority-medium {
-      background-color: #fff3e0;
-      color: #ef6c00;
+      font-size: 0.75rem;
+      min-height: 24px;
     }
 
     .priority-low {
@@ -458,9 +517,24 @@ import { TaskActionsDialogComponent } from './task-actions-dialog.component';
       color: #2e7d32;
     }
 
+    .priority-medium {
+      background-color: #fff3e0;
+      color: #f57c00;
+    }
+
+    .priority-high {
+      background-color: #ffebee;
+      color: #d32f2f;
+    }
+
+    .status-pending {
+      background-color: #fff3e0;
+      color: #f57c00;
+    }
+
     .status-in-progress {
-      background-color: #f3e5f5;
-      color: #7b1fa2;
+      background-color: #e3f2fd;
+      color: #1976d2;
     }
 
     .status-completed {
@@ -472,6 +546,60 @@ import { TaskActionsDialogComponent } from './task-actions-dialog.component';
       margin: 16px 0;
       color: #666;
       line-height: 1.5;
+    }
+
+    .progress-section {
+      margin: 16px 0;
+      padding: 16px;
+      background-color: #f8f9fa;
+      border-radius: 8px;
+      border: 1px solid #e9ecef;
+    }
+
+    .progress-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 8px;
+    }
+
+    .progress-label {
+      font-weight: 500;
+      color: #495057;
+    }
+
+    .progress-percentage {
+      font-weight: 600;
+      color: #2196f3;
+      font-size: 14px;
+    }
+
+    .task-progress-bar {
+      height: 8px;
+      border-radius: 4px;
+      margin-bottom: 12px;
+    }
+
+    .progress-controls {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 12px;
+    }
+
+    .progress-text {
+      font-size: 12px;
+      color: #6c757d;
+    }
+
+    .progress-controls button {
+      width: 32px;
+      height: 32px;
+      min-width: 32px;
+    }
+
+    .progress-controls button mat-icon {
+      font-size: 18px;
     }
 
     .task-details {
@@ -529,6 +657,15 @@ import { TaskActionsDialogComponent } from './task-actions-dialog.component';
         justify-content: space-around;
       }
 
+      .filters-container {
+        flex-direction: column;
+        align-items: stretch;
+      }
+
+      .filters-container mat-form-field {
+        min-width: auto;
+      }
+
       .tasks-grid {
         grid-template-columns: 1fr;
       }
@@ -550,16 +687,25 @@ export class MyTasksComponent implements OnInit {
   pendingTasks = signal<Task[]>([]);
   inProgressTasks = signal<Task[]>([]);
   completedTasks = signal<Task[]>([]);
+  
+  // Tareas filtradas
+  filteredPendingTasks = signal<Task[]>([]);
+  filteredInProgressTasks = signal<Task[]>([]);
+  filteredCompletedTasks = signal<Task[]>([]);
+  
   currentUser = signal<any>(null);
   isLoading = signal(true);
 
-  constructor(
-    private taskService: TaskService,
-    private authService: AuthService,
-    private router: Router,
-    private snackBar: MatSnackBar,
-    private dialog: MatDialog
-  ) {}
+  // Filtros
+  searchTerm = '';
+  priorityFilter = '';
+  dueDateFilter = '';
+
+  private taskService = inject(TaskService);
+  private authService = inject(AuthService);
+  private router = inject(Router);
+  private snackBar = inject(MatSnackBar);
+  private dialog = inject(MatDialog);
 
   ngOnInit(): void {
     this.currentUser.set(this.authService.currentUser());
@@ -571,6 +717,7 @@ export class MyTasksComponent implements OnInit {
       next: (tasks: any) => {
         this.tasks.set(tasks);
         this.categorizeTasksByStatus(tasks);
+        this.applyFilters();
         this.isLoading.set(false);
       },
       error: (error: any) => {
@@ -587,52 +734,203 @@ export class MyTasksComponent implements OnInit {
     this.completedTasks.set(tasks.filter(task => task.status === 'completed'));
   }
 
+  applyFilters(): void {
+    this.filteredPendingTasks.set(this.filterTasks(this.pendingTasks()));
+    this.filteredInProgressTasks.set(this.filterTasks(this.inProgressTasks()));
+    this.filteredCompletedTasks.set(this.filterTasks(this.completedTasks()));
+  }
+
+  private filterTasks(tasks: Task[]): Task[] {
+    return tasks.filter(task => {
+      // Filtro de búsqueda
+      const matchesSearch = !this.searchTerm || 
+        task.title.toLowerCase().includes(this.searchTerm.toLowerCase()) ||
+        (task.description && task.description.toLowerCase().includes(this.searchTerm.toLowerCase()));
+
+      // Filtro de prioridad
+      const matchesPriority = !this.priorityFilter || task.priority === this.priorityFilter;
+
+      // Filtro de fecha de vencimiento
+      const matchesDueDate = this.matchesDueDateFilter(task);
+
+      return matchesSearch && matchesPriority && matchesDueDate;
+    });
+  }
+
+  private matchesDueDateFilter(task: Task): boolean {
+    if (!this.dueDateFilter) return true;
+
+    const now = new Date();
+    const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    const tomorrow = new Date(today);
+    tomorrow.setDate(tomorrow.getDate() + 1);
+    const nextWeek = new Date(today);
+    nextWeek.setDate(nextWeek.getDate() + 7);
+
+    if (!task.dueDate) {
+      return this.dueDateFilter === 'no_date';
+    }
+
+    const dueDate = new Date(task.dueDate);
+    const dueDateOnly = new Date(dueDate.getFullYear(), dueDate.getMonth(), dueDate.getDate());
+
+    switch (this.dueDateFilter) {
+      case 'overdue':
+        return dueDateOnly < today && task.status !== 'completed';
+      case 'today':
+        return dueDateOnly.getTime() === today.getTime();
+      case 'tomorrow':
+        return dueDateOnly.getTime() === tomorrow.getTime();
+      case 'this_week':
+        return dueDateOnly >= today && dueDateOnly <= nextWeek;
+      case 'no_date':
+        return false; // Ya se maneja arriba
+      default:
+        return true;
+    }
+  }
+
+  clearFilters(): void {
+    this.searchTerm = '';
+    this.priorityFilter = '';
+    this.dueDateFilter = '';
+    this.applyFilters();
+  }
+
   onTabChange(event: any): void {
     // Opcional: realizar acciones cuando cambie de tab
   }
 
   startTask(task: Task): void {
-    this.taskService.updateTask(task.id, { status: 'in_progress' }).subscribe({
-      next: () => {
-        this.loadMyTasks();
-        this.snackBar.open('¡Tarea iniciada!', 'Cerrar', { 
-          duration: 2000,
-          panelClass: ['success-snackbar']
-        });
-      },
-      error: (error: any) => {
-        console.error('Error starting task:', error);
-        this.snackBar.open('Error al iniciar la tarea', 'Cerrar', { duration: 3000 });
-      }
-    });
-  }
+    // Validar que la tarea esté en estado pendiente
+    if (task.status !== 'pending') {
+      this.snackBar.open('⚠️ Solo se pueden iniciar tareas que estén pendientes', 'Cerrar', { 
+        duration: 3000,
+        panelClass: ['warning-snackbar']
+      });
+      return;
+    }
 
-  completeTask(task: Task): void {
+    // Confirmación antes de iniciar la tarea
     const dialogRef = this.dialog.open(ConfirmDialogComponent, {
       width: '400px',
       data: {
-        title: 'Completar Tarea',
-        message: `¿Estás seguro de que quieres marcar como completada la tarea "${task.title}"?`,
-        confirmText: 'Sí, Completar',
+        title: 'Iniciar Tarea',
+        message: `¿Estás listo para comenzar con "${task.title}"? La tarea se moverá a la sección "En Progreso".`,
+        confirmText: 'Sí, Iniciar',
         cancelText: 'Cancelar',
-        icon: 'check_circle',
+        icon: 'play_arrow',
         color: 'primary'
       }
     });
 
     dialogRef.afterClosed().subscribe(result => {
       if (result) {
-        this.taskService.completeTask(task.id).subscribe({
-          next: () => {
-            this.loadMyTasks();
-            this.snackBar.open('¡Felicidades! Tarea completada 🎉', 'Cerrar', { 
+        this.taskService.startTask(task.id).subscribe({
+          next: (updatedTask) => {
+            // Actualizar la tarea localmente para una respuesta más rápida
+            const updatedTasks = this.tasks().map(t => 
+              t.id === task.id ? { ...t, status: 'in_progress' as const, progress: 0, updatedAt: new Date() } : t
+            );
+            this.tasks.set(updatedTasks);
+            this.categorizeTasksByStatus(updatedTasks);
+            this.applyFilters();
+            
+            this.snackBar.open('🚀 ¡Tarea iniciada! Ahora está en progreso', 'Cerrar', { 
               duration: 3000,
               panelClass: ['success-snackbar']
             });
           },
           error: (error: any) => {
+            console.error('Error starting task:', error);
+            this.snackBar.open('❌ Error al iniciar la tarea. Inténtalo de nuevo.', 'Cerrar', { 
+              duration: 4000,
+              panelClass: ['error-snackbar']
+            });
+          }
+        });
+      }
+    });
+  }
+
+  updateProgress(task: Task, increment: number): void {
+    const currentProgress = task.progress || 0;
+    const newProgress = Math.max(0, Math.min(100, currentProgress + increment));
+    
+    this.taskService.updateTask(task.id, { progress: newProgress }).subscribe({
+      next: () => {
+        // Actualizar la tarea local
+        const updatedTasks = this.tasks().map(t => 
+          t.id === task.id ? { ...t, progress: newProgress } : t
+        );
+        this.tasks.set(updatedTasks);
+        this.categorizeTasksByStatus(updatedTasks);
+        this.applyFilters();
+        
+        this.snackBar.open(`Progreso actualizado a ${newProgress}%`, 'Cerrar', { 
+          duration: 2000,
+          panelClass: ['success-snackbar']
+        });
+      },
+      error: (error: any) => {
+        console.error('Error updating progress:', error);
+        this.snackBar.open('Error al actualizar el progreso', 'Cerrar', { duration: 3000 });
+      }
+    });
+  }
+
+  completeTask(task: Task): void {
+    // Validar que la tarea esté en progreso
+    if (task.status !== 'in_progress') {
+      this.snackBar.open('⚠️ Solo se pueden completar tareas que estén en progreso', 'Cerrar', { 
+        duration: 3000,
+        panelClass: ['warning-snackbar']
+      });
+      return;
+    }
+
+    // Confirmación antes de completar la tarea
+    const dialogRef = this.dialog.open(ConfirmDialogComponent, {
+      width: '450px',
+      data: {
+        title: 'Completar Tarea',
+        message: `¿Has terminado completamente "${task.title}"? Esta acción marcará la tarea como finalizada y se moverá a la sección "Completadas".`,
+        confirmText: 'Sí, Completar',
+        cancelText: 'Cancelar',
+        icon: 'check_circle',
+        color: 'accent'
+      }
+    });
+
+    dialogRef.afterClosed().subscribe(result => {
+      if (result) {
+        this.taskService.completeTask(task.id).subscribe({
+          next: (completedTask) => {
+            // Actualizar la tarea localmente para una respuesta más rápida
+            const updatedTasks = this.tasks().map(t => 
+              t.id === task.id ? { 
+                ...t, 
+                status: 'completed' as const, 
+                progress: 100, 
+                completedAt: new Date(),
+                updatedAt: new Date() 
+              } : t
+            );
+            this.tasks.set(updatedTasks);
+            this.categorizeTasksByStatus(updatedTasks);
+            this.applyFilters();
+            
+            this.snackBar.open('🎉 ¡Felicidades! Tarea completada exitosamente', 'Cerrar', { 
+              duration: 4000,
+              panelClass: ['success-snackbar']
+            });
+          },
+          error: (error: any) => {
             console.error('Error completing task:', error);
-            this.snackBar.open('Error al completar la tarea', 'Cerrar', { duration: 3000 });
+            this.snackBar.open('❌ Error al completar la tarea. Inténtalo de nuevo.', 'Cerrar', { 
+              duration: 4000,
+              panelClass: ['error-snackbar']
+            });
           }
         });
       }

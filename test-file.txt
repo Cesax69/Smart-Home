@@ -1,0 +1,3 @@
+Este es un archivo de prueba para verificar la funcionalidad de subida de archivos.
+Creado el: 2025-10-09
+Propósito: Probar la integración de archivos en el sistema Smart Home.

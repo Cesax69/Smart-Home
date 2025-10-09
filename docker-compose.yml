@@ -55,7 +55,7 @@ services:
       - USERS_SERVICE_URL=http://users-service:3001
       - TASKS_SERVICE_URL=http://tasks-service:3002
       - NOTIFICATIONS_SERVICE_URL=http://notifications-service:3003
-      - FILE_UPLOAD_SERVICE_URL=http://file-upload-service:3004
+      - FILE_UPLOAD_SERVICE_URL=http://file-upload-service:3005
     depends_on:
       - users-service
       - tasks-service
@@ -104,6 +104,7 @@ services:
       - DB_NAME=tasks_db
       - DB_USER=postgres
       - DB_PASSWORD=linux
+      - DB_SCHEMA=public
     depends_on:
       postgres-tasks:
         condition: service_healthy
@@ -134,7 +135,7 @@ services:
       dockerfile: Dockerfile
     container_name: smart-home-file-upload-service
     ports:
-      - "3004:3004"
+      - "3005:3005"
     env_file:
       - ./backend/file-upload-service/.env
     environment:
