@@ -16,7 +16,7 @@ export type TaskPriority = 'baja' | 'media' | 'alta' | 'urgente';
 export interface Task {
   id: number;
   title: string;           // Título corto de la tarea
-  description: string;     // Descripción detallada
+  description?: string;    // Descripción detallada (opcional)
   category: TaskCategory;  // Categoría de la tarea doméstica
   priority: TaskPriority;  // Prioridad de la tarea
   status: TaskStatus;
@@ -42,8 +42,8 @@ export interface Task {
 
 export interface CreateTaskRequest {
   title: string;
-  description: string;
-  category: TaskCategory;
+  description?: string;
+  category?: TaskCategory;
   priority?: TaskPriority;
   status?: TaskStatus;
   assignedUserId: number;
@@ -97,7 +97,7 @@ export interface TaskStats {
 export interface DatabaseTask {
   id: number;
   title: string;
-  description: string;
+  description?: string | null;
   category: TaskCategory;
   priority: TaskPriority;
   status: TaskStatus;

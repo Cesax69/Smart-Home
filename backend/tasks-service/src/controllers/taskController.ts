@@ -20,10 +20,10 @@ export class TaskController {
       const hasSingleAssignee = !!taskData.assignedUserId && taskData.assignedUserId > 0;
       const hasMultipleAssignees = Array.isArray(taskData.assignedUserIds) && taskData.assignedUserIds.length > 0;
 
-      if (!taskData.title || !taskData.description || (!hasSingleAssignee && !hasMultipleAssignees) || !taskData.createdById || !taskData.category) {
+      if (!taskData.title || (!hasSingleAssignee && !hasMultipleAssignees) || !taskData.createdById) {
         res.status(400).json({
           success: false,
-          message: 'Título, descripción, al menos un asignado (assignedUserId o assignedUserIds), creador y categoría son requeridos'
+          message: 'Título, al menos un asignado (assignedUserId o assignedUserIds) y createdById son requeridos'
         } as TaskResponse);
         return;
       }

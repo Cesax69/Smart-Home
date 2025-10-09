@@ -66,7 +66,8 @@ export class GoogleDriveService {
           mimeType: mimeType,
           body: fileStream
         },
-        fields: 'id, name, webViewLink, webContentLink'
+        fields: 'id, name, webViewLink, webContentLink',
+        supportsAllDrives: true
       });
 
       const file = response.data;
@@ -123,7 +124,8 @@ export class GoogleDriveService {
           mimeType: mimeType,
           body: fileStream
         },
-        fields: 'id, name, webViewLink, webContentLink'
+        fields: 'id, name, webViewLink, webContentLink',
+        supportsAllDrives: true
       });
 
       const file = response.data;
@@ -170,7 +172,8 @@ export class GoogleDriveService {
   async deleteFile(fileId: string): Promise<boolean> {
     try {
       await this.drive.files.delete({
-        fileId: fileId
+        fileId: fileId,
+        supportsAllDrives: true
       });
       console.log(`🗑️ Archivo eliminado de Google Drive: ${fileId}`);
       return true;
@@ -187,7 +190,8 @@ export class GoogleDriveService {
     try {
       const response = await this.drive.files.get({
         fileId: fileId,
-        fields: 'id, name, parents, size, mimeType, createdTime, modifiedTime, webViewLink, webContentLink'
+        fields: 'id, name, parents, size, mimeType, createdTime, modifiedTime, webViewLink, webContentLink',
+        supportsAllDrives: true
       });
       return response.data;
     } catch (error) {
@@ -204,7 +208,9 @@ export class GoogleDriveService {
       const response = await this.drive.files.list({
         q: this.folderId !== 'root' ? `'${this.folderId}' in parents` : undefined,
         pageSize: pageSize,
-        fields: 'files(id, name, size, mimeType, createdTime, modifiedTime, webViewLink)'
+        fields: 'files(id, name, size, mimeType, createdTime, modifiedTime, webViewLink)',
+        supportsAllDrives: true,
+        includeItemsFromAllDrives: true
       });
       return response.data.files || [];
     } catch (error) {
@@ -221,7 +227,9 @@ export class GoogleDriveService {
       const response = await this.drive.files.list({
         q: `'${folderId}' in parents`,
         pageSize: pageSize,
-        fields: 'files(id, name, size, mimeType, createdTime, modifiedTime, webViewLink)'
+        fields: 'files(id, name, size, mimeType, createdTime, modifiedTime, webViewLink)',
+        supportsAllDrives: true,
+        includeItemsFromAllDrives: true
       });
       return response.data.files || [];
     } catch (error) {
@@ -243,7 +251,8 @@ export class GoogleDriveService {
 
       const response = await this.drive.files.create({
         resource: fileMetadata,
-        fields: 'id'
+        fields: 'id',
+        supportsAllDrives: true
       });
 
       console.log(`📁 Carpeta creada en Google Drive: ${folderName} (ID: ${response.data.id})`);
@@ -267,7 +276,9 @@ export class GoogleDriveService {
       const response = await this.drive.files.list({
         q: qParts.join(' and '),
         pageSize: 10,
-        fields: 'files(id, name, parents)'
+        fields: 'files(id, name, parents)',
+        supportsAllDrives: true,
+        includeItemsFromAllDrives: true
       });
       const files = response.data.files || [];
       return files.length ? files[0] : null;
@@ -291,7 +302,9 @@ export class GoogleDriveService {
         q: qParts.join(' and '),
         orderBy: 'modifiedTime desc',
         pageSize: 10,
-        fields: 'files(id, name, parents)'
+        fields: 'files(id, name, parents)',
+        supportsAllDrives: true,
+        includeItemsFromAllDrives: true
       });
       const files = response.data.files || [];
       return files.length ? files[0] : null;
@@ -309,7 +322,8 @@ export class GoogleDriveService {
       const response = await this.drive.files.update({
         fileId: folderId,
         resource: { name: newName },
-        fields: 'id, name'
+        fields: 'id, name',
+        supportsAllDrives: true
       });
       console.log(`✏️ Carpeta renombrada: ${response.data.id} -> ${response.data.name}`);
       return true;
@@ -324,7 +338,7 @@ export class GoogleDriveService {
    */
   async deleteFolder(folderId: string): Promise<boolean> {
     try {
-      await this.drive.files.delete({ fileId: folderId });
+      await this.drive.files.delete({ fileId: folderId, supportsAllDrives: true });
       console.log(`🗑️ Carpeta eliminada de Google Drive: ${folderId}`);
       return true;
     } catch (error) {

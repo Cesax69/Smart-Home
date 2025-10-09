@@ -133,7 +133,7 @@ export class TaskService {
     return {
       id: dbTask.id,
       title: dbTask.title,
-      description: dbTask.description,
+      description: dbTask.description ?? undefined,
       category: this.normalizeCategory(dbTask.category as unknown as string),
       priority: (['baja', 'media', 'alta', 'urgente'].includes((dbTask.priority as unknown as string) || '')
         ? (dbTask.priority as unknown as TaskPriority)
@@ -180,6 +180,16 @@ export class TaskService {
   }
 
   /**
+   * Normaliza el tiempo estimado: convierte cadenas vacías a NULL y valores a entero
+   */
+  private normalizeEstimatedTime(value: any): number | null {
+    if (value === undefined || value === null || value === '') return null;
+    const n = Number(value);
+    if (Number.isNaN(n)) return null;
+    return Math.trunc(n);
+  }
+
+  /**
    * Crea una nueva tarea doméstica
    */
   async createTask(taskData: CreateTaskRequest): Promise<Task> {
@@ -189,9 +199,7 @@ export class TaskService {
         throw new Error('El título de la tarea es requerido');
       }
 
-      if (!taskData.description || taskData.description.trim().length === 0) {
-        throw new Error('La descripción de la tarea es requerida');
-      }
+      // Descripción opcional: si viene vacía, se guarda como NULL
 
       const assigneeIds = Array.isArray(taskData.assignedUserIds) && taskData.assignedUserIds.length > 0
         ? taskData.assignedUserIds
@@ -205,7 +213,8 @@ export class TaskService {
         throw new Error('El ID del creador es requerido y debe ser válido');
       }
 
-      if (!this.isValidCategory(taskData.category)) {
+      // La categoría es opcional: si viene, validar; si no, se guarda como NULL
+      if (taskData.category && !this.isValidCategory(taskData.category)) {
         throw new Error('Categoría de tarea inválida');
       }
 
@@ -232,13 +241,13 @@ export class TaskService {
         const insertTaskParams = [
           taskData.createdById,
           taskData.title.trim(),
-          taskData.description.trim(),
+          (taskData.description && taskData.description.trim().length > 0) ? taskData.description.trim() : null,
           this.mapAppStatusToDb(status),
           priority,
-          taskData.category,
+          (taskData.category ? taskData.category : null),
           taskData.startDate || null,
           taskData.dueDate || null,
-          taskData.estimatedTime ?? null,
+          this.normalizeEstimatedTime(taskData.estimatedTime),
           isRecurring,
           recurrenceType
         ];
@@ -614,12 +623,12 @@ export class TaskService {
 
         if (updateData.title !== undefined) { fields.push(`title = $${idx++}`); params.push(updateData.title); }
         if (updateData.description !== undefined) { fields.push(`description = $${idx++}`); params.push(updateData.description); }
-        if (updateData.category !== undefined) { fields.push(`category = $${idx++}`); params.push(updateData.category); }
+        if (updateData.category !== undefined) { fields.push(`category = $${idx++}`); params.push(updateData.category ? updateData.category : null); }
         if (updateData.priority !== undefined) { fields.push(`priority = $${idx++}`); params.push(updateData.priority); }
         if (updateData.status !== undefined) { fields.push(`status = $${idx++}`); params.push(this.mapAppStatusToDb(updateData.status)); }
         if (updateData.startDate !== undefined) { fields.push(`start_date = $${idx++}`); params.push(updateData.startDate || null); }
         if (updateData.dueDate !== undefined) { fields.push(`due_date = $${idx++}`); params.push(updateData.dueDate || null); }
-        if (updateData.estimatedTime !== undefined) { fields.push(`estimated_time = $${idx++}`); params.push(updateData.estimatedTime ?? null); }
+        if (updateData.estimatedTime !== undefined) { fields.push(`estimated_time = $${idx++}`); params.push(this.normalizeEstimatedTime(updateData.estimatedTime)); }
         if (updateData.completedAt !== undefined) { fields.push(`completed_at = $${idx++}`); params.push(updateData.completedAt || null); }
         if (updateData.isRecurring !== undefined) { fields.push(`is_recurring = $${idx++}`); params.push(!!updateData.isRecurring); }
         if (updateData.recurrenceInterval !== undefined) { fields.push(`recurrence_type = $${idx++}`); params.push(updateData.recurrenceInterval || null); }
