@@ -13,6 +13,7 @@ import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
 import { MatMenuModule } from '@angular/material/menu';
 import { MatDialogModule, MatDialog } from '@angular/material/dialog';
 import { MatSnackBar, MatSnackBarModule } from '@angular/material/snack-bar';
+import { AlertService } from '../../../../../services/alert.service';
 
 // Imports actualizados para la nueva estructura
 import { TaskService } from '../../../services/task.service';
@@ -60,7 +61,8 @@ export class TaskListComponent implements OnInit {
     private authService: AuthService,
     private router: Router,
     private dialog: MatDialog,
-    private snackBar: MatSnackBar
+    private snackBar: MatSnackBar,
+    private alerts: AlertService
   ) {}
 
   ngOnInit(): void {
@@ -122,7 +124,7 @@ export class TaskListComponent implements OnInit {
 
   reloadTasks(): void {
     this.loadTasks();
-    this.snackBar.open('Tareas recargadas', 'Cerrar', { duration: 2000 });
+    this.alerts.info('Tareas recargadas', 'Se actualizó la lista de tareas.', { duration: 2500, dismissible: true });
   }
 
   canManageTask(task: Task): boolean {
@@ -256,17 +258,18 @@ export class TaskListComponent implements OnInit {
 
     dialogRef.afterClosed().subscribe(result => {
       if (result) {
+        const alertId = this.alerts.info('Eliminando archivos...', 'Estamos eliminando la tarea y sus archivos asociados.', { loading: true, dismissible: true });
         this.taskService.deleteTask(task.id).subscribe({
           next: () => {
             const tasks = this.tasks();
             const updatedTasks = tasks.filter(t => t.id !== task.id);
             this.tasks.set(updatedTasks);
             this.applyFilters();
-            this.snackBar.open('Tarea eliminada exitosamente', 'Cerrar', { duration: 3000 });
+            this.alerts.update(alertId, { type: 'success', title: 'Tarea eliminada correctamente', message: 'La tarea y sus archivos fueron eliminados.', loading: false, duration: 4000 });
           },
           error: (error: any) => {
             console.error('Error deleting task:', error);
-            this.snackBar.open('Error al eliminar la tarea', 'Cerrar', { duration: 3000 });
+            this.alerts.update(alertId, { type: 'error', title: 'Error al eliminar la tarea', message: 'Inténtalo de nuevo o verifica tu conexión.', loading: false, dismissible: true, duration: 6000 });
           }
         });
       }
