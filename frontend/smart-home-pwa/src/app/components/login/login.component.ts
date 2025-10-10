@@ -10,6 +10,7 @@ import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatInputModule } from '@angular/material/input';
 import { MatCheckboxModule } from '@angular/material/checkbox';
 import { MatDividerModule } from '@angular/material/divider';
+import { MatSnackBarModule, MatSnackBar } from '@angular/material/snack-bar';
 import { AuthService } from '../../services/auth.service';
 import { LoginRequest } from '../../models/user.model';
 
@@ -25,7 +26,8 @@ import { LoginRequest } from '../../models/user.model';
     MatButtonModule,
     MatIconModule,
     MatCheckboxModule,
-    MatProgressSpinnerModule
+    MatProgressSpinnerModule,
+    MatSnackBarModule
   ],
   templateUrl: './login.component.html',
   styleUrl: './login.component.scss'
@@ -39,7 +41,8 @@ export class LoginComponent {
   constructor(
     private fb: FormBuilder,
     private authService: AuthService,
-    private router: Router
+    private router: Router,
+    private snackBar: MatSnackBar
   ) {
     this.loginForm = this.createForm();
   }
@@ -83,12 +86,17 @@ export class LoginComponent {
       next: (response) => {
         this.isLoading.set(false);
         
-        // Navegar según el rol del usuario
-        if (response.user.role === 'head_of_household') {
-          this.router.navigate(['/dashboard/admin']);
-        } else {
-          this.router.navigate(['/dashboard/member']);
-        }
+        // Mostrar mensaje de bienvenida diferenciado por rol
+        this.showWelcomeMessage(response.user);
+        
+        // Navegar según el rol del usuario después de un breve delay
+        setTimeout(() => {
+          if (response.user.role === 'head_of_household') {
+            this.router.navigate(['/dashboard/admin']);
+          } else {
+            this.router.navigate(['/dashboard/member']);
+          }
+        }, 1500);
       },
       error: (error) => {
         this.isLoading.set(false);
@@ -97,6 +105,26 @@ export class LoginComponent {
         // Limpiar contraseña en caso de error
         // this.loginForm.patchValue({ password: '' });
       }
+    });
+  }
+
+  private showWelcomeMessage(user: any): void {
+    let message = '';
+    let icon = '';
+    
+    if (user.role === 'head_of_household') {
+      message = `¡Bienvenido, ${user.firstName}! 👑 Entrando como Jefe del Hogar`;
+      icon = '👑';
+    } else {
+      message = `¡Hola, ${user.firstName}! 👤 Entrando como Miembro del Hogar`;
+      icon = '👤';
+    }
+
+    this.snackBar.open(message, '✨', {
+      duration: 3000,
+      horizontalPosition: 'center',
+      verticalPosition: 'top',
+      panelClass: user.role === 'head_of_household' ? ['success-snackbar', 'admin-snackbar'] : ['success-snackbar', 'member-snackbar']
     });
   }
 

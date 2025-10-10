@@ -1,5 +1,0 @@
-Este es un archivo de prueba para el File Upload Service.
-Contenido: Texto de ejemplo para verificar la funcionalidad de carga de archivos.
-Fecha: 2025-09-25
-Servicio: file-upload-service
-Puerto: 3003

@@ -66,7 +66,8 @@ export class GoogleDriveService {
           mimeType: mimeType,
           body: fileStream
         },
-        fields: 'id, name, webViewLink, webContentLink'
+        fields: 'id, name, webViewLink, webContentLink',
+        supportsAllDrives: true
       });
 
       const file = response.data;
@@ -123,7 +124,8 @@ export class GoogleDriveService {
           mimeType: mimeType,
           body: fileStream
         },
-        fields: 'id, name, webViewLink, webContentLink'
+        fields: 'id, name, webViewLink, webContentLink',
+        supportsAllDrives: true
       });
 
       const file = response.data;
@@ -170,7 +172,8 @@ export class GoogleDriveService {
   async deleteFile(fileId: string): Promise<boolean> {
     try {
       await this.drive.files.delete({
-        fileId: fileId
+        fileId: fileId,
+        supportsAllDrives: true
       });
       console.log(`🗑️ Archivo eliminado de Google Drive: ${fileId}`);
       return true;
@@ -187,7 +190,8 @@ export class GoogleDriveService {
     try {
       const response = await this.drive.files.get({
         fileId: fileId,
-        fields: 'id, name, size, mimeType, createdTime, modifiedTime, webViewLink, webContentLink'
+        fields: 'id, name, parents, size, mimeType, createdTime, modifiedTime, webViewLink, webContentLink',
+        supportsAllDrives: true
       });
       return response.data;
     } catch (error) {
@@ -204,11 +208,32 @@ export class GoogleDriveService {
       const response = await this.drive.files.list({
         q: this.folderId !== 'root' ? `'${this.folderId}' in parents` : undefined,
         pageSize: pageSize,
-        fields: 'files(id, name, size, mimeType, createdTime, modifiedTime, webViewLink)'
+        fields: 'files(id, name, size, mimeType, createdTime, modifiedTime, webViewLink)',
+        supportsAllDrives: true,
+        includeItemsFromAllDrives: true
       });
       return response.data.files || [];
     } catch (error) {
       console.error('❌ Error listando archivos:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Listar archivos en una carpeta específica (por folderId)
+   */
+  async listFilesInFolder(folderId: string, pageSize: number = 10): Promise<any[]> {
+    try {
+      const response = await this.drive.files.list({
+        q: `'${folderId}' in parents`,
+        pageSize: pageSize,
+        fields: 'files(id, name, size, mimeType, createdTime, modifiedTime, webViewLink)',
+        supportsAllDrives: true,
+        includeItemsFromAllDrives: true
+      });
+      return response.data.files || [];
+    } catch (error) {
+      console.error(`❌ Error listando archivos en carpeta ${folderId}:`, error);
       throw error;
     }
   }
@@ -226,14 +251,124 @@ export class GoogleDriveService {
 
       const response = await this.drive.files.create({
         resource: fileMetadata,
-        fields: 'id'
+        fields: 'id',
+        supportsAllDrives: true
       });
 
       console.log(`📁 Carpeta creada en Google Drive: ${folderName} (ID: ${response.data.id})`);
       return response.data.id;
     } catch (error) {
-      console.error(`❌ Error creando carpeta ${folderName}:`, error);
-      throw error;
+      const errorMessage = error instanceof Error ? error.message : 'Error desconocido';
+      throw new Error(`Error al crear carpeta en Google Drive: ${errorMessage}`);
+    }
+  }
+
+  /**
+   * Buscar carpeta por nombre exacto dentro de un parent opcional
+   */
+  async findFolderByExactName(folderName: string, parentFolderId?: string): Promise<any | null> {
+    try {
+      const qParts = [
+        `mimeType = 'application/vnd.google-apps.folder'`,
+        `name = '${folderName.replace(/'/g, "\\'")}'`
+      ];
+      if (parentFolderId) qParts.push(`'${parentFolderId}' in parents`);
+      const response = await this.drive.files.list({
+        q: qParts.join(' and '),
+        pageSize: 10,
+        fields: 'files(id, name, parents)',
+        supportsAllDrives: true,
+        includeItemsFromAllDrives: true
+      });
+      const files = response.data.files || [];
+      return files.length ? files[0] : null;
+    } catch (error) {
+      console.error('❌ Error buscando carpeta por nombre exacto:', error);
+      return null;
+    }
+  }
+
+  /**
+   * Buscar carpeta cuyo nombre comienza con un prefijo dentro de un parent opcional
+   */
+  async findFolderByPrefix(prefix: string, parentFolderId?: string): Promise<any | null> {
+    try {
+      const qParts = [
+        `mimeType = 'application/vnd.google-apps.folder'`,
+        `name contains '${prefix.replace(/'/g, "\\'")}'`
+      ];
+      if (parentFolderId) qParts.push(`'${parentFolderId}' in parents`);
+      const response = await this.drive.files.list({
+        q: qParts.join(' and '),
+        orderBy: 'modifiedTime desc',
+        pageSize: 10,
+        fields: 'files(id, name, parents)',
+        supportsAllDrives: true,
+        includeItemsFromAllDrives: true
+      });
+      const files = response.data.files || [];
+      return files.length ? files[0] : null;
+    } catch (error) {
+      console.error('❌ Error buscando carpeta por prefijo:', error);
+      return null;
+    }
+  }
+
+  /**
+   * Renombrar carpeta (archivo tipo folder)
+   */
+  async renameFolder(folderId: string, newName: string): Promise<boolean> {
+    try {
+      const response = await this.drive.files.update({
+        fileId: folderId,
+        resource: { name: newName },
+        fields: 'id, name',
+        supportsAllDrives: true
+      });
+      console.log(`✏️ Carpeta renombrada: ${response.data.id} -> ${response.data.name}`);
+      return true;
+    } catch (error) {
+      console.error(`❌ Error renombrando carpeta ${folderId}:`, error);
+      return false;
+    }
+  }
+
+  /**
+   * Eliminar carpeta
+   */
+  async deleteFolder(folderId: string): Promise<boolean> {
+    try {
+      await this.drive.files.delete({ fileId: folderId, supportsAllDrives: true });
+      console.log(`🗑️ Carpeta eliminada de Google Drive: ${folderId}`);
+      return true;
+    } catch (error) {
+      console.error(`❌ Error eliminando carpeta ${folderId}:`, error);
+      return false;
+    }
+  }
+
+  /**
+   * Eliminar carpeta y todo su contenido de forma recursiva
+   */
+  async deleteFolderRecursive(folderId: string): Promise<boolean> {
+    try {
+      // Listar todos los elementos dentro de la carpeta
+      const children = await this.listFilesInFolder(folderId, 1000);
+      for (const child of children) {
+        const isFolder = child.mimeType === 'application/vnd.google-apps.folder';
+        if (isFolder) {
+          // Borrar recursivamente subcarpeta
+          await this.deleteFolderRecursive(child.id);
+        } else {
+          // Borrar archivo
+          await this.deleteFile(child.id);
+        }
+      }
+      // Borrar finalmente la carpeta raíz
+      return await this.deleteFolder(folderId);
+    } catch (error) {
+      console.error(`❌ Error eliminando recursivamente la carpeta ${folderId}:`, error);
+      return false;
     }
   }
 

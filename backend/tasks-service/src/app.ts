@@ -18,7 +18,7 @@ class App {
     this.initializeMiddlewares();
     this.initializeRoutes();
     this.initializeErrorHandling();
-    this.initializeDatabase();
+    this.testDatabaseConnection();
   }
 
   /**
@@ -75,7 +75,16 @@ class App {
             getAll: 'GET /api/tasks',
             getById: 'GET /api/tasks/:id',
             update: 'PUT /api/tasks/:id',
-            delete: 'DELETE /api/tasks/:id'
+            delete: 'DELETE /api/tasks/:id',
+            comments: {
+              get: 'GET /api/tasks/:id/comments',
+              add: 'POST /api/tasks/:id/comments'
+            },
+            files: {
+              get: 'GET /api/tasks/:id/files',
+              add: 'POST /api/tasks/:id/files',
+              delete: 'DELETE /api/tasks/files/:fileRecordId'
+            }
           }
         }
       });
@@ -112,29 +121,19 @@ class App {
   /**
    * Inicializar conexión a la base de datos
    */
-  private async initializeDatabase(): Promise<void> {
-    // Verificar si se debe usar datos mockeados
-    if (process.env.USE_MOCK_DATA === 'true') {
-      console.log('🎭 Modo de desarrollo: Usando datos mockeados (sin base de datos)');
-      return;
-    }
-
+  private async testDatabaseConnection(): Promise<void> {
     try {
-      console.log('Inicializando conexión a la base de datos...');
+      console.log('Comprobando conexión a la base de datos...');
       
       // Probar conexión
       const isConnected = await databaseService.testConnection();
       if (!isConnected) {
         throw new Error('No se pudo establecer conexión con PostgreSQL');
       }
-
-      // Inicializar esquema y tablas
-      await databaseService.initializeDatabase();
-      
-      console.log('Base de datos inicializada correctamente');
+      console.log('Conexión a base de datos verificada correctamente');
     } catch (error) {
-      console.error('Error inicializando la base de datos:', error);
-      console.error('El servicio continuará ejecutándose usando datos mockeados');
+      console.error('Error verificando la base de datos:', error);
+      console.error('El servicio continuará ejecutándose, revise la configuración de la base de datos.');
     }
   }
 
@@ -159,13 +158,18 @@ class App {
       console.log('   GET    /api/tasks/:id        - Obtener tarea por ID');
       console.log('   PUT    /api/tasks/:id        - Actualizar tarea');
       console.log('   DELETE /api/tasks/:id        - Eliminar tarea');
+      console.log('   GET    /api/tasks/:id/comments - Obtener comentarios de tarea');
+      console.log('   POST   /api/tasks/:id/comments - Agregar comentario a tarea');
+      console.log('   GET    /api/tasks/:id/files    - Listar archivos de la tarea');
+      console.log('   POST   /api/tasks/:id/files    - Registrar/Agregar archivos de la tarea');
+      console.log('   DELETE /api/tasks/files/:fileRecordId - Eliminar registro de archivo');
       console.log('='.repeat(50));
       console.log('🔍 Query Parameters:');
       console.log('   GET /api/tasks?userId=:id    - Filtrar por usuario');
       console.log('   GET /api/tasks?status=:status - Filtrar por estado');
       console.log('='.repeat(50));
       console.log('💾 Base de datos: PostgreSQL');
-      console.log(`📊 Esquema: ${process.env.DB_SCHEMA || 'tasks_schema'}`);
+      console.log(`📊 Esquema: ${process.env.DB_SCHEMA || 'public'}`);
       console.log('='.repeat(50));
     });
   }

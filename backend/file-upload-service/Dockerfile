@@ -31,7 +31,7 @@ RUN chown -R fileuploadservice:nodejs /app
 USER fileuploadservice
 
 # Exponer puerto
-EXPOSE 3004
+EXPOSE 3005
 
 # Volumen para persistencia de archivos
 VOLUME ["/app/uploads", "/app/temp", "/app/quarantine"]

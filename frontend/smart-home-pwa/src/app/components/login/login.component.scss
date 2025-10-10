@@ -228,4 +228,20 @@
         opacity: 1;
       }
     }
+
+    /* Estilos para notificaciones de rol */
+    ::ng-deep .success-snackbar {
+      font-weight: 500;
+      font-size: 16px;
+    }
+
+    ::ng-deep .admin-snackbar {
+      background-color: #1976d2 !important;
+      color: white !important;
+    }
+
+    ::ng-deep .member-snackbar {
+      background-color: #388e3c !important;
+      color: white !important;
+    }
   

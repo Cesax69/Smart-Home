@@ -56,9 +56,7 @@ class APIGateway {
     const logFormat = process.env.LOG_FORMAT || 'combined';
     this.app.use(morgan(logFormat));
 
-    // Parseo de JSON y URL encoded
-    this.app.use(express.json({ limit: '10mb' }));
-    this.app.use(express.urlencoded({ extended: true, limit: '10mb' }));
+    // No parseamos el cuerpo en el Gateway; el proxy gestionará JSON/multipart
 
     // Headers personalizados
     this.app.use((req: Request, res: Response, next: NextFunction) => {

@@ -21,10 +21,10 @@ class DatabaseService {
     this.config = {
       host: process.env.DB_HOST || 'localhost',
       port: parseInt(process.env.DB_PORT || '5432'),
-      database: process.env.DB_NAME || 'smart_home_db',
+      database: process.env.DB_NAME || 'tasks_db',
       user: process.env.DB_USER || 'postgres',
       password: process.env.DB_PASSWORD || '',
-      schema: process.env.DB_SCHEMA || 'tasks_schema'
+      schema: process.env.DB_SCHEMA || 'public'
     };
 
     const poolConfig: PoolConfig = {
@@ -35,7 +35,7 @@ class DatabaseService {
       password: this.config.password,
       max: 20, // Máximo número de conexiones en el pool
       idleTimeoutMillis: 30000, // Tiempo de espera antes de cerrar conexiones inactivas
-      connectionTimeoutMillis: 2000, // Tiempo de espera para establecer conexión
+      connectionTimeoutMillis: 10000, // Tiempo de espera para establecer conexión aumentado
     };
 
     this.pool = new Pool(poolConfig);
@@ -81,40 +81,9 @@ class DatabaseService {
     }
   }
 
-  /**
-   * Inicializa la base de datos creando el esquema y las tablas necesarias
-   */
-  async initializeDatabase() {
-    const client = await this.getConnection();
-    try {
-      // Crear esquema si no existe
-      await client.query(`CREATE SCHEMA IF NOT EXISTS ${this.config.schema}`);
-      
-      // Establecer el esquema
-      await client.query(`SET search_path TO ${this.config.schema}, public`);
-
-      // Crear tabla tasks si no existe
-      const createTasksTable = `
-        CREATE TABLE IF NOT EXISTS tasks (
-          id SERIAL PRIMARY KEY,
-          description TEXT NOT NULL,
-          status VARCHAR(20) NOT NULL CHECK (status IN ('pendiente', 'en_proceso', 'completada')),
-          assigned_user_id INTEGER NOT NULL,
-          file_url VARCHAR(500),
-          created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-        )
-      `;
-
-      await client.query(createTasksTable);
-      
-      console.log(`Base de datos inicializada correctamente. Esquema: ${this.config.schema}`);
-    } catch (error) {
-      console.error('Error inicializando la base de datos:', error);
-      throw error;
-    } finally {
-      client.release();
-    }
-  }
+  // La inicialización del esquema y tablas ahora se realiza mediante
+  // scripts SQL (p. ej., setup-tasks-database.sql) cargados por Docker.
+  // Este servicio solo gestiona conexiones y consultas.
 
   /**
    * Verifica la conexión a la base de datos

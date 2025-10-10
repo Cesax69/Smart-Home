@@ -213,7 +213,7 @@
             }
           </mat-form-field>
 
-          <!-- Tiempo estimado y recompensa -->
+          <!-- Tiempo estimado y chips de asignados -->
           <div class="additional-fields-row">
             <div class="time-field-group">
               <mat-form-field appearance="outline" class="time-field">
@@ -239,14 +239,6 @@
               </div>
             </div>
 
-            <mat-form-field appearance="outline" class="reward-field">
-              <mat-label>Recompensa (opcional)</mat-label>
-              <input matInput formControlName="reward" placeholder="Ej: 30 min extra de TV">
-              <mat-icon matSuffix>emoji_events</mat-icon>
-              @if (taskForm.get('reward')?.invalid && taskForm.get('reward')?.touched) {
-                <mat-error>{{ getErrorMessage('reward') }}</mat-error>
-              }
-            </mat-form-field>
           </div>
 
           <!-- Recurrencia -->
@@ -258,7 +250,7 @@
             @if (taskForm.get('isRecurring')?.value) {
               <mat-form-field appearance="outline" class="recurrence-field">
                 <mat-label>Repetir cada</mat-label>
-                <mat-select formControlName="recurrenceInterval">
+                <mat-select formControlName="recurrenceInterval" [required]="taskForm.get('isRecurring')?.value">
                   <mat-option value="daily">Diariamente</mat-option>
                   <mat-option value="weekly">Semanalmente</mat-option>
                   <mat-option value="monthly">Mensualmente</mat-option>
@@ -327,7 +319,7 @@
       </button>
       <button type="submit" mat-raised-button color="primary" 
               (click)="onSubmit()" 
-              [disabled]="taskForm.invalid || isSubmitting()">
+              [disabled]="isSubmitting()">
         <mat-icon>save</mat-icon>
         @if (isSubmitting()) {
           Guardando...

@@ -32,6 +32,12 @@ router.get('/health', UploadController.healthCheck);
 router.get('/drive/files', UploadController.listDriveFiles);
 
 /**
+ * GET /drive/folders/:folderId/files
+ * Listar archivos de una carpeta específica de Google Drive
+ */
+router.get('/drive/folders/:folderId/files', UploadController.listDriveFilesInFolder);
+
+/**
  * GET /drive/files/:fileId
  * Obtener información de un archivo específico de Google Drive
  */
@@ -42,5 +48,11 @@ router.get('/drive/files/:fileId', UploadController.getDriveFileInfo);
  * Eliminar archivo de Google Drive
  */
 router.delete('/drive/files/:fileId', UploadController.deleteDriveFile);
+
+/**
+ * DELETE /drive/folders/:folderId
+ * Eliminar carpeta de Google Drive (opcionalmente recursivo)
+ */
+router.delete('/drive/folders/:folderId', UploadController.deleteDriveFolder);
 
 export { router as uploadRoutes };

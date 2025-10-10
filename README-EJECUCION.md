@@ -10,17 +10,11 @@
 
 ### 1️⃣ Configurar Base de Datos
 ```bash
-# Conectarse a PostgreSQL como superusuario
-psql -U postgres
-
-# Crear la base de datos
-CREATE DATABASE smart_home_db;
-
-# Salir de psql
-\q
-
-# Ejecutar el script de configuración
-psql -U postgres -d smart_home_db -f setup-database.sql
+# Crear y poblar bases de datos (si no usas Docker Compose)
+createdb -U postgres users_db || true
+createdb -U postgres tasks_db || true
+psql -U postgres -d users_db -f backend/setup-users-database.sql
+psql -U postgres -d tasks_db -f backend/setup-tasks-database.sql
 ```
 
 ### 2️⃣ Instalar Dependencias
@@ -42,23 +36,18 @@ psql -U postgres -d smart_home_db -f setup-database.sql
 | **API Gateway** | 3000 | http://localhost:3000 |
 | **Users Service** | 3001 | http://localhost:3001 |
 | **Tasks Service** | 3002 | http://localhost:3002 |
-| **File Upload Service** | 3003 | http://localhost:3003 |
-| **Notifications Service** | 3004 | http://localhost:3004 |
+| **File Upload Service** | 3004 | http://localhost:3004 |
+| **Notifications Service** | 3003 | http://localhost:3003 |
 
 ## 🗄️ Configuración de Base de Datos
 
 ### Credenciales
-- **Host:** localhost
-- **Puerto:** 5432
-- **Base de datos:** smart_home_db
-- **Usuario:** postgres
-- **Contraseña:** linux
+- **Bases de datos:** `users_db` y `tasks_db`
+- **Usuario:** `postgres`
+- **Contraseña:** `linux`
+- **Esquema por defecto:** `public`
 
-### Esquemas por Microservicio
-- **users_schema** - Gestión de usuarios
-- **tasks_schema** - Gestión de tareas
-- **files_schema** - Gestión de archivos
-- **notifications_schema** - Gestión de notificaciones
+Los esquemas por microservicio han sido unificados bajo `public`. Los scripts `backend/setup-users-database.sql` y `backend/setup-tasks-database.sql` crean las tablas necesarias.
 
 ## 🔧 Comandos Individuales
 
@@ -120,7 +109,7 @@ taskkill /PID <PID> /F
 ### PostgreSQL no conecta
 1. Verificar que PostgreSQL esté ejecutándose
 2. Verificar credenciales en archivos `.env`
-3. Verificar que la base de datos `smart_home_db` exista
+3. Verificar que las bases de datos `users_db` y `tasks_db` existan
 
 ### Dependencias faltantes
 ```powershell

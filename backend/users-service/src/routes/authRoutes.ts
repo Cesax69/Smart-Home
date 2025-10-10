@@ -47,4 +47,12 @@ router.get('/me', authController.getCurrentUser);
  */
 router.post('/refresh', authController.refreshToken);
 
+/**
+ * @route POST /auth/login-by-role
+ * @description Login rápido por rol
+ * @access Public
+ * @body {string} role - Rol del usuario (head_of_household o family_member)
+ */
+router.post('/login-by-role', authController.loginByRole);
+
 export default router;

@@ -8,11 +8,17 @@ export interface Task {
   assignedUserIds?: number[]; // Todos los asignados
   assignedBy: number; // User ID
   dueDate?: Date;
+  startDate?: Date;
+  estimatedTime?: number; // minutos
+  isRecurring?: boolean;
+  recurrenceInterval?: string;
   createdAt: Date;
   updatedAt: Date;
   completedAt?: Date;
+  reward?: string; // Recompensa por completar la tarea
   fileUrl?: string;
   files?: TaskFile[];
+  progress?: number; // Progreso de la tarea (0-100)
 }
 
 export interface CreateTaskRequest {
@@ -39,7 +45,13 @@ export interface UpdateTaskRequest {
   priority?: 'low' | 'medium' | 'high';
   assignedTo?: number;
   assignedUserIds?: number[];
+  startDate?: Date;
   dueDate?: Date;
+  estimatedTime?: number;
+  reward?: string;
+  isRecurring?: boolean;
+  recurrenceInterval?: string;
+  progress?: number; // Progreso de la tarea (0-100)
 }
 
 export interface TaskStats {
@@ -65,4 +77,6 @@ export interface TaskFile {
   isImage?: boolean | null;
   thumbnailPath?: string | null;
   createdAt?: Date | string;
+  folderId?: string | null;
+  folderName?: string | null;
 }

@@ -1,4 +1,4 @@
-import { Component, OnInit, signal } from '@angular/core';
+import { Component, OnInit, signal, inject } from '@angular/core';
 import { Router } from '@angular/router';
 import { CommonModule } from '@angular/common';
 import { MatCardModule } from '@angular/material/card';
@@ -22,11 +22,35 @@ import { User } from '../../models/user.model';
   ],
   template: `
     <div class="dashboard-container">
+      <!-- Header con indicador de rol -->
+      <div class="role-header">
+        <div class="role-indicator member-role">
+          <mat-icon class="role-icon">👤</mat-icon>
+          <div class="role-info">
+            <h2>Miembro del Hogar</h2>
+            <p>{{ currentUser()?.firstName }} {{ currentUser()?.lastName }}</p>
+          </div>
+        </div>
+        <button mat-icon-button [matMenuTriggerFor]="userMenu" class="user-menu-btn">
+          <mat-icon>account_circle</mat-icon>
+        </button>
+        <mat-menu #userMenu="matMenu">
+          <button mat-menu-item (click)="navigateTo('/profile')">
+            <mat-icon>person</mat-icon>
+            <span>Mi Perfil</span>
+          </button>
+          <button mat-menu-item (click)="logout()">
+            <mat-icon>logout</mat-icon>
+            <span>Cerrar Sesión</span>
+          </button>
+        </mat-menu>
+      </div>
+
       <!-- Main Content -->
       <div class="dashboard-content">
         <div class="welcome-section">
           <h1>🏠 Mi Hogar Inteligente</h1>
-          <p>Accede a las funciones disponibles para ti</p>
+          <p>Bienvenido a tu panel personal</p>
         </div>
 
         <!-- Member Features Grid -->
@@ -38,10 +62,10 @@ import { User } from '../../models/user.model';
               <mat-card-subtitle>Tareas asignadas a mí</mat-card-subtitle>
             </mat-card-header>
             <mat-card-content>
-              <p>Ve las tareas que te han sido asignadas y actualiza su estado.</p>
+              <p>Ve y gestiona las tareas que te han sido asignadas.</p>
             </mat-card-content>
             <mat-card-actions>
-              <button mat-raised-button color="accent" (click)="navigateTo('/tasks/my-tasks')">
+              <button mat-raised-button color="primary" (click)="navigateTo('/tasks/my-tasks')">
                 Ver Mis Tareas
               </button>
             </mat-card-actions>
@@ -49,15 +73,15 @@ import { User } from '../../models/user.model';
 
           <mat-card class="feature-card">
             <mat-card-header>
-              <mat-icon mat-card-avatar class="feature-icon">💡</mat-icon>
+              <mat-icon mat-card-avatar class="feature-icon">🏡</mat-icon>
               <mat-card-title>Control Básico</mat-card-title>
               <mat-card-subtitle>Dispositivos permitidos</mat-card-subtitle>
             </mat-card-header>
             <mat-card-content>
-              <p>Controla luces, temperatura y otros dispositivos que tienes permitido usar.</p>
+              <p>Controla los dispositivos que tienes permitido usar.</p>
             </mat-card-content>
             <mat-card-actions>
-              <button mat-raised-button color="accent" (click)="navigateTo('/my-devices')">
+              <button mat-raised-button color="primary" (click)="navigateTo('/my-devices')">
                 Mis Dispositivos
               </button>
             </mat-card-actions>
@@ -73,24 +97,8 @@ import { User } from '../../models/user.model';
               <p>Actualiza tu información personal y preferencias.</p>
             </mat-card-content>
             <mat-card-actions>
-              <button mat-raised-button color="accent" (click)="navigateTo('/profile')">
+              <button mat-raised-button color="primary" (click)="navigateTo('/profile')">
                 Ver Perfil
-              </button>
-            </mat-card-actions>
-          </mat-card>
-
-          <mat-card class="feature-card">
-            <mat-card-header>
-              <mat-icon mat-card-avatar class="feature-icon">📱</mat-icon>
-              <mat-card-title>Notificaciones</mat-card-title>
-              <mat-card-subtitle>Mensajes y alertas</mat-card-subtitle>
-            </mat-card-header>
-            <mat-card-content>
-              <p>Revisa las notificaciones y mensajes del sistema.</p>
-            </mat-card-content>
-            <mat-card-actions>
-              <button mat-raised-button color="accent" (click)="navigateTo('/notifications')">
-                Ver Notificaciones
               </button>
             </mat-card-actions>
           </mat-card>
@@ -102,27 +110,11 @@ import { User } from '../../models/user.model';
               <mat-card-subtitle>Historial personal</mat-card-subtitle>
             </mat-card-header>
             <mat-card-content>
-              <p>Ve tu historial de tareas completadas y uso de dispositivos.</p>
+              <p>Revisa tu historial de tareas completadas y actividad.</p>
             </mat-card-content>
             <mat-card-actions>
-              <button mat-raised-button color="accent" (click)="navigateTo('/my-activity')">
+              <button mat-raised-button color="primary" (click)="navigateTo('/my-activity')">
                 Ver Actividad
-              </button>
-            </mat-card-actions>
-          </mat-card>
-
-          <mat-card class="feature-card">
-            <mat-card-header>
-              <mat-icon mat-card-avatar class="feature-icon">❓</mat-icon>
-              <mat-card-title>Ayuda</mat-card-title>
-              <mat-card-subtitle>Soporte y guías</mat-card-subtitle>
-            </mat-card-header>
-            <mat-card-content>
-              <p>Encuentra ayuda sobre cómo usar las funciones del sistema.</p>
-            </mat-card-content>
-            <mat-card-actions>
-              <button mat-raised-button color="accent" (click)="navigateTo('/help')">
-                Ver Ayuda
               </button>
             </mat-card-actions>
           </mat-card>
@@ -219,11 +211,9 @@ import { User } from '../../models/user.model';
 })
 export class DashboardMemberComponent implements OnInit {
   currentUser = signal<User | null>(null);
-
-  constructor(
-    private authService: AuthService,
-    private router: Router
-  ) {}
+  
+  private authService = inject(AuthService);
+  private router = inject(Router);
 
   ngOnInit(): void {
     this.currentUser.set(this.authService.getCurrentUser());

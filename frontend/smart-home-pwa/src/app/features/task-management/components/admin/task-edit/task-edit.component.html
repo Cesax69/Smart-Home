@@ -48,7 +48,14 @@
                     </mat-card-title>
                   </mat-card-header>
                   <mat-card-content>
-                    <div class="drop-zone" (click)="fileInput.click()" (dragover)="onDragOver($event)" (drop)="onDrop($event)">
+                    <div class="actions" style="justify-content:flex-start; margin-bottom:8px;">
+                      <button mat-stroked-button color="primary" type="button" (click)="toggleDropZone()">
+                        <mat-icon>{{ showDropZone ? 'close' : 'add' }}</mat-icon>
+                        {{ showDropZone ? 'Cancelar' : 'Agregar archivos' }}
+                      </button>
+                    </div>
+
+                    <div *ngIf="showDropZone" class="drop-zone" (click)="fileInput.click()" (dragover)="onDragOver($event)" (drop)="onDrop($event)">
                       <input #fileInput type="file" multiple (change)="onFilesSelected($event)" hidden />
                       <mat-icon>cloud_upload</mat-icon>
                       <p>Suelta archivos aquí o haz clic para seleccionar</p>
@@ -59,34 +66,45 @@
                       <h4>Archivos existentes</h4>
                       <div class="file-list">
                         <div class="file-item" *ngFor="let f of existingFiles">
-                          <mat-icon>insert_drive_file</mat-icon>
-                          <a [href]="f.fileUrl || f.webViewLink" target="_blank">{{ f.fileName }}</a>
-                          <button mat-icon-button color="warn" (click)="removeExistingFile(f)">
-                            <mat-icon>delete</mat-icon>
-                          </button>
+                          <div class="thumb" *ngIf="f.isImage && f.fileUrl">
+                            <img [src]="f.fileUrl" alt="preview" />
+                          </div>
+                          <div class="info">
+                            <mat-icon *ngIf="!f.isImage">insert_drive_file</mat-icon>
+                            <a [href]="f.fileUrl" target="_blank">{{ f.fileName }}</a>
+                          </div>
+                          <div class="actions">
+                            <button mat-icon-button type="button" color="primary" (click)="fileReplaceInput.click()">
+                              <mat-icon>swap_horiz</mat-icon>
+                            </button>
+                            <input #fileReplaceInput type="file" (change)="replaceExistingFile(f, $event)" hidden />
+                            <button mat-icon-button type="button" color="warn" (click)="removeExistingFile(f)">
+                              <mat-icon>delete</mat-icon>
+                            </button>
+                          </div>
                         </div>
                       </div>
                     </div>
 
-                    <!-- Previsualizaciones nuevas -->
-                    <div class="previews" *ngIf="filePreviews.length">
-                      <h4>Nuevos archivos</h4>
+                    <!-- Previsualización de archivos nuevos (igual que Crear) -->
+                    <div class="file-previews" *ngIf="filePreviews.length > 0">
+                      <h4>Archivos seleccionados:</h4>
                       <div class="preview-grid">
-                        <mat-card class="preview-card" *ngFor="let preview of filePreviews">
-                          <mat-card-header>
-                            <mat-card-title>{{ preview.name }}</mat-card-title>
-                            <mat-card-subtitle>{{ preview.size }}</mat-card-subtitle>
-                          </mat-card-header>
-                          <mat-card-content>
-                            <div class="preview-thumb" *ngIf="preview.type === 'image'">
-                              <img [src]="preview.url" alt="preview" />
+                        <mat-card class="file-preview-card" *ngFor="let preview of filePreviews">
+                          <ng-container *ngIf="preview.type === 'image'; else docIcon">
+                            <img [src]="preview.url" [alt]="preview.name" class="preview-image" />
+                          </ng-container>
+                          <ng-template #docIcon>
+                            <div class="document-preview">
+                              <mat-icon class="document-icon">description</mat-icon>
                             </div>
-                            <div class="preview-doc" *ngIf="preview.type === 'document'">
-                              <mat-icon>description</mat-icon>
-                            </div>
+                          </ng-template>
+                          <mat-card-content class="preview-info">
+                            <p class="file-name">{{ preview.name }}</p>
+                            <p class="file-size">{{ preview.size }}</p>
                           </mat-card-content>
-                          <mat-card-actions>
-                            <button mat-icon-button color="warn" (click)="removeFile(preview)">
+                          <mat-card-actions class="preview-actions">
+                            <button type="button" mat-icon-button color="warn" (click)="removeFile(preview)" matTooltip="Eliminar archivo">
                               <mat-icon>delete</mat-icon>
                             </button>
                           </mat-card-actions>
@@ -109,32 +127,119 @@
             </mat-expansion-panel-header>
 
             <div class="form-grid">
-              <mat-form-field appearance="outline">
+              <!-- Prioridad (igual al crear) -->
+              <mat-form-field appearance="outline" class="full-width">
                 <mat-label>Prioridad</mat-label>
                 <mat-select formControlName="priority">
-                  <mat-option value="low">Baja</mat-option>
-                  <mat-option value="medium">Media</mat-option>
-                  <mat-option value="high">Alta</mat-option>
+                  <mat-option value="baja">
+                    <mat-icon class="priority-icon low">keyboard_arrow_down</mat-icon>
+                    Baja
+                  </mat-option>
+                  <mat-option value="media">
+                    <mat-icon class="priority-icon medium">remove</mat-icon>
+                    Media
+                  </mat-option>
+                  <mat-option value="alta">
+                    <mat-icon class="priority-icon high">keyboard_arrow_up</mat-icon>
+                    Alta
+                  </mat-option>
+                  <mat-option value="urgente">
+                    <mat-icon class="priority-icon high">priority_high</mat-icon>
+                    Urgente
+                  </mat-option>
                 </mat-select>
                 <mat-icon matSuffix>priority_high</mat-icon>
               </mat-form-field>
 
-              <mat-form-field appearance="outline">
-                <mat-label>Fecha límite</mat-label>
-                <input matInput [matDatepicker]="picker" formControlName="dueDate" />
-                <mat-datepicker-toggle matIconSuffix [for]="picker"></mat-datepicker-toggle>
-                <mat-datepicker #picker></mat-datepicker>
+              <!-- Rango de fechas (igual al crear) -->
+              <mat-form-field appearance="outline" class="full-width">
+                <mat-label>Rango de fechas</mat-label>
+                <mat-date-range-input [rangePicker]="rangePicker">
+                  <input matStartDate formControlName="startDate" placeholder="Inicio" readonly (focus)="rangePicker.open()" (click)="rangePicker.open()">
+                  <input matEndDate formControlName="dueDate" placeholder="Límite" readonly (focus)="rangePicker.open()" (click)="rangePicker.open()">
+                </mat-date-range-input>
+                <mat-datepicker-toggle matIconSuffix [for]="rangePicker"></mat-datepicker-toggle>
+                <mat-date-range-picker #rangePicker></mat-date-range-picker>
+                <mat-error *ngIf="(taskForm.get('startDate')?.invalid && taskForm.get('startDate')?.touched) ||
+                                   (taskForm.get('dueDate')?.invalid && taskForm.get('dueDate')?.touched)">
+                  {{ taskForm.get('startDate')?.invalid ? getErrorMessage('startDate') : getErrorMessage('dueDate') }}
+                </mat-error>
               </mat-form-field>
 
-              <mat-form-field appearance="outline" class="full-width">
-                <mat-label>Asignados</mat-label>
-                <mat-select formControlName="assignedUserIds" multiple>
-                  <mat-option *ngFor="let m of familyMembers" [value]="m.id">
-                    {{ m.firstName }} {{ m.lastName }}
-                  </mat-option>
-                </mat-select>
-                <mat-icon matSuffix>group</mat-icon>
-              </mat-form-field>
+              <div class="additional-fields-row">
+                <div class="time-field-group">
+                  <mat-form-field appearance="outline" class="time-field">
+                    <mat-label>Tiempo estimado (HH:MM)</mat-label>
+                    <input matInput type="text" inputmode="numeric" formControlName="estimatedTimeDuration" placeholder="HH:MM" (input)="onDurationChange()">
+                    <mat-hint>Formato 24h, ej: 01:30</mat-hint>
+                    <mat-icon matSuffix>schedule</mat-icon>
+                    <mat-error *ngIf="taskForm.get('estimatedTime')?.invalid && taskForm.get('estimatedTime')?.touched">
+                      {{ getErrorMessage('estimatedTime') }}
+                    </mat-error>
+                  </mat-form-field>
+
+                  <div class="time-presets">
+                    <span class="presets-label">Rápido:</span>
+                    <mat-button-toggle-group (change)="setPresetDuration($event.value)">
+                      <mat-button-toggle [value]="15">15m</mat-button-toggle>
+                      <mat-button-toggle [value]="30">30m</mat-button-toggle>
+                      <mat-button-toggle [value]="45">45m</mat-button-toggle>
+                      <mat-button-toggle [value]="60">1h</mat-button-toggle>
+                      <mat-button-toggle [value]="90">1h 30</mat-button-toggle>
+                      <mat-button-toggle [value]="120">2h</mat-button-toggle>
+                    </mat-button-toggle-group>
+                  </div>
+                </div>
+
+              </div>
+
+              <!-- Recurrencia (igual al crear) -->
+              <div class="recurrence-section full-width">
+                <mat-checkbox formControlName="isRecurring" class="recurrence-checkbox">
+                  Tarea recurrente
+                </mat-checkbox>
+
+                <mat-form-field appearance="outline" class="recurrence-field" *ngIf="taskForm.get('isRecurring')?.value">
+                  <mat-label>Repetir cada</mat-label>
+                  <mat-select formControlName="recurrenceInterval" [required]="taskForm.get('isRecurring')?.value">
+                    <mat-option value="daily">Diariamente</mat-option>
+                    <mat-option value="weekly">Semanalmente</mat-option>
+                    <mat-option value="monthly">Mensualmente</mat-option>
+                    <mat-option value="yearly">Anualmente</mat-option>
+                  </mat-select>
+                  <mat-error *ngIf="taskForm.get('recurrenceInterval')?.invalid && taskForm.get('recurrenceInterval')?.touched">
+                    {{ getErrorMessage('recurrenceInterval') }}
+                  </mat-error>
+                </mat-form-field>
+              </div>
+
+              <div class="assign-grid full-width">
+                <div class="assign-input">
+                  <mat-form-field appearance="outline" class="full-width">
+                    <mat-label>Asignar a (uno o varios)</mat-label>
+                    <mat-select formControlName="assignedUserIds" multiple>
+                      <mat-option *ngFor="let m of familyMembers" [value]="m.id">
+                        {{ m.firstName }} {{ m.lastName }}
+                        <span class="role-badge">{{ m.role === 'head_of_household' ? 'Jefe' : 'Miembro' }}</span>
+                      </mat-option>
+                    </mat-select>
+                    <mat-icon matSuffix>group_add</mat-icon>
+                  </mat-form-field>
+                </div>
+                <div class="assign-side">
+                  <h4 class="assigned-title"><mat-icon>groups</mat-icon> Asignados</h4>
+                  <ng-container *ngIf="getSelectedMembers().length > 0; else noAssigned">
+                    <mat-chip-set aria-label="Miembros asignados">
+                      <mat-chip *ngFor="let m of getSelectedMembers()" selected>
+                        {{ m.firstName }} {{ m.lastName }}
+                      </mat-chip>
+                    </mat-chip-set>
+                  </ng-container>
+                  <ng-template #noAssigned>
+                    <p class="no-assigned">Sin asignados aún</p>
+                  </ng-template>
+                </div>
+              </div>
             </div>
           </mat-expansion-panel>
         </mat-accordion>
@@ -144,7 +249,7 @@
             <mat-icon>cancel</mat-icon>
             Cancelar
           </button>
-          <button mat-raised-button color="primary" type="submit" [disabled]="taskForm.invalid || submitting">
+          <button mat-raised-button color="primary" type="submit" [disabled]="submitting">
             <mat-icon>save</mat-icon>
             Guardar cambios
           </button>

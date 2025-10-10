@@ -1,0 +1,145 @@
+.dashboard-container {
+  padding: 20px;
+  max-width: 1200px;
+  margin: 0 auto;
+}
+
+/* Header con indicador de rol */
+.role-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  background: linear-gradient(135deg, #4caf50, #66bb6a);
+  color: white;
+  padding: 20px;
+  border-radius: 12px;
+  margin-bottom: 30px;
+  box-shadow: 0 4px 12px rgba(76, 175, 80, 0.3);
+}
+
+.role-indicator {
+  display: flex;
+  align-items: center;
+  gap: 15px;
+}
+
+.member-role {
+  .role-icon {
+    font-size: 48px;
+    color: #e8f5e8;
+    text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.3);
+  }
+}
+
+.role-info {
+  h2 {
+    margin: 0;
+    font-size: 24px;
+    font-weight: 600;
+    text-shadow: 1px 1px 2px rgba(0, 0, 0, 0.2);
+  }
+  
+  p {
+    margin: 5px 0 0 0;
+    font-size: 16px;
+    opacity: 0.9;
+  }
+}
+
+.user-menu-btn {
+  color: white;
+  
+  .mat-icon {
+    font-size: 32px;
+  }
+}
+
+.dashboard-content {
+  margin-top: 20px;
+}
+
+.welcome-section {
+  text-align: center;
+  margin-bottom: 40px;
+  
+  h1 {
+    color: #4caf50;
+    font-size: 2.5rem;
+    margin-bottom: 10px;
+    font-weight: 300;
+  }
+  
+  p {
+    color: #666;
+    font-size: 1.2rem;
+  }
+}
+
+.features-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(350px, 1fr));
+  gap: 24px;
+  margin-top: 30px;
+}
+
+.feature-card {
+  transition: transform 0.2s ease-in-out, box-shadow 0.2s ease-in-out;
+  border-radius: 12px;
+  
+  &:hover {
+    transform: translateY(-4px);
+    box-shadow: 0 8px 25px rgba(0, 0, 0, 0.15);
+  }
+  
+  .feature-icon {
+    font-size: 2rem;
+    background: linear-gradient(135deg, #4caf50, #66bb6a);
+    color: white;
+  }
+  
+  mat-card-title {
+    color: #4caf50;
+    font-weight: 600;
+  }
+  
+  mat-card-subtitle {
+    color: #666;
+  }
+  
+  mat-card-content p {
+    color: #555;
+    line-height: 1.6;
+  }
+  
+  mat-card-actions {
+    padding: 16px;
+    
+    button {
+      width: 100%;
+      padding: 12px;
+      font-weight: 500;
+    }
+  }
+}
+
+/* Responsive design */
+@media (max-width: 768px) {
+  .dashboard-container {
+    padding: 10px;
+  }
+  
+  .role-header {
+    flex-direction: column;
+    gap: 15px;
+    text-align: center;
+  }
+  
+  .features-grid {
+    grid-template-columns: 1fr;
+    gap: 16px;
+  }
+  
+  .welcome-section h1 {
+    font-size: 2rem;
+  }
+}

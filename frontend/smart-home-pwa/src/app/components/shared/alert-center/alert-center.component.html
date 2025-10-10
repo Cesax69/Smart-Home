@@ -1,0 +1,23 @@
+<div class="alert-center" aria-live="polite">
+  <div *ngFor="let a of alerts.alertsList(); trackBy: trackById"
+       class="alert-item"
+       [class.alert-info]="a.type === 'info'"
+       [class.alert-success]="a.type === 'success'"
+       [class.alert-error]="a.type === 'error'"
+       [class.alert-warning]="a.type === 'warning'"
+       [attr.role]="a.type === 'error' ? 'alert' : 'status'">
+    <div class="alert-icon">
+      <mat-icon>{{ iconFor(a.type) }}</mat-icon>
+    </div>
+    <div class="alert-content">
+      <div class="alert-title">{{ a.title }}</div>
+      <div class="alert-message" *ngIf="a.message">{{ a.message }}</div>
+      <div class="alert-loading" *ngIf="a.loading" aria-label="Procesando">
+        <span class="spinner"></span>
+      </div>
+    </div>
+    <button *ngIf="a.dismissible" class="alert-close" (click)="alerts.dismiss(a.id)" aria-label="Cerrar aviso">
+      <mat-icon>close</mat-icon>
+    </button>
+  </div>
+</div>
