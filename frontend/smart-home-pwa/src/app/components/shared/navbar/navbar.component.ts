@@ -36,10 +36,6 @@ export class NavbarComponent implements OnInit {
     this.router.navigate([path]);
   }
 
-  goHome(): void {
-    this.goToDashboard();
-  }
-
   goToDashboard(): void {
     const user = this.authService.getCurrentUser();
     if (user?.role === 'head_of_household') {
@@ -48,6 +44,9 @@ export class NavbarComponent implements OnInit {
       this.router.navigate(['/dashboard/member']);
     }
   }
+  
+  // Alias para mantener compatibilidad con el código existente
+  goHome = this.goToDashboard;
 
   logout(): void {
     this.authService.logout();
