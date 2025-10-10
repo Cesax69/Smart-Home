@@ -449,7 +449,7 @@ export class TaskCreateComponent implements OnInit {
     formData.append('taskTitle', title);
     formData.append('title', title);
 
-    const uploadUrl = `${environment.services.fileUpload}/files/upload`;
+    const uploadUrl = `${environment.services.fileUpload}/upload`;
     return this.http.post<any>(uploadUrl, formData);
   }
 

@@ -348,6 +348,31 @@ export class GoogleDriveService {
   }
 
   /**
+   * Eliminar carpeta y todo su contenido de forma recursiva
+   */
+  async deleteFolderRecursive(folderId: string): Promise<boolean> {
+    try {
+      // Listar todos los elementos dentro de la carpeta
+      const children = await this.listFilesInFolder(folderId, 1000);
+      for (const child of children) {
+        const isFolder = child.mimeType === 'application/vnd.google-apps.folder';
+        if (isFolder) {
+          // Borrar recursivamente subcarpeta
+          await this.deleteFolderRecursive(child.id);
+        } else {
+          // Borrar archivo
+          await this.deleteFile(child.id);
+        }
+      }
+      // Borrar finalmente la carpeta raíz
+      return await this.deleteFolder(folderId);
+    } catch (error) {
+      console.error(`❌ Error eliminando recursivamente la carpeta ${folderId}:`, error);
+      return false;
+    }
+  }
+
+  /**
    * Verificar conexión con Google Drive
    */
   async testConnection(): Promise<boolean> {

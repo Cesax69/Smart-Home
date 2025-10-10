@@ -24,7 +24,7 @@ export const taskManagementRoutes: Routes = [
   },
   {
     path: 'edit/:id',
-    loadComponent: () => import('./components/shared/task-edit/task-edit.component').then(m => m.TaskEditComponent),
+    loadComponent: () => import('./components/admin/task-edit/task-edit.component').then(m => m.AdminTaskEditComponent),
     canActivate: [authGuard]
   }
 ];

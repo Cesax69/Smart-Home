@@ -41,7 +41,7 @@ export const SERVICES: Record<string, ServiceConfig> = {
   FILES: {
     name: 'File Upload Service',
     // En Docker se usa FILE_UPLOAD_SERVICE_URL; mantenemos compatibilidad con ambos nombres
-    url: process.env.FILE_UPLOAD_SERVICE_URL || process.env.FILES_SERVICE_URL || 'http://localhost:3004',
+    url: process.env.FILE_UPLOAD_SERVICE_URL || process.env.FILES_SERVICE_URL || 'http://localhost:3005',
     path: '/api/files',
     description: 'Servicio de subida y gestión de archivos',
     healthEndpoint: '/health',

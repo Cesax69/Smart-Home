@@ -38,6 +38,7 @@ export interface Task {
   completedAt?: Date;      // Fecha y hora de completación
   createdAt: Date;
   updatedAt?: Date;
+  progress?: number;       // Progreso de la tarea (0-100)
 }
 
 export interface CreateTaskRequest {
@@ -76,6 +77,8 @@ export interface UpdateTaskRequest {
   // Recurrencia desde el frontend
   isRecurring?: boolean;
   recurrenceInterval?: string; // 'daily' | 'weekly' | 'monthly' | 'yearly'
+  // Progreso de la tarea (0-100)
+  progress?: number;
 }
 
 export interface TaskResponse {
@@ -121,4 +124,5 @@ export interface DatabaseTask {
   completed_at?: Date;
   created_at: Date;
   updated_at?: Date;
+  progress?: number;       // Progreso de la tarea (0-100)
 }

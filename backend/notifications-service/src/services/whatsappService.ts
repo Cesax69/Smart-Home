@@ -14,14 +14,8 @@ import {
 } from '../types/Notification';
 import { NotificationTemplateService } from './notificationTemplateService';
 
-// Datos simulados de miembros de la familia
-const mockFamilyMembers: FamilyMember[] = [
-  { id: 1, name: 'Papá', role: 'padre', phoneNumber: '+1234567890' },
-  { id: 2, name: 'Mamá', role: 'madre', phoneNumber: '+1234567891' },
-  { id: 3, name: 'Ana', role: 'hija', phoneNumber: '+1234567892' },
-  { id: 4, name: 'Carlos', role: 'hijo', phoneNumber: '+1234567893' },
-  { id: 5, name: 'Abuela Rosa', role: 'abuela', phoneNumber: '+1234567894' }
-];
+// URL del servicio de usuarios vía API Gateway
+const USERS_API_URL = process.env.USERS_API_URL || 'http://localhost:3000/api/users';
 
 // Estadísticas simuladas
 let notificationStats: NotificationStats = {
@@ -53,7 +47,7 @@ export class WhatsAppService {
    */
   static async sendFamilyNotification(request: NotificationRequest): Promise<NotificationResponse> {
     const timestamp = new Date().toISOString();
-    const member = WhatsAppService.getFamilyMember(request.userId);
+    const member = await WhatsAppService.getFamilyMember(request.userId);
     
     let message: string;
     
@@ -128,15 +122,35 @@ export class WhatsAppService {
   /**
    * Obtiene información de un miembro de la familia
    */
-  static getFamilyMember(userId: number): FamilyMember | null {
-    return mockFamilyMembers.find(member => member.id === userId) || null;
+  static async getFamilyMember(userId: number): Promise<FamilyMember | null> {
+    try {
+      const res = await fetch(`${USERS_API_URL}/${userId}`);
+      if (!res.ok) return null;
+      const json: any = await res.json();
+      const data = (json && (json.data || json.user || json)) as any;
+      if (!data) return null;
+      return WhatsAppService.mapUserToFamilyMember(data);
+    } catch (err) {
+      console.error('Error obteniendo miembro de familia:', err);
+      return null;
+    }
   }
 
   /**
    * Obtiene todos los miembros de la familia
    */
-  static getAllFamilyMembers(): FamilyMember[] {
-    return [...mockFamilyMembers];
+  static async getAllFamilyMembers(): Promise<FamilyMember[]> {
+    try {
+      const res = await fetch(USERS_API_URL);
+      if (!res.ok) return [];
+      const json: any = await res.json();
+      const data = (json && (json.data || json)) as any[];
+      if (!Array.isArray(data)) return [];
+      return data.map(u => WhatsAppService.mapUserToFamilyMember(u));
+    } catch (err) {
+      console.error('Error obteniendo miembros de familia:', err);
+      return [];
+    }
   }
 
   /**
@@ -256,8 +270,17 @@ export class WhatsAppService {
       ],
       supportedPriorities: ["baja", "media", "alta", "urgente"],
       maxMessageLength: 1000,
-      familyMembers: mockFamilyMembers.length,
       supportedMethods: ["POST /notify", "POST /notify/family"]
     };
+  }
+
+  private static mapUserToFamilyMember(user: any): FamilyMember {
+    const name = [user.firstName, user.lastName].filter(Boolean).join(' ').trim() || user.username || user.email || `Usuario ${user.id}`;
+    const member: FamilyMember = {
+      id: user.id,
+      name,
+      role: user.role || 'family_member'
+    };
+    return member;
   }
 }

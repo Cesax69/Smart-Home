@@ -15,8 +15,10 @@ export interface Task {
   createdAt: Date;
   updatedAt: Date;
   completedAt?: Date;
+  reward?: string; // Recompensa por completar la tarea
   fileUrl?: string;
   files?: TaskFile[];
+  progress?: number; // Progreso de la tarea (0-100)
 }
 
 export interface CreateTaskRequest {
@@ -49,6 +51,7 @@ export interface UpdateTaskRequest {
   reward?: string;
   isRecurring?: boolean;
   recurrenceInterval?: string;
+  progress?: number; // Progreso de la tarea (0-100)
 }
 
 export interface TaskStats {

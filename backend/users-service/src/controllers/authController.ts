@@ -16,8 +16,10 @@ export class AuthController {
   public login = async (req: Request, res: Response): Promise<void> => {
     try {
       const { username, password } = req.body;
+      console.log('🔐 LOGIN ATTEMPT:', { username, passwordLength: password?.length });
 
       if (!username || !password) {
+        console.log('❌ Missing credentials');
         res.status(400).json({
           success: false,
           message: 'Username y password son requeridos'
@@ -26,9 +28,11 @@ export class AuthController {
       }
 
       // Buscar usuario por username o email
+      console.log('🔍 Searching user:', username);
       const user = await this.userService.findByUsernameOrEmail(username);
       
       if (!user) {
+        console.log('❌ User not found:', username);
         res.status(401).json({
           success: false,
           message: 'Credenciales inválidas'
@@ -36,16 +40,28 @@ export class AuthController {
         return;
       }
 
+      console.log('✅ User found:', { id: user.id, username: user.username, hasPassword: !!user.password });
+
       // Verificar contraseña
+      console.log('🔒 Verifying password...');
+      console.log('   Password to check:', password);
+      console.log('   Stored hash:', user.password);
+      console.log('   Hash type:', typeof user.password);
+      console.log('   Hash length:', user.password?.length);
+      
       const isValidPassword = await bcrypt.compare(password, user.password);
+      console.log('   bcrypt.compare result:', isValidPassword);
       
       if (!isValidPassword) {
+        console.log('❌ Invalid password for user:', username);
         res.status(401).json({
           success: false,
           message: 'Credenciales inválidas'
         });
         return;
       }
+
+      console.log('✅ Password valid for user:', username);
 
       // Generar token JWT
       const token = jwt.sign(
@@ -268,6 +284,72 @@ export class AuthController {
 
     } catch (error) {
       console.error('Error renovando token:', error);
+      res.status(500).json({
+        success: false,
+        message: 'Error interno del servidor'
+      });
+    }
+  };
+
+  /**
+   * Login por rol (para botones de login rápido)
+   */
+  public loginByRole = async (req: Request, res: Response): Promise<void> => {
+    try {
+      const { role } = req.body;
+
+      if (!role) {
+        res.status(400).json({
+          success: false,
+          message: 'Rol es requerido'
+        });
+        return;
+      }
+
+      // Validar rol
+      if (!['head_of_household', 'family_member'].includes(role)) {
+        res.status(400).json({
+          success: false,
+          message: 'Rol inválido'
+        });
+        return;
+      }
+
+      // Buscar un usuario con el rol especificado
+      const user = await this.userService.findByRole(role);
+      
+      if (!user) {
+        res.status(404).json({
+          success: false,
+          message: `No se encontró usuario con rol ${role}`
+        });
+        return;
+      }
+
+      // Generar token JWT
+      const token = jwt.sign(
+        { 
+          userId: user.id, 
+          username: user.username,
+          role: user.role 
+        },
+        process.env.JWT_SECRET || 'default-secret',
+        { expiresIn: process.env.JWT_EXPIRES_IN || '24h' } as jwt.SignOptions
+      );
+
+      // Remover password de la respuesta
+      const { password: _, ...userWithoutPassword } = user;
+
+      res.json({
+        success: true,
+        message: `¡Bienvenido ${role === 'head_of_household' ? 'Jefe del Hogar' : 'Miembro'}!`,
+        user: userWithoutPassword,
+        token,
+        expiresIn: process.env.JWT_EXPIRES_IN || '24h'
+      });
+
+    } catch (error) {
+      console.error('Error en login por rol:', error);
       res.status(500).json({
         success: false,
         message: 'Error interno del servidor'

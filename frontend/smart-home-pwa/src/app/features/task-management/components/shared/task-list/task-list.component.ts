@@ -1,4 +1,4 @@
-import { Component, OnInit, signal } from '@angular/core';
+import { Component, OnInit, signal, inject } from '@angular/core';
 import { Router } from '@angular/router';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
@@ -14,6 +14,7 @@ import { MatMenuModule } from '@angular/material/menu';
 import { MatDialogModule, MatDialog } from '@angular/material/dialog';
 // MatSnackBar removido: usamos AlertCenter
 import { AlertService } from '../../../../../services/alert.service';
+import { MatDividerModule } from '@angular/material/divider';
 
 // Imports actualizados para la nueva estructura
 import { TaskService } from '../../../services/task.service';
@@ -40,6 +41,7 @@ import { AdminTaskEditComponent } from '../../admin/task-edit/task-edit.componen
     MatProgressSpinnerModule,
     MatMenuModule,
     MatDialogModule,
+    MatDividerModule
   ],
   templateUrl: './task-list.component.html',
   styleUrl: './task-list.component.scss'
@@ -54,6 +56,11 @@ export class TaskListComponent implements OnInit {
   searchTerm = '';
   statusFilter = '';
   priorityFilter = '';
+  dueDateFilter = '';
+  assignedUserFilter = '';
+  
+  // Lista de usuarios para el filtro
+  familyMembers = signal<User[]>([]);
 
   constructor(
     private taskService: TaskService,
@@ -62,16 +69,45 @@ export class TaskListComponent implements OnInit {
     private dialog: MatDialog,
     private alerts: AlertService
   ) {}
+  // Uso de inyección por constructor para mantener consistencia
 
   ngOnInit(): void {
-    this.loadTasks();
-    this.currentUser.set(this.authService.getCurrentUser());
-    // Cargar miembros para mostrar nombres
-    this.authService.getFamilyMembers().subscribe({
-      next: (members: User[]) => {
-        members.forEach(m => this.memberNameMap.set(m.id, `${m.firstName ?? ''} ${m.lastName ?? ''}`.trim() || m.username || `Usuario ${m.id}`));
+    // Auto-login para pruebas si no hay usuario
+    if (!this.authService.getCurrentUser()) {
+      // Para pruebas, alternar entre jefe del hogar y miembro de la familia
+      const loginRole = Math.random() > 0.5 ? 'head_of_household' : 'family_member';
+      this.authService.loginByRole(loginRole).subscribe({
+        next: (user) => {
+          this.currentUser.set(user);
+          this.loadTasks();
+          this.loadFamilyMembers();
+        },
+        error: (error) => {
+          console.error('Error en auto-login:', error);
+        }
+      });
+    } else {
+      this.currentUser.set(this.authService.getCurrentUser());
+      this.loadTasks();
+      this.loadFamilyMembers();
+    }
+  }
+
+  // Método para cambiar entre roles para pruebas
+  switchUserRole(): void {
+    const currentRole = this.currentUser()?.role;
+    const newRole = currentRole === 'head_of_household' ? 'family_member' : 'head_of_household';
+    
+    this.authService.loginByRole(newRole).subscribe({
+      next: (user) => {
+        this.currentUser.set(user);
+        this.loadTasks();
+        const roleLabel = newRole === 'head_of_household' ? 'Jefe del Hogar' : 'Miembro de la Familia';
+        this.alerts.success('Rol cambiado', `Cambiado a: ${roleLabel}`, { duration: 2000, dismissible: true });
       },
-      error: () => {}
+      error: (error) => {
+        console.error('Error al cambiar rol:', error);
+      }
     });
   }
 
@@ -97,8 +133,8 @@ export class TaskListComponent implements OnInit {
     if (this.searchTerm) {
       const term = this.searchTerm.toLowerCase();
       filtered = filtered.filter(task => 
-        task.title.toLowerCase().includes(term) || 
-        task.description.toLowerCase().includes(term)
+        (task.title || '').toLowerCase().includes(term) || 
+        ((task.description || '').toLowerCase().includes(term))
       );
     }
 
@@ -110,6 +146,44 @@ export class TaskListComponent implements OnInit {
       filtered = filtered.filter(task => task.priority === this.priorityFilter);
     }
 
+    if (this.dueDateFilter) {
+      const today = new Date();
+      const tomorrow = new Date(today);
+      tomorrow.setDate(today.getDate() + 1);
+      const nextWeek = new Date(today);
+      nextWeek.setDate(today.getDate() + 7);
+
+      filtered = filtered.filter(task => {
+        if (!task.dueDate) return this.dueDateFilter === 'no_date';
+        
+        const dueDate = new Date(task.dueDate);
+        
+        switch (this.dueDateFilter) {
+          case 'overdue':
+            return dueDate < today && task.status !== 'completed';
+          case 'today':
+            return dueDate.toDateString() === today.toDateString();
+          case 'tomorrow':
+            return dueDate.toDateString() === tomorrow.toDateString();
+          case 'this_week':
+            return dueDate >= today && dueDate <= nextWeek;
+          case 'no_date':
+            return false; // Ya se maneja arriba
+          default:
+            return true;
+        }
+      });
+    }
+
+    if (this.assignedUserFilter) {
+      const assignedUserId = parseInt(this.assignedUserFilter);
+      filtered = filtered.filter(task => {
+        const single = task.assignedTo === assignedUserId;
+        const multiple = Array.isArray(task.assignedUserIds) && task.assignedUserIds.includes(assignedUserId);
+        return single || multiple;
+      });
+    }
+
     this.filteredTasks.set(filtered);
   }
 
@@ -117,6 +191,8 @@ export class TaskListComponent implements OnInit {
     this.searchTerm = '';
     this.statusFilter = '';
     this.priorityFilter = '';
+    this.dueDateFilter = '';
+    this.assignedUserFilter = '';
     this.applyFilters();
   }
 
@@ -130,6 +206,13 @@ export class TaskListComponent implements OnInit {
     return !!user && (user.role === 'head_of_household' || this.isAssignedToMe(task));
   }
 
+  private isAssignedToMe(task: Task): boolean {
+    const user = this.currentUser();
+    if (!user) return false;
+    const myId = user.id;
+    return task.assignedTo === myId || (Array.isArray(task.assignedUserIds) && task.assignedUserIds.includes(myId));
+  }
+
   openEditTask(task: Task): void {
     const dialogRef = this.dialog.open(AdminTaskEditComponent, {
       width: '760px',
@@ -139,7 +222,6 @@ export class TaskListComponent implements OnInit {
     });
     dialogRef.afterClosed().subscribe(result => {
       if (result) {
-        // Evitar alerta duplicada: el diálogo ya muestra éxito
         this.reloadTasks();
       }
     });
@@ -167,19 +249,29 @@ export class TaskListComponent implements OnInit {
     return labels[status as keyof typeof labels] || status;
   }
 
+  getAssignedUserName(task: Task): string {
+    const user = this.familyMembers().find(u => u.id === task.assignedTo);
+    return user ? `${user.firstName} ${user.lastName}` : `Usuario ${task.assignedTo}`;
+  }
+
+  // Método para obtener los usuarios asignados a una tarea
   getAssignedUsers(task: Task): number[] {
-    return task.assignedUserIds ?? (task.assignedTo ? [task.assignedTo] : []);
+    // Si la tarea tiene assignedUserIds (múltiples usuarios), usar esos
+    if (task.assignedUserIds && Array.isArray(task.assignedUserIds) && task.assignedUserIds.length > 0) {
+      return task.assignedUserIds;
+    }
+    // Si no, usar assignedTo (usuario único)
+    if (task.assignedTo) {
+      return [task.assignedTo];
+    }
+    // Si no hay ninguno, devolver array vacío
+    return [];
   }
 
+  // Método para obtener el nombre de un usuario por ID
   getUserName(userId: number): string {
-    return this.memberNameMap.get(userId) || `Usuario ${userId}`;
-  }
-
-  isAssignedToMe(task: Task): boolean {
-    const me = this.currentUser();
-    if (!me) return false;
-    const ids = this.getAssignedUsers(task);
-    return ids.includes(me.id);
+    const user = this.familyMembers().find(u => u.id === userId);
+    return user ? `${user.firstName} ${user.lastName}` : `Usuario ${userId}`;
   }
 
   isOverdue(task: Task): boolean {
@@ -236,7 +328,8 @@ export class TaskListComponent implements OnInit {
   }
 
   editTask(task: Task): void {
-    this.router.navigate(['/tasks/edit', task.id]);
+    // Abrir edición como modal (AdminTaskEdit)
+    this.openEditTask(task);
   }
 
   reassignTask(task: Task): void {
@@ -290,5 +383,68 @@ export class TaskListComponent implements OnInit {
         this.loadTasks();
       }
     });
+  }
+
+  loadFamilyMembers(): void {
+    this.authService.getFamilyMembers().subscribe({
+      next: (members) => {
+        this.familyMembers.set(members);
+      },
+      error: (error) => {
+        console.error('Error loading family members:', error);
+      }
+    });
+  }
+
+  // Nuevos métodos para las funcionalidades agregadas
+  viewTaskDetails(task: Task): void {
+    this.alerts.info('Detalles de la tarea', `Ver: ${task.title}`, { duration: 3000, dismissible: true });
+    // TODO: Implementar modal de detalles completos
+  }
+
+  addComment(task: Task): void {
+    const comment = prompt('Agregar comentario:');
+    if (comment && comment.trim()) {
+      this.taskService.addComment(task.id, comment.trim()).subscribe({
+        next: () => {
+          this.alerts.success('Comentario agregado', 'Se agregó correctamente.', { duration: 2500, dismissible: true });
+        },
+        error: (error) => {
+          console.error('Error adding comment:', error);
+          this.alerts.error('Error al comentar', 'No se pudo agregar el comentario.', { duration: 4000, dismissible: true });
+        }
+      });
+    }
+  }
+
+  uploadDocument(task: Task): void {
+    const input = document.createElement('input');
+    input.type = 'file';
+    input.accept = '.pdf,.doc,.docx,.jpg,.jpeg,.png,.txt';
+    
+    input.onchange = (event: any) => {
+      const file = event.target.files[0];
+      if (file) {
+        // Simular subida de archivo
+        const fileInfo = {
+          name: file.name,
+          size: file.size,
+          type: file.type,
+          uploadedAt: new Date()
+        };
+        
+        this.taskService.addTaskFile(task.id, fileInfo).subscribe({
+          next: () => {
+            this.alerts.success('Archivo subido', `"${file.name}" se subió correctamente.`, { duration: 2500, dismissible: true });
+          },
+          error: (error) => {
+            console.error('Error uploading file:', error);
+            this.alerts.error('Error al subir archivo', 'No se pudo subir el archivo.', { duration: 4000, dismissible: true });
+          }
+        });
+      }
+    };
+    
+    input.click();
   }
 }

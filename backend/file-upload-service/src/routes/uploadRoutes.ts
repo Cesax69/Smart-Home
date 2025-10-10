@@ -49,4 +49,10 @@ router.get('/drive/files/:fileId', UploadController.getDriveFileInfo);
  */
 router.delete('/drive/files/:fileId', UploadController.deleteDriveFile);
 
+/**
+ * DELETE /drive/folders/:folderId
+ * Eliminar carpeta de Google Drive (opcionalmente recursivo)
+ */
+router.delete('/drive/folders/:folderId', UploadController.deleteDriveFolder);
+
 export { router as uploadRoutes };

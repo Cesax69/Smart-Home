@@ -1,7 +1,7 @@
 import { User, FamilyStats } from '../types/User';
 import { databaseService } from '../config/database';
 
-// Ahora todas las lecturas de usuarios usan PostgreSQL (tabla `users`)
+// Todas las lecturas de usuarios usan PostgreSQL (tabla `users`)
 
 export class UserService {
   /**
@@ -226,6 +226,35 @@ export class UserService {
       LIMIT 1
     `;
     const result = await databaseService.query(query, [username, email || username]);
+    if (!result.rows.length) return undefined;
+    const row = result.rows[0] as any;
+    return {
+      id: row.id,
+      username: row.username,
+      email: row.email,
+      password: row.password_hash,
+      firstName: row.first_name,
+      lastName: row.last_name,
+      role: row.family_role_id === 1 ? 'head_of_household' : 'family_member',
+      createdAt: row.created_at,
+      updatedAt: row.updated_at
+    };
+  }
+
+  /**
+   * Busca un usuario por rol
+   * @param role - Rol a buscar
+   * @returns Usuario encontrado o undefined
+   */
+  public async findByRole(role: string): Promise<any | undefined> {
+    const familyRoleId = role === 'head_of_household' ? 1 : 2;
+    const query = `
+      SELECT id, username, email, password_hash, first_name, last_name, family_role_id, created_at, updated_at
+      FROM users
+      WHERE family_role_id = $1
+      LIMIT 1
+    `;
+    const result = await databaseService.query(query, [familyRoleId]);
     if (!result.rows.length) return undefined;
     const row = result.rows[0] as any;
     return {

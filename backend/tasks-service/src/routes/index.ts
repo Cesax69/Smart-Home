@@ -19,7 +19,16 @@ router.get('/', (req, res) => {
         getAll: 'GET /api/tasks',
         getById: 'GET /api/tasks/:id',
         update: 'PUT /api/tasks/:id',
-        delete: 'DELETE /api/tasks/:id'
+        delete: 'DELETE /api/tasks/:id',
+        comments: {
+          get: 'GET /api/tasks/:id/comments',
+          add: 'POST /api/tasks/:id/comments'
+        },
+        files: {
+          get: 'GET /api/tasks/:id/files',
+          add: 'POST /api/tasks/:id/files',
+          delete: 'DELETE /api/tasks/files/:fileRecordId'
+        }
       },
       files: {
         listByTask: 'GET /api/tasks/:id/files',

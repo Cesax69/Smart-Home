@@ -115,6 +115,28 @@ export class UploadController {
         }
       }
 
+      // Soporte de subcarpeta (por ejemplo, "progress") bajo la carpeta de la tarea
+      const rawSubfolder = (req.body?.subfolder || req.query?.subfolder || '').toString().trim();
+      if (rawSubfolder) {
+        const subfolderSafe = rawSubfolder.replace(/[\\/:*?"<>|]/g, '-');
+        try {
+          // Buscar subcarpeta exacta dentro de la carpeta destino
+          const driveService = UploadController.initializeGoogleDrive();
+          const existingSub = await driveService.findFolderByExactName(subfolderSafe, targetFolderId);
+          if (existingSub?.id) {
+            targetFolderId = existingSub.id;
+            folderName = `${folderName}/${existingSub.name || subfolderSafe}`;
+          } else {
+            // Crear subcarpeta si no existe
+            const subId = await driveService.createFolder(subfolderSafe, targetFolderId);
+            targetFolderId = subId;
+            folderName = `${folderName}/${subfolderSafe}`;
+          }
+        } catch (err) {
+          console.warn('⚠️ No se pudo procesar subcarpeta, continuando en carpeta principal:', err);
+        }
+      }
+
       const uploaded: any[] = [];
       const failed: any[] = [];
 
@@ -418,10 +440,14 @@ export class UploadController {
 
   /**
    * Eliminar archivo de Google Drive
+   * DELETE /drive/files/:fileId?deleteEmptyFolder=true|false
    */
   public static async deleteDriveFile(req: Request, res: Response): Promise<void> {
     try {
       const fileId = req.params.fileId;
+      // Parámetro para controlar si se elimina la carpeta vacía
+      const deleteEmptyFolder = req.query.deleteEmptyFolder === 'true';
+      
       if (!fileId) {
         res.status(400).json({
           success: false,
@@ -442,9 +468,9 @@ export class UploadController {
       const deleted = await driveService.deleteFile(fileId);
       
       if (deleted) {
-        // Si conocemos la carpeta, verificar si quedó vacía y eliminarla
+        // Eliminar carpeta vacía solo si se solicita explícitamente
         let folderDeleted = false;
-        if (parentFolderId) {
+        if (deleteEmptyFolder && parentFolderId) {
           try {
             const remaining = await driveService.listFilesInFolder(parentFolderId, 10);
             if (!remaining || remaining.length === 0) {
@@ -456,7 +482,7 @@ export class UploadController {
           success: true,
           message: 'Archivo eliminado exitosamente',
           fileId: fileId,
-          folderDeleted: folderDeleted || false,
+          folderDeleted: folderDeleted,
           folderId: parentFolderId || undefined
         });
       } else {
@@ -473,6 +499,47 @@ export class UploadController {
         success: false,
         message: `Error eliminando archivo: ${errorMessage}`
       });
+    }
+  }
+
+  /**
+   * Eliminar carpeta de Google Drive
+   * DELETE /drive/folders/:folderId?recursive=true
+   */
+  public static async deleteDriveFolder(req: Request, res: Response): Promise<void> {
+    try {
+      const folderId = req.params.folderId;
+      const recursive = (req.query.recursive as string) === 'true';
+      if (!folderId) {
+        res.status(400).json({ success: false, message: 'ID de carpeta requerido' });
+        return;
+      }
+
+      const driveService = UploadController.initializeGoogleDrive();
+      let ok = false;
+      if (recursive) {
+        ok = await driveService.deleteFolderRecursive(folderId);
+      } else {
+        // Si no es recursivo, intentamos borrar sólo si está vacía
+        const remaining = await driveService.listFilesInFolder(folderId, 10).catch(() => []);
+        if (!remaining || remaining.length === 0) {
+          ok = await driveService.deleteFolder(folderId);
+        } else {
+          // No vacía: devolver información
+          res.status(409).json({ success: false, message: 'La carpeta no está vacía', count: remaining.length });
+          return;
+        }
+      }
+
+      if (ok) {
+        res.status(200).json({ success: true, message: 'Carpeta eliminada exitosamente', folderId });
+      } else {
+        res.status(500).json({ success: false, message: 'No se pudo eliminar la carpeta' });
+      }
+    } catch (error) {
+      console.error('❌ Error eliminando carpeta de Google Drive:', error);
+      const errorMessage = error instanceof Error ? error.message : 'Error desconocido';
+      res.status(500).json({ success: false, message: `Error eliminando carpeta: ${errorMessage}` });
     }
   }
 }

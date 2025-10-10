@@ -154,7 +154,8 @@ export class TaskService {
       fileUrl: dbTask.file_url || undefined,
       completedAt: dbTask.completed_at,
       createdAt: dbTask.created_at,
-      updatedAt: dbTask.updated_at
+      updatedAt: dbTask.updated_at,
+      progress: dbTask.progress || 0
     };
   }
 
@@ -302,11 +303,11 @@ export class TaskService {
   /**
    * Obtiene todas las tareas domésticas
    */
-  async getAllTasks(): Promise<Task[]> {
+  async getAllTasks(userId?: number, status?: string): Promise<Task[]> {
     try {
       const client = await databaseService.getConnection();
       try {
-        const query = `
+        let query = `
           SELECT 
             t.id,
             t.user_id AS created_by_id,
@@ -342,17 +343,35 @@ export class TaskService {
               ORDER BY tf.created_at DESC 
               LIMIT 1
             ) AS file_url
-          FROM public.tasks t
-          ORDER BY t.created_at DESC
-        `;
-        const { rows } = await client.query(query);
+          FROM public.tasks t`;
+        
+        const params: any[] = [];
+        const conditions: string[] = [];
+
+        if (userId) {
+          conditions.push(`EXISTS (SELECT 1 FROM public.task_assignments ta WHERE ta.task_id = t.id AND ta.user_id = $${params.length + 1})`);
+          params.push(userId);
+        }
+
+        if (status) {
+          conditions.push(`t.status = $${params.length + 1}`);
+          params.push(this.mapAppStatusToDb(status as TaskStatus));
+        }
+
+        if (conditions.length > 0) {
+          query += ' WHERE ' + conditions.join(' AND ');
+        }
+
+        query += ' ORDER BY t.created_at DESC';
+        
+        const { rows } = await client.query(query, params);
         const tasks = rows.map((r: any) => this.mapDatabaseTaskToTask(r as DatabaseTask));
         return tasks;
       } finally {
         client.release();
       }
     } catch (error) {
-      console.error('Error en getAllTasks:', error);
+      console.error('Error al obtener tareas de la base de datos:', error);
       throw error;
     }
   }
@@ -400,7 +419,8 @@ export class TaskService {
             ) AS file_url
           FROM public.tasks t
           WHERE EXISTS (
-            SELECT 1 FROM public.task_assignments ta WHERE ta.task_id = t.id AND ta.user_id = $1
+            SELECT 1 FROM public.task_assignments ta 
+            WHERE ta.task_id = t.id AND ta.user_id = $1
           )
           ORDER BY t.created_at DESC
         `;
@@ -632,10 +652,11 @@ export class TaskService {
         if (updateData.completedAt !== undefined) { fields.push(`completed_at = $${idx++}`); params.push(updateData.completedAt || null); }
         if (updateData.isRecurring !== undefined) { fields.push(`is_recurring = $${idx++}`); params.push(!!updateData.isRecurring); }
         if (updateData.recurrenceInterval !== undefined) { fields.push(`recurrence_type = $${idx++}`); params.push(updateData.recurrenceInterval || null); }
+        if (updateData.progress !== undefined) { fields.push(`progress = $${idx++}`); params.push(updateData.progress); }
 
         fields.push(`updated_at = NOW()`);
 
-        const updateQuery = `UPDATE public.tasks SET ${fields.join(', ')} WHERE id = $${idx} RETURNING id, user_id AS created_by_id, title, description, category, priority, status, start_date, due_date, estimated_time, is_recurring, recurrence_type, completed_at, created_at, updated_at`;
+        const updateQuery = `UPDATE public.tasks SET ${fields.join(', ')} WHERE id = $${idx} RETURNING id, user_id AS created_by_id, title, description, category, priority, status, start_date, due_date, estimated_time, is_recurring, recurrence_type, completed_at, created_at, updated_at, progress`;
         params.push(id);
 
         const { rows } = await client.query(updateQuery, params);
@@ -680,7 +701,8 @@ export class TaskService {
           file_url: updateData.fileUrl,
           completed_at: rows[0].completed_at,
           created_at: rows[0].created_at,
-          updated_at: rows[0].updated_at
+          updated_at: rows[0].updated_at,
+          progress: rows[0].progress || updateData.progress || 0
         } as any;
 
         const updatedTask = this.mapDatabaseTaskToTask(dbTask);
@@ -711,12 +733,16 @@ export class TaskService {
 
         // Obtener archivos asociados a la tarea para intentar borrarlos del almacenamiento externo (Google Drive)
         const { rows: fileRows } = await client.query(
-          `SELECT id, google_drive_id, file_url FROM public.task_files WHERE task_id = $1`,
+          `SELECT id, google_drive_id, file_url, folder_id FROM public.task_files WHERE task_id = $1`,
           [id]
         );
 
-        // Intentar eliminación remota (no bloquear la operación si falla)
+        // Intentar eliminación remota de archivos (no bloquear la operación si falla)
         await this.deleteRemoteFilesIfAny(fileRows).catch(() => {});
+
+        // Intentar eliminación remota de carpetas raíz asociadas (no bloquear si falla)
+        const folderIds = Array.from(new Set((fileRows || []).map((r: any) => r.folder_id).filter((f: any) => !!f)));
+        await this.deleteRemoteFoldersIfAny(folderIds).catch(() => {});
 
         // Eliminar registros de archivos de la BD
         await client.query(`DELETE FROM public.task_files WHERE task_id = $1`, [id]);
@@ -746,11 +772,29 @@ export class TaskService {
       }
       const client = await databaseService.getConnection();
       try {
+        // Devolver metadatos completos del archivo SIN JOIN externo para evitar errores de esquema ajeno
         const { rows } = await client.query(`
-          SELECT id, task_id, file_name, file_path, file_url, file_size, file_type, mime_type, uploaded_by, storage_type, google_drive_id, is_image, thumbnail_path, folder_id, folder_name, created_at
-          FROM public.task_files
-          WHERE task_id = $1
-          ORDER BY created_at DESC
+          SELECT 
+            tf.id,
+            tf.task_id,
+            tf.file_name,
+            tf.file_path,
+            tf.file_url,
+            tf.file_size,
+            tf.file_type,
+            tf.mime_type,
+            tf.uploaded_by,
+            tf.storage_type,
+            tf.google_drive_id,
+            tf.is_image,
+            tf.thumbnail_path,
+            tf.folder_id,
+            tf.folder_name,
+            tf.created_at,
+            'Usuario'::text as uploaded_by_name
+          FROM public.task_files tf
+          WHERE tf.task_id = $1
+          ORDER BY tf.created_at DESC
         `, [taskId]);
         return rows;
       } finally {
@@ -826,6 +870,81 @@ export class TaskService {
   }
 
   /**
+   * Obtener comentarios de una tarea
+   */
+  async getTaskComments(taskId: number): Promise<any[]> {
+    try {
+      if (!taskId || taskId <= 0) {
+        throw new Error('ID de tarea inválido');
+      }
+
+      const client = await databaseService.getConnection();
+      try {
+        const { rows } = await client.query(`
+          SELECT 
+            id,
+            task_id,
+            comment,
+            created_by,
+            created_by_name,
+            created_at,
+            updated_at
+          FROM public.task_comments 
+          WHERE task_id = $1 
+          ORDER BY created_at ASC
+        `, [taskId]);
+
+        return rows;
+      } finally {
+        client.release();
+      }
+    } catch (error) {
+      console.error('Error en getTaskComments:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Agregar comentario a una tarea
+   */
+  async addTaskComment(taskId: number, commentData: { comment: string; createdBy: number; createdByName: string }): Promise<any> {
+    try {
+      if (!taskId || taskId <= 0) {
+        throw new Error('ID de tarea inválido');
+      }
+
+      if (!commentData.comment || !commentData.comment.trim()) {
+        throw new Error('El comentario es requerido');
+      }
+
+      if (!commentData.createdBy || !commentData.createdByName) {
+        throw new Error('Usuario creador es requerido');
+      }
+
+      const client = await databaseService.getConnection();
+      try {
+        const { rows } = await client.query(`
+          INSERT INTO public.task_comments (task_id, comment, created_by, created_by_name)
+          VALUES ($1, $2, $3, $4)
+          RETURNING id, task_id, comment, created_by, created_by_name, created_at, updated_at
+        `, [
+          taskId,
+          commentData.comment.trim(),
+          commentData.createdBy,
+          commentData.createdByName
+        ]);
+
+        return rows[0];
+      } finally {
+        client.release();
+      }
+    } catch (error) {
+      console.error('Error en addTaskComment:', error);
+      throw error;
+    }
+  }
+
+  /**
    * Eliminar registro de archivo asociado a una tarea
    */
   async deleteTaskFile(fileRecordId: number): Promise<boolean> {
@@ -881,6 +1000,27 @@ export class TaskService {
     }
 
     // Ejecutar en paralelo y no bloquear por errores
+    await Promise.allSettled(tasks);
+  }
+
+  /**
+   * Intenta eliminar carpetas asociadas en el servicio de subida (Google Drive)
+   * No lanza error si las operaciones remotas fallan.
+   */
+  private async deleteRemoteFoldersIfAny(folderIds: string[]): Promise<void> {
+    if (!Array.isArray(folderIds) || folderIds.length === 0) return;
+
+    const baseGateway = (process.env.API_GATEWAY_URL || 'http://localhost:3000').replace(/\/$/, '');
+    const foldersPath = '/api/files/drive/folders';
+
+    const tasks: Promise<any>[] = [];
+    for (const folderId of folderIds) {
+      const url = `${baseGateway}${foldersPath}/${folderId}?recursive=true`;
+      tasks.push(
+        fetch(url, { method: 'DELETE' }).catch(() => null)
+      );
+    }
+
     await Promise.allSettled(tasks);
   }
 

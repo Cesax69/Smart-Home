@@ -382,6 +382,14 @@ export class TaskController {
         res.status(400).json({ success: false, message: 'No se proporcionaron archivos para registrar' } as TaskResponse);
         return;
       }
+      // Fallback para uploadedBy: usar el creador de la tarea si no viene en el cuerpo
+      let fallbackUploaderId = 0;
+      try {
+        const task = await this.taskService.getTaskById(taskId);
+        fallbackUploaderId = (task?.createdById as number) || 0;
+      } catch (e) {
+        // Si falla la obtención, mantenemos fallback en 0 y seguimos
+      }
       // Mapear respuesta de file-upload-service a los campos esperados por task_files
       const mapped = files.map((f: any) => {
         // Construir una URL directa utilizable para Drive, priorizando downloadLink
@@ -399,7 +407,7 @@ export class TaskController {
           file_size: f.size || null,
           file_type: null,
           mime_type: f.mimetype || null,
-          uploaded_by: req.body?.uploadedBy || 0,
+          uploaded_by: req.body?.uploadedBy || fallbackUploaderId || 0,
           storage_type: f.storage || 'google_drive',
           google_drive_id: f.fileId || null,
           is_image: (f.mimetype || '').startsWith('image/'),
@@ -476,6 +484,162 @@ export class TaskController {
     } catch (error) {
       console.error('Error en updateTaskFile controller:', error);
       res.status(500).json({ success: false, message: error instanceof Error ? error.message : 'Error interno del servidor' } as TaskResponse);
+    }
+  }
+
+  /**
+   * GET /tasks/:id/comments - Obtener comentarios de una tarea
+   */
+  async getTaskComments(req: Request, res: Response): Promise<void> {
+    try {
+      const taskId = parseInt(req.params.id);
+      if (isNaN(taskId) || taskId <= 0) {
+        res.status(400).json({ success: false, message: 'ID de tarea inválido' } as TaskResponse);
+        return;
+      }
+
+      const comments = await this.taskService.getTaskComments(taskId);
+      res.status(200).json({
+        success: true,
+        data: comments,
+        message: 'Comentarios obtenidos exitosamente'
+      } as TaskResponse);
+
+    } catch (error) {
+      console.error('Error en getTaskComments controller:', error);
+      res.status(500).json({
+        success: false,
+        message: error instanceof Error ? error.message : 'Error interno del servidor'
+      } as TaskResponse);
+    }
+  }
+
+  /**
+   * POST /tasks/:id/comments - Agregar comentario a una tarea
+   */
+  async addTaskComment(req: Request, res: Response): Promise<void> {
+    try {
+      const taskId = parseInt(req.params.id);
+      if (isNaN(taskId) || taskId <= 0) {
+        res.status(400).json({ success: false, message: 'ID de tarea inválido' } as TaskResponse);
+        return;
+      }
+
+      const { comment, createdBy, createdByName } = req.body;
+      if (!comment || !comment.trim()) {
+        res.status(400).json({ success: false, message: 'El comentario es requerido' } as TaskResponse);
+        return;
+      }
+
+      if (!createdBy || !createdByName) {
+        res.status(400).json({ success: false, message: 'Usuario creador es requerido' } as TaskResponse);
+        return;
+      }
+
+      const newComment = await this.taskService.addTaskComment(taskId, {
+        comment: comment.trim(),
+        createdBy,
+        createdByName
+      });
+
+      res.status(201).json({
+        success: true,
+        data: newComment,
+        message: 'Comentario agregado exitosamente'
+      } as TaskResponse);
+
+    } catch (error) {
+      console.error('Error en addTaskComment controller:', error);
+      res.status(500).json({
+        success: false,
+        message: error instanceof Error ? error.message : 'Error interno del servidor'
+      } as TaskResponse);
+    }
+  }
+
+  /**
+   * PATCH /tasks/:id/start - Iniciar una tarea
+   */
+  async startTask(req: Request, res: Response): Promise<void> {
+    try {
+      const id = parseInt(req.params.id);
+
+      if (isNaN(id) || id <= 0) {
+        res.status(400).json({
+          success: false,
+          message: 'ID de tarea inválido'
+        } as TaskResponse);
+        return;
+      }
+
+      const updatedTask = await this.taskService.updateTask(id, { 
+        status: 'en_proceso',
+        progress: 0
+      });
+
+      if (!updatedTask) {
+        res.status(404).json({
+          success: false,
+          message: 'Tarea no encontrada'
+        } as TaskResponse);
+        return;
+      }
+
+      res.status(200).json({
+        success: true,
+        data: updatedTask,
+        message: 'Tarea iniciada exitosamente'
+      } as TaskResponse);
+
+    } catch (error) {
+      console.error('Error en startTask controller:', error);
+      res.status(500).json({
+        success: false,
+        message: error instanceof Error ? error.message : 'Error interno del servidor'
+      } as TaskResponse);
+    }
+  }
+
+  /**
+   * PATCH /tasks/:id/complete - Completar una tarea
+   */
+  async completeTask(req: Request, res: Response): Promise<void> {
+    try {
+      const id = parseInt(req.params.id);
+
+      if (isNaN(id) || id <= 0) {
+        res.status(400).json({
+          success: false,
+          message: 'ID de tarea inválido'
+        } as TaskResponse);
+        return;
+      }
+
+      const updatedTask = await this.taskService.updateTask(id, { 
+        status: 'completada',
+        completedAt: new Date()
+      });
+
+      if (!updatedTask) {
+        res.status(404).json({
+          success: false,
+          message: 'Tarea no encontrada'
+        } as TaskResponse);
+        return;
+      }
+
+      res.status(200).json({
+        success: true,
+        data: updatedTask,
+        message: 'Tarea completada exitosamente'
+      } as TaskResponse);
+
+    } catch (error) {
+      console.error('Error en completeTask controller:', error);
+      res.status(500).json({
+        success: false,
+        message: error instanceof Error ? error.message : 'Error interno del servidor'
+      } as TaskResponse);
     }
   }
 

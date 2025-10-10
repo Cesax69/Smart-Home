@@ -31,7 +31,7 @@
     {
       "name": "api-cache",
       "urls": [
-        "http://localhost:3000/api/**"
+        "http://localhost:3005/api/**"
       ],
       "cacheConfig": {
         "strategy": "freshness",

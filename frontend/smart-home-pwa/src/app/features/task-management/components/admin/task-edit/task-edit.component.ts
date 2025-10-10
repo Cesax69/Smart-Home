@@ -1,4 +1,4 @@
-import { Component, Inject, OnInit, signal, ViewChild } from '@angular/core';
+import { Component, Inject, OnInit, Optional, ViewChild } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormBuilder, FormGroup, Validators, ReactiveFormsModule } from '@angular/forms';
 import { MatFormFieldModule } from '@angular/material/form-field';
@@ -14,7 +14,9 @@ import { MatCardModule } from '@angular/material/card';
 import { MatExpansionModule, MatAccordion } from '@angular/material/expansion';
 // MatSnackBar removido: usamos AlertCenter
 import { MatButtonToggleModule } from '@angular/material/button-toggle';
+import { MatTooltipModule } from '@angular/material/tooltip';
 import { MAT_DIALOG_DATA, MatDialogRef } from '@angular/material/dialog';
+import { ActivatedRoute, Router } from '@angular/router';
 import { HttpClient, HttpClientModule } from '@angular/common/http';
 import { environment } from '../../../../../../environments/environment';
 import { TaskService } from '../../../services/task.service';
@@ -51,6 +53,7 @@ interface FilePreview {
     MatCheckboxModule,
     MatButtonToggleModule,
     MatChipsModule
+    , MatTooltipModule
   ],
   templateUrl: './task-edit.component.html',
   styleUrl: './task-edit.component.scss'
@@ -74,9 +77,11 @@ export class AdminTaskEditComponent implements OnInit {
     private taskService: TaskService,
     private authService: AuthService,
     private http: HttpClient,
-    private dialogRef: MatDialogRef<AdminTaskEditComponent>,
+    @Optional() private dialogRef: MatDialogRef<AdminTaskEditComponent> | null,
     private alertService: AlertService,
-    @Inject(MAT_DIALOG_DATA) public data: any
+    @Optional() @Inject(MAT_DIALOG_DATA) public data: any,
+    private route: ActivatedRoute,
+    private router: Router
   ) {
     this.taskForm = this.fb.group({
       title: ['', [Validators.required, Validators.minLength(3)]],
@@ -99,8 +104,13 @@ export class AdminTaskEditComponent implements OnInit {
 
   ngOnInit(): void {
     // Bloquear cierre por clic fuera del modal
-    this.dialogRef.disableClose = true;
-    this.taskId = this.data?.taskId ? Number(this.data.taskId) : null;
+    if (this.dialogRef) {
+      this.dialogRef.disableClose = true;
+    }
+    const routeIdRaw = this.route.snapshot.paramMap.get('id');
+    const routeId = routeIdRaw ? Number(routeIdRaw) : null;
+    const dialogId = this.data?.taskId ? Number(this.data.taskId) : null;
+    this.taskId = (dialogId && dialogId > 0) ? dialogId : (routeId && routeId > 0 ? routeId : null);
     if (!this.taskId || this.taskId <= 0) {
       this.alertService.error('Tarea inválida', 'No se puede editar esta tarea.', { duration: 4000, dismissible: true });
       this.close();
@@ -167,7 +177,7 @@ export class AdminTaskEditComponent implements OnInit {
   }
 
   private loadDriveFilesFromFolder(folderId: string): void {
-    const url = `${environment.services.fileUpload}/files/drive/folders/${folderId}/files?pageSize=50`;
+    const url = `${environment.services.fileUpload}/drive/folders/${folderId}/files?pageSize=50`;
     this.http.get<any>(url).subscribe({
       next: (resp) => {
         const driveFiles: any[] = Array.isArray(resp?.files) ? resp.files : [];
@@ -309,7 +319,7 @@ export class AdminTaskEditComponent implements OnInit {
 
   removeExistingFile(file: TaskFile): void {
     const driveId = file.googleDriveId || this.extractDriveFileId(file.fileUrl || undefined);
-    const deleteDrive$ = driveId ? this.http.delete(`${environment.services.fileUpload}/files/drive/files/${driveId}`) : null;
+    const deleteDrive$ = driveId ? this.http.delete(`${environment.services.fileUpload}/drive/files/${driveId}`) : null;
     const deleteRecord$ = this.taskService.deleteTaskFile(file.id);
 
     // Mostrar progreso en AlertCenter y ejecutar ambas operaciones, tolerando fallos en Drive
@@ -353,9 +363,9 @@ export class AdminTaskEditComponent implements OnInit {
     }
     const folderId = file.folderId || this.existingFiles[0]?.folderId;
     if (folderId) formData.append('folderId', folderId);
-    const uploadUrl = `${environment.services.fileUpload}/files/upload`;
+    const uploadUrl = `${environment.services.fileUpload}/upload`;
     const driveId = file.googleDriveId || this.extractDriveFileId(file.fileUrl || undefined);
-    const deleteUrl = driveId ? `${environment.services.fileUpload}/files/drive/files/${driveId}` : null;
+    const deleteUrl = driveId ? `${environment.services.fileUpload}/drive/files/${driveId}` : null;
 
     const alertId = this.alertService.info('Reemplazando archivo', 'Subiendo y actualizando...', { loading: true, dismissible: false, duration: 0 });
     const uploadAfterDelete = () => this.http.post<any>(uploadUrl, formData).subscribe({
@@ -542,7 +552,11 @@ export class AdminTaskEditComponent implements OnInit {
         }
         // Cerrar todas las secciones del accordion al guardar
         this.accordion?.closeAll();
-        this.dialogRef.close(t);
+        if (this.dialogRef) {
+          this.dialogRef.close(t);
+        } else {
+          this.router.navigate(['/tasks/list']);
+        }
         this.submitting = false;
       },
       error: () => {
@@ -563,12 +577,16 @@ export class AdminTaskEditComponent implements OnInit {
     formData.append('title', safeTitle);
     const folderId = this.existingFiles[0]?.folderId;
     if (folderId) formData.append('folderId', folderId);
-    const uploadUrl = `${environment.services.fileUpload}/files/upload`;
+    const uploadUrl = `${environment.services.fileUpload}/upload`;
     return this.http.post<any>(uploadUrl, formData);
   }
 
   close(): void {
     if (this.submitting) return; // Evitar cierre durante procesos
-    this.dialogRef.close();
+    if (this.dialogRef) {
+      this.dialogRef.close();
+    } else {
+      this.router.navigate(['/tasks/list']);
+    }
   }
 }

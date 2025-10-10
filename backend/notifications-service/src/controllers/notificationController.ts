@@ -138,7 +138,7 @@ export class NotificationController {
    */
   static async getFamilyMembers(req: Request, res: Response): Promise<void> {
     try {
-      const members = WhatsAppService.getAllFamilyMembers();
+      const members = await WhatsAppService.getAllFamilyMembers();
 
       res.status(200).json({
         success: true,
