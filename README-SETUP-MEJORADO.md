@@ -63,7 +63,7 @@ cd frontend/smart-home-pwa && npm start
 | **API Gateway** | http://localhost:3000 | Punto de entrada de APIs |
 | **Users Service** | http://localhost:3001 | Gestión de usuarios y roles |
 | **Tasks Service** | http://localhost:3002 | Gestión de tareas familiares |
-| **File Upload** | http://localhost:3004 | Subida y organización de archivos |
+| **File Upload** | http://localhost:3005 | Subida y organización de archivos |
 | **Notifications** | http://localhost:3003 | Sistema de notificaciones |
 
 ## 🗄️ Configuración de Base de Datos

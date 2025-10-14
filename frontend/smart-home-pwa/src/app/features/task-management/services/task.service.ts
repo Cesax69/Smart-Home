@@ -20,17 +20,19 @@ export class TaskService {
     const statusMap: { [key: string]: string } = {
       'pending': 'pendiente',
       'in_progress': 'en_proceso',
-      'completed': 'completada'
+      'completed': 'completada',
+      'archived': 'archivada'
     };
     return statusMap[status] || status;
   }
 
   // Método para mapear estado del backend al frontend (español -> inglés)
-  private mapStatusFromBackend(status: string): 'pending' | 'in_progress' | 'completed' {
-    const statusMap: { [key: string]: 'pending' | 'in_progress' | 'completed' } = {
+  private mapStatusFromBackend(status: string): 'pending' | 'in_progress' | 'completed' | 'archived' {
+    const statusMap: { [key: string]: 'pending' | 'in_progress' | 'completed' | 'archived' } = {
       'pendiente': 'pending',
       'en_proceso': 'in_progress',
-      'completada': 'completed'
+      'completada': 'completed',
+      'archivada': 'archived'
     };
     return statusMap[status] || 'pending';
   }
@@ -200,8 +202,11 @@ export class TaskService {
   }
 
   // Eliminar tarea
-  deleteTask(id: number): Observable<void> {
-    return this.http.delete<void>(`${this.API_URL}/tasks/${id}`);
+  deleteTask(id: number, confirmationCode: string): Observable<void> {
+    // Usar request DELETE con body para enviar código de confirmación
+    return this.http.request<void>('DELETE', `${this.API_URL}/tasks/${id}`, {
+      body: { confirmationCode }
+    });
   }
 
   // Iniciar tarea
@@ -218,6 +223,28 @@ export class TaskService {
   // Completar tarea
   completeTask(id: number): Observable<Task> {
     return this.http.patch<Task>(`${this.API_URL}/tasks/${id}/complete`, {})
+      .pipe(
+        map(task => ({
+          ...task,
+          status: this.mapStatusFromBackend(task.status)
+        }))
+      );
+  }
+
+  // Archivar tarea (soft delete)
+  archiveTask(id: number): Observable<Task> {
+    return this.http.patch<Task>(`${this.API_URL}/tasks/${id}/archive`, {})
+      .pipe(
+        map(task => ({
+          ...task,
+          status: this.mapStatusFromBackend(task.status)
+        }))
+      );
+  }
+
+  // Restaurar tarea archivada
+  unarchiveTask(id: number): Observable<Task> {
+    return this.http.patch<Task>(`${this.API_URL}/tasks/${id}/unarchive`, {})
       .pipe(
         map(task => ({
           ...task,

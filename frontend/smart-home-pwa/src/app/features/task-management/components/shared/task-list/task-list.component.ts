@@ -12,6 +12,7 @@ import { MatInputModule } from '@angular/material/input';
 import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
 import { MatMenuModule } from '@angular/material/menu';
 import { MatDialogModule, MatDialog } from '@angular/material/dialog';
+import { MatSlideToggleModule } from '@angular/material/slide-toggle';
 // MatSnackBar removido: usamos AlertCenter
 import { AlertService } from '../../../../../services/alert.service';
 import { MatDividerModule } from '@angular/material/divider';
@@ -41,7 +42,8 @@ import { AdminTaskEditComponent } from '../../admin/task-edit/task-edit.componen
     MatProgressSpinnerModule,
     MatMenuModule,
     MatDialogModule,
-    MatDividerModule
+    MatDividerModule,
+    MatSlideToggleModule
   ],
   templateUrl: './task-list.component.html',
   styleUrl: './task-list.component.scss'
@@ -58,6 +60,7 @@ export class TaskListComponent implements OnInit {
   priorityFilter = '';
   dueDateFilter = '';
   assignedUserFilter = '';
+  showArchived = false;
   
   // Lista de usuarios para el filtro
   familyMembers = signal<User[]>([]);
@@ -130,6 +133,14 @@ export class TaskListComponent implements OnInit {
   applyFilters(): void {
     let filtered = this.tasks();
 
+    // Vista de archivadas: si está activa, mostrar solo archivadas;
+    // si no, ocultar las archivadas de la vista normal
+    if (this.showArchived) {
+      filtered = filtered.filter(task => task.status === 'archived');
+    } else {
+      filtered = filtered.filter(task => task.status !== 'archived');
+    }
+
     if (this.searchTerm) {
       const term = this.searchTerm.toLowerCase();
       filtered = filtered.filter(task => 
@@ -138,7 +149,8 @@ export class TaskListComponent implements OnInit {
       );
     }
 
-    if (this.statusFilter) {
+    // Si está activada la vista de archivadas, ignorar el filtro de estado
+    if (!this.showArchived && this.statusFilter) {
       filtered = filtered.filter(task => task.status === this.statusFilter);
     }
 
@@ -244,7 +256,8 @@ export class TaskListComponent implements OnInit {
     const labels = {
       'pending': 'Pendiente',
       'in_progress': 'En Progreso',
-      'completed': 'Completada'
+      'completed': 'Completada',
+      'archived': 'Archivada'
     };
     return labels[status as keyof typeof labels] || status;
   }
@@ -278,8 +291,10 @@ export class TaskListComponent implements OnInit {
     return task.dueDate ? new Date(task.dueDate) < new Date() && task.status !== 'completed' : false;
   }
 
-  formatDate(date: string | Date): string {
+  formatDate(date: string | Date | null | undefined): string {
+    if (!date) return '';
     const dateObj = typeof date === 'string' ? new Date(date) : date;
+    if (!(dateObj instanceof Date) || isNaN(dateObj.getTime())) return '';
     return dateObj.toLocaleDateString('es-ES', {
       year: 'numeric',
       month: 'short',
@@ -342,16 +357,20 @@ export class TaskListComponent implements OnInit {
       width: '400px',
       data: {
         title: 'Confirmar eliminación',
-        message: `¿Estás seguro de que deseas eliminar la tarea "${task.title}"?`,
+        message: `¿Estás seguro de que deseas eliminar la tarea "${task.title}" de forma permanente? Para confirmar, escribe el nombre exacto de la tarea.`,
         confirmText: 'Eliminar',
-        cancelText: 'Cancelar'
+        cancelText: 'Cancelar',
+        requireText: true,
+        expectedText: task.title,
+        placeholder: 'Escribe el nombre exacto de la tarea',
+        helperText: 'Para eliminar definitivamente, escribe exactamente el nombre de la tarea.'
       }
     });
 
     dialogRef.afterClosed().subscribe(result => {
-      if (result) {
+      if (typeof result === 'string' && result.trim().length > 0) {
         const alertId = this.alerts.info('Eliminando archivos...', 'Estamos eliminando la tarea y sus archivos asociados.', { loading: true, dismissible: true });
-        this.taskService.deleteTask(task.id).subscribe({
+        this.taskService.deleteTask(task.id, result.trim()).subscribe({
           next: () => {
             const tasks = this.tasks();
             const updatedTasks = tasks.filter(t => t.id !== task.id);
@@ -364,6 +383,39 @@ export class TaskListComponent implements OnInit {
             this.alerts.update(alertId, { type: 'error', title: 'Error al eliminar la tarea', message: 'Inténtalo de nuevo o verifica tu conexión.', loading: false, dismissible: true, duration: 6000 });
           }
         });
+      } else if (result) {
+        // Si el diálogo devuelve true u otro valor, pero sin texto válido
+        this.alerts.warning('Código requerido', 'Debes ingresar un código de confirmación para eliminar.', { duration: 3000, dismissible: true });
+      }
+    });
+  }
+
+  archiveTask(task: Task): void {
+    const alertId = this.alerts.info('Archivando tarea...', `Archivando "${task.title}"`, { loading: true, dismissible: true });
+    this.taskService.archiveTask(task.id).subscribe({
+      next: (updatedTask: any) => {
+        // Refrescar desde backend para asegurar consistencia y actualizar señal
+        this.loadTasks();
+        this.alerts.update(alertId, { type: 'success', title: 'Tarea archivada', message: 'La tarea fue enviada al archivo.', loading: false, duration: 3000 });
+      },
+      error: (error: any) => {
+        console.error('Error archiving task:', error);
+        this.alerts.update(alertId, { type: 'error', title: 'Error al archivar', message: 'No se pudo archivar la tarea.', loading: false, dismissible: true, duration: 5000 });
+      }
+    });
+  }
+
+  unarchiveTask(task: Task): void {
+    const alertId = this.alerts.info('Restaurando tarea...', `Restaurando "${task.title}"`, { loading: true, dismissible: true });
+    this.taskService.unarchiveTask(task.id).subscribe({
+      next: (updatedTask: any) => {
+        // Refrescar desde backend para asegurar consistencia y actualizar señal
+        this.loadTasks();
+        this.alerts.update(alertId, { type: 'success', title: 'Tarea restaurada', message: 'La tarea volvió a Pendiente.', loading: false, duration: 3000 });
+      },
+      error: (error: any) => {
+        console.error('Error unarchiving task:', error);
+        this.alerts.update(alertId, { type: 'error', title: 'Error al restaurar', message: 'No se pudo restaurar la tarea.', loading: false, dismissible: true, duration: 5000 });
       }
     });
   }

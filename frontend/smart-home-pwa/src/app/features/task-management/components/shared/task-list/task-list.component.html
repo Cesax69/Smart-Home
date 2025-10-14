@@ -34,6 +34,7 @@
             <mat-option value="pending">Pendiente</mat-option>
             <mat-option value="in_progress">En Progreso</mat-option>
             <mat-option value="completed">Completada</mat-option>
+            <mat-option value="archived">Archivada</mat-option>
           </mat-select>
         </mat-form-field>
 
@@ -77,6 +78,11 @@
           <mat-icon>refresh</mat-icon>
           Recargar
         </button>
+
+        <!-- Toggle para vista de archivadas -->
+        <mat-slide-toggle [(ngModel)]="showArchived" (change)="applyFilters()">
+          Ver archivadas
+        </mat-slide-toggle>
       </div>
     </mat-card-content>
   </mat-card>
@@ -157,6 +163,19 @@
                       </button>
                     }
                     
+                    <!-- Archivar / Restaurar -->
+                    @if (task.status !== 'archived') {
+                      <button mat-menu-item (click)="archiveTask(task)">
+                        <mat-icon>inventory_2</mat-icon>
+                        <span>Archivar</span>
+                      </button>
+                    } @else {
+                      <button mat-menu-item (click)="unarchiveTask(task)">
+                        <mat-icon>unarchive</mat-icon>
+                        <span>Restaurar</span>
+                      </button>
+                    }
+
                     <!-- Reasignar: solo para jefe del hogar -->
                     @if (currentUser()?.role === 'head_of_household') {
                       <button mat-menu-item (click)="reassignTask(task)">

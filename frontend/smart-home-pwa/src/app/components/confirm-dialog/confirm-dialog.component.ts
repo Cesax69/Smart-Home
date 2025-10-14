@@ -1,4 +1,5 @@
 import { Component, Inject } from '@angular/core';
+import { FormsModule } from '@angular/forms';
 import { CommonModule } from '@angular/common';
 import { MatDialogRef, MAT_DIALOG_DATA, MatDialogModule } from '@angular/material/dialog';
 import { MatButtonModule } from '@angular/material/button';
@@ -11,6 +12,10 @@ export interface ConfirmDialogData {
   cancelText?: string;
   icon?: string;
   color?: 'primary' | 'accent' | 'warn';
+  requireText?: boolean;
+  expectedText?: string;
+  placeholder?: string;
+  helperText?: string;
 }
 
 @Component({
@@ -18,6 +23,7 @@ export interface ConfirmDialogData {
   standalone: true,
   imports: [
     CommonModule,
+    FormsModule,
     MatDialogModule,
     MatButtonModule,
     MatIconModule
@@ -33,6 +39,15 @@ export interface ConfirmDialogData {
       
       <div mat-dialog-content class="dialog-content">
         <p>{{ data.message }}</p>
+        @if (data.requireText) {
+          <div class="input-section">
+            <label class="input-label" for="confirm-input">{{ data.helperText || 'Ingrese el código de confirmación' }}</label>
+            <input id="confirm-input" type="text" [placeholder]="data.placeholder || ''" [(ngModel)]="inputValue" class="text-input" />
+            @if (showMismatchError()) {
+              <div class="error-text">El nombre ingresado no coincide. Verifica mayúsculas y espacios.</div>
+            }
+          </div>
+        }
       </div>
       
       <div mat-dialog-actions class="dialog-actions">
@@ -41,6 +56,7 @@ export interface ConfirmDialogData {
         </button>
         <button mat-raised-button 
                 [color]="data.color || 'warn'" 
+                [disabled]="data.requireText && !isInputValid()"
                 (click)="onConfirm()" 
                 class="confirm-button">
           {{ data.confirmText || 'Confirmar' }}
@@ -102,6 +118,32 @@ export interface ConfirmDialogData {
       word-break: break-word;
     }
 
+    .input-section {
+      margin-top: 16px;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+
+    .input-label {
+      font-size: 13px;
+      color: rgba(0, 0, 0, 0.7);
+    }
+
+    .text-input {
+      padding: 10px 12px;
+      border: 1px solid rgba(0,0,0,0.2);
+      border-radius: 6px;
+      outline: none;
+      font-size: 14px;
+    }
+
+    .error-text {
+      color: #d32f2f;
+      font-size: 12px;
+      margin-top: 4px;
+    }
+
     .dialog-actions {
       display: flex;
       flex-wrap: wrap;
@@ -136,6 +178,7 @@ export interface ConfirmDialogData {
   `]
 })
 export class ConfirmDialogComponent {
+  inputValue = '';
   constructor(
     public dialogRef: MatDialogRef<ConfirmDialogComponent>,
     @Inject(MAT_DIALOG_DATA) public data: ConfirmDialogData
@@ -146,6 +189,30 @@ export class ConfirmDialogComponent {
   }
 
   onConfirm(): void {
-    this.dialogRef.close(true);
+    if (this.data.requireText) {
+      this.dialogRef.close(this.inputValue);
+    } else {
+      this.dialogRef.close(true);
+    }
+  }
+
+  isInputValid(): boolean {
+    if (!this.data.requireText) return true;
+    const normalize = (s: string) => s.replace(/\s+/g, '').toUpperCase();
+    const expected = normalize((this.data.expectedText || '').trim());
+    const entered = normalize((this.inputValue || '').trim());
+    if (!expected) {
+      return entered.length > 0;
+    }
+    return entered === expected;
+  }
+
+  showMismatchError(): boolean {
+    if (!this.data.requireText) return false;
+    const expectedRaw = (this.data.expectedText || '').trim();
+    const enteredRaw = (this.inputValue || '').trim();
+    if (!expectedRaw || enteredRaw.length === 0) return false;
+    const normalize = (s: string) => s.replace(/\s+/g, '').toUpperCase();
+    return normalize(enteredRaw) !== normalize(expectedRaw);
   }
 }

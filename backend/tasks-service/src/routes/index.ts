@@ -20,6 +20,10 @@ router.get('/', (req, res) => {
         getById: 'GET /api/tasks/:id',
         update: 'PUT /api/tasks/:id',
         delete: 'DELETE /api/tasks/:id',
+        start: 'PATCH /api/tasks/:id/start',
+        complete: 'PATCH /api/tasks/:id/complete',
+        archive: 'PATCH /api/tasks/:id/archive',
+        unarchive: 'PATCH /api/tasks/:id/unarchive',
         comments: {
           get: 'GET /api/tasks/:id/comments',
           add: 'POST /api/tasks/:id/comments'
@@ -42,7 +46,7 @@ router.get('/', (req, res) => {
       }
     },
     documentation: {
-      taskStatuses: ['pendiente', 'en_proceso', 'completada'],
+      taskStatuses: ['pendiente', 'en_proceso', 'completada', 'archivada'],
       requiredFields: {
         create: ['description', 'assignedUserId'],
         update: 'Al menos un campo: description, status, assignedUserId, fileUrl'

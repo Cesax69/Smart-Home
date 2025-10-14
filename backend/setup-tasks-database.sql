@@ -107,6 +107,10 @@ ALTER TABLE IF NOT EXISTS tasks ADD COLUMN IF NOT EXISTS start_date TIMESTAMP;
 ALTER TABLE IF NOT EXISTS tasks 
   ADD COLUMN IF NOT EXISTS progress INTEGER DEFAULT 0 CHECK (progress >= 0 AND progress <= 100);
 
+-- Persistencia de estado previo al archivar
+ALTER TABLE IF NOT EXISTS tasks 
+  ADD COLUMN IF NOT EXISTS previous_status VARCHAR(20);
+
 -- ========================================
 -- DATOS DE EJEMPLO - TAREAS
 -- ========================================

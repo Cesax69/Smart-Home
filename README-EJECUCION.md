@@ -36,7 +36,7 @@ psql -U postgres -d tasks_db -f backend/setup-tasks-database.sql
 | **API Gateway** | 3000 | http://localhost:3000 |
 | **Users Service** | 3001 | http://localhost:3001 |
 | **Tasks Service** | 3002 | http://localhost:3002 |
-| **File Upload Service** | 3004 | http://localhost:3004 |
+| **File Upload Service** | 3005 | http://localhost:3005 |
 | **Notifications Service** | 3003 | http://localhost:3003 |
 
 ## 🗄️ Configuración de Base de Datos

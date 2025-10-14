@@ -2,7 +2,7 @@ export interface Task {
   id: number;
   title: string;
   description: string;
-  status: 'pending' | 'in_progress' | 'completed';
+  status: 'pending' | 'in_progress' | 'completed' | 'archived';
   priority: 'low' | 'medium' | 'high';
   assignedTo: number; // User ID
   assignedUserIds?: number[]; // Todos los asignados
@@ -41,7 +41,7 @@ export interface CreateTaskRequest {
 export interface UpdateTaskRequest {
   title?: string;
   description?: string;
-  status?: 'pending' | 'in_progress' | 'completed';
+  status?: 'pending' | 'in_progress' | 'completed' | 'archived';
   priority?: 'low' | 'medium' | 'high';
   assignedTo?: number;
   assignedUserIds?: number[];

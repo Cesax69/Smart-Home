@@ -22,6 +22,8 @@ router.get('/tasks/:id', (req, res) => taskController.getTaskById(req, res));
 router.put('/tasks/:id', (req, res) => taskController.updateTask(req, res));
 router.patch('/tasks/:id/start', (req, res) => taskController.startTask(req, res));
 router.patch('/tasks/:id/complete', (req, res) => taskController.completeTask(req, res));
+router.patch('/tasks/:id/archive', (req, res) => taskController.archiveTask(req, res));
+router.patch('/tasks/:id/unarchive', (req, res) => taskController.unarchiveTask(req, res));
 router.delete('/tasks/:id', (req, res) => taskController.deleteTask(req, res));
 
 // Rutas de archivos por tarea

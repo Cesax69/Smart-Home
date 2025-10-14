@@ -55,4 +55,10 @@ router.delete('/drive/files/:fileId', UploadController.deleteDriveFile);
  */
 router.delete('/drive/folders/:folderId', UploadController.deleteDriveFolder);
 
+/**
+ * GET /drive/folders/by-name
+ * Buscar carpeta por nombre exacto (con fallback por prefijo)
+ */
+router.get('/drive/folders/by-name', UploadController.getDriveFolderByName);
+
 export { router as uploadRoutes };

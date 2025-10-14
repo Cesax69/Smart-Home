@@ -138,10 +138,10 @@ export class TaskController {
     try {
       const status = req.params.status as TaskStatus;
 
-      if (!['pendiente', 'en_proceso', 'completada'].includes(status)) {
+      if (!['pendiente', 'en_proceso', 'completada', 'archivada'].includes(status)) {
         res.status(400).json({
           success: false,
-          message: 'Estado inválido. Debe ser: pendiente, en_proceso o completada'
+          message: 'Estado inválido. Debe ser: pendiente, en_proceso, completada o archivada'
         } as TaskResponse);
         return;
       }
@@ -325,6 +325,37 @@ export class TaskController {
         return;
       }
 
+      // Obtener la tarea para validar por nombre
+      const existingTask = await this.taskService.getTaskById(taskId);
+      if (!existingTask) {
+        res.status(404).json({
+          success: false,
+          message: 'Tarea no encontrada'
+        } as TaskResponse);
+        return;
+      }
+
+      // Confirmación requerida para eliminación permanente: nombre exacto de la tarea
+      const providedCode = (req.body && (req.body.confirmationCode || req.body.code))
+        || (req.headers['x-confirm-code'] as string | undefined);
+      const expectedCode = String(existingTask.title || existingTask.description || '').trim();
+
+      if (!expectedCode) {
+        res.status(400).json({
+          success: false,
+          message: 'La tarea no tiene nombre disponible para confirmar eliminación'
+        } as TaskResponse);
+        return;
+      }
+
+      if (!providedCode || String(providedCode).trim().toUpperCase() !== expectedCode.toUpperCase()) {
+        res.status(400).json({
+          success: false,
+          message: 'Se requiere escribir el nombre exacto de la tarea para eliminar'
+        } as TaskResponse);
+        return;
+      }
+
       const deleted = await this.taskService.deleteTask(taskId);
 
       if (!deleted) {
@@ -346,6 +377,52 @@ export class TaskController {
         success: false,
         message: error instanceof Error ? error.message : 'Error interno del servidor'
       } as TaskResponse);
+    }
+  }
+
+  /**
+   * PATCH /tasks/:id/archive - Archivar una tarea (soft delete)
+   */
+  async archiveTask(req: Request, res: Response): Promise<void> {
+    try {
+      const taskId = parseInt(req.params.id);
+      if (isNaN(taskId) || taskId <= 0) {
+        res.status(400).json({ success: false, message: 'ID de tarea inválido' } as TaskResponse);
+        return;
+      }
+
+      const updated = await this.taskService.archiveTask(taskId);
+      if (!updated) {
+        res.status(404).json({ success: false, message: 'Tarea no encontrada' } as TaskResponse);
+        return;
+      }
+      res.status(200).json({ success: true, data: updated, message: 'Tarea archivada exitosamente' } as TaskResponse);
+    } catch (error) {
+      console.error('Error en archiveTask controller:', error);
+      res.status(500).json({ success: false, message: error instanceof Error ? error.message : 'Error interno del servidor' } as TaskResponse);
+    }
+  }
+
+  /**
+   * PATCH /tasks/:id/unarchive - Restaurar una tarea archivada
+   */
+  async unarchiveTask(req: Request, res: Response): Promise<void> {
+    try {
+      const taskId = parseInt(req.params.id);
+      if (isNaN(taskId) || taskId <= 0) {
+        res.status(400).json({ success: false, message: 'ID de tarea inválido' } as TaskResponse);
+        return;
+      }
+
+      const updated = await this.taskService.unarchiveTask(taskId);
+      if (!updated) {
+        res.status(404).json({ success: false, message: 'Tarea no encontrada' } as TaskResponse);
+        return;
+      }
+      res.status(200).json({ success: true, data: updated, message: 'Tarea restaurada exitosamente' } as TaskResponse);
+    } catch (error) {
+      console.error('Error en unarchiveTask controller:', error);
+      res.status(500).json({ success: false, message: error instanceof Error ? error.message : 'Error interno del servidor' } as TaskResponse);
     }
   }
 

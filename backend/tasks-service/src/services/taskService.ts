@@ -41,6 +41,8 @@ export class TaskService {
         return 'en_proceso';
       case 'completed':
         return 'completada';
+      case 'archived':
+        return 'archivada';
       default:
         return 'pendiente';
     }
@@ -57,6 +59,8 @@ export class TaskService {
         return 'in_progress';
       case 'completada':
         return 'completed';
+      case 'archivada':
+        return 'archived';
       default:
         return 'pending';
     }
@@ -105,7 +109,7 @@ export class TaskService {
       };
 
       // Enviar notificación al notifications-service
-      const notificationServiceUrl = process.env.NOTIFICATIONS_SERVICE_URL || 'http://localhost:3004';
+      const notificationServiceUrl = process.env.NOTIFICATIONS_SERVICE_URL || 'http://localhost:3003';
       const response = await fetch(`${notificationServiceUrl}/notify/family`, {
         method: 'POST',
         headers: {
@@ -163,7 +167,7 @@ export class TaskService {
    * Valida el estado de una tarea
    */
   private isValidStatus(status: string): status is TaskStatus {
-    return ['pendiente', 'en_proceso', 'completada'].includes(status);
+    return ['pendiente', 'en_proceso', 'completada', 'archivada'].includes(status);
   }
 
   /**
@@ -718,6 +722,77 @@ export class TaskService {
   }
 
   /**
+   * Archiva una tarea persistiendo el estado previo en previous_status
+   */
+  async archiveTask(id: number): Promise<Task | null> {
+    try {
+      if (!id || id <= 0) throw new Error('ID de tarea inválido');
+      const client = await databaseService.getConnection();
+      try {
+        // Actualiza status a 'archived' y guarda el estado previo (usando el valor original)
+        const updateQuery = `
+          WITH original AS (
+            SELECT id, status AS old_status
+            FROM public.tasks
+            WHERE id = $1
+          )
+          UPDATE public.tasks t
+          SET 
+            previous_status = CASE WHEN LOWER(original.old_status) <> 'archived' THEN original.old_status ELSE t.previous_status END,
+            status = 'archived',
+            updated_at = NOW()
+          FROM original
+          WHERE t.id = original.id
+          RETURNING t.id, t.user_id AS created_by_id, t.title, t.description, t.category, t.priority, t.status, t.start_date, t.due_date, t.estimated_time, t.is_recurring, t.recurrence_type, t.completed_at, t.created_at, t.updated_at, t.progress
+        `;
+        const { rows } = await client.query(updateQuery, [id]);
+        if (!rows.length) return null;
+        const dbTask = rows[0] as any;
+        const updatedTask = this.mapDatabaseTaskToTask(dbTask);
+        await this.publishEvent('TareaActualizada', updatedTask);
+        return updatedTask;
+      } finally {
+        client.release();
+      }
+    } catch (error) {
+      console.error('Error en archiveTask:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Restaura una tarea archivada al estado previo si existe, o a 'pending' por defecto
+   */
+  async unarchiveTask(id: number): Promise<Task | null> {
+    try {
+      if (!id || id <= 0) throw new Error('ID de tarea inválido');
+      const client = await databaseService.getConnection();
+      try {
+        const updateQuery = `
+          UPDATE public.tasks
+          SET 
+            status = COALESCE(previous_status, 'pending'),
+            previous_status = NULL,
+            updated_at = NOW()
+          WHERE id = $1
+          RETURNING id, user_id AS created_by_id, title, description, category, priority, status, start_date, due_date, estimated_time, is_recurring, recurrence_type, completed_at, created_at, updated_at, progress
+        `;
+        const { rows } = await client.query(updateQuery, [id]);
+        if (!rows.length) return null;
+        const dbTask = rows[0] as any;
+        const updatedTask = this.mapDatabaseTaskToTask(dbTask);
+        await this.publishEvent('TareaActualizada', updatedTask);
+        return updatedTask;
+      } finally {
+        client.release();
+      }
+    } catch (error) {
+      console.error('Error en unarchiveTask:', error);
+      throw error;
+    }
+  }
+
+  /**
    * Elimina una tarea
    */
   async deleteTask(id: number): Promise<boolean> {
@@ -741,7 +816,17 @@ export class TaskService {
         await this.deleteRemoteFilesIfAny(fileRows).catch(() => {});
 
         // Intentar eliminación remota de carpetas raíz asociadas (no bloquear si falla)
-        const folderIds = Array.from(new Set((fileRows || []).map((r: any) => r.folder_id).filter((f: any) => !!f)));
+        let folderIds = Array.from(new Set((fileRows || []).map((r: any) => r.folder_id).filter((f: any) => !!f)));
+        // Si no hay folderIds registrados (por ejemplo, se eliminaron los archivos y quedó la carpeta vacía),
+        // intentar resolver la carpeta por nombre de la tarea y eliminarla.
+        if (!folderIds.length) {
+          try {
+            const fallbackFolderId = await this.resolveDriveFolderIdByTitle(dbTaskBefore.title || '');
+            if (fallbackFolderId) {
+              folderIds = [fallbackFolderId];
+            }
+          } catch {}
+        }
         await this.deleteRemoteFoldersIfAny(folderIds).catch(() => {});
 
         // Eliminar registros de archivos de la BD
@@ -759,6 +844,26 @@ export class TaskService {
     } catch (error) {
       console.error('Error en deleteTask:', error);
       throw error;
+    }
+  }
+
+  /**
+   * Resuelve el ID de la carpeta de Drive usando el título de la tarea
+   * Busca por nombre exacto (normalizado como en el servicio de subida)
+   */
+  private async resolveDriveFolderIdByTitle(taskTitle: string): Promise<string | null> {
+    const baseGateway = (process.env.API_GATEWAY_URL || 'http://localhost:3000').replace(/\/$/, '');
+    const safeTitle = (taskTitle || '').toString().trim().replace(/[\\/:*?"<>|]/g, '-');
+    if (!safeTitle) return null;
+    const url = `${baseGateway}/api/files/drive/folders/by-name?name=${encodeURIComponent(safeTitle)}`;
+    try {
+      const res = await fetch(url, { method: 'GET' });
+      if (!res.ok) return null;
+      const data = await res.json().catch(() => null);
+      const id = data?.folder?.id;
+      return id || null;
+    } catch {
+      return null;
     }
   }
 

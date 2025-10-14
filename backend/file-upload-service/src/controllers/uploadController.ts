@@ -406,6 +406,36 @@ export class UploadController {
   }
 
   /**
+   * Buscar carpeta de Google Drive por nombre exacto
+   * GET /drive/folders/by-name?name=...&parentId=...
+   */
+  public static async getDriveFolderByName(req: Request, res: Response): Promise<void> {
+    try {
+      const name = (req.query.name as string || '').toString().trim();
+      const parentId = (req.query.parentId as string || '').toString().trim() || undefined;
+      if (!name) {
+        res.status(400).json({ success: false, message: 'Parámetro name requerido' });
+        return;
+      }
+      const driveService = UploadController.initializeGoogleDrive();
+      // Normalizar nombre igual que en creación de carpeta
+      const safeName = name.replace(/[\\/:*?"<>|]/g, '-');
+      const foundExact = await driveService.findFolderByExactName(safeName, parentId);
+      const foundByPrefix = foundExact ? null : await driveService.findFolderByPrefix(`${safeName} - `, parentId);
+      const found = foundExact || foundByPrefix;
+      if (found && found.id) {
+        res.status(200).json({ success: true, folder: { id: found.id, name: found.name, parents: found.parents } });
+      } else {
+        res.status(404).json({ success: false, message: 'Carpeta no encontrada' });
+      }
+    } catch (error) {
+      console.error('❌ Error buscando carpeta por nombre:', error);
+      const errorMessage = error instanceof Error ? error.message : 'Error desconocido';
+      res.status(500).json({ success: false, message: `Error buscando carpeta: ${errorMessage}` });
+    }
+  }
+
+  /**
    * Obtener información de un archivo específico de Google Drive
    */
   public static async getDriveFileInfo(req: Request, res: Response): Promise<void> {

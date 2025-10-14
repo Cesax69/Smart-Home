@@ -1,4 +1,4 @@
-export type TaskStatus = 'pendiente' | 'en_proceso' | 'completada';
+export type TaskStatus = 'pendiente' | 'en_proceso' | 'completada' | 'archivada';
 
 export type TaskCategory = 
   | 'limpieza'      // Limpiar, aspirar, trapear, etc.
