@@ -14,19 +14,8 @@ import {
 } from '../types/Notification';
 import { NotificationTemplateService } from './notificationTemplateService';
 
-<<<<<<< HEAD
 // URL del servicio de usuarios vía API Gateway
 const USERS_API_URL = process.env.USERS_API_URL || 'http://localhost:3000/api/users';
-=======
-// Datos de miembros de la familia
-const mockFamilyMembers: FamilyMember[] = [
-  { id: 1, name: 'Papá', role: 'padre', phoneNumber: '+1234567890' },
-  { id: 2, name: 'Mamá', role: 'madre', phoneNumber: '+1234567891' },
-  { id: 3, name: 'Ana', role: 'hija', phoneNumber: '+1234567892' },
-  { id: 4, name: 'Carlos', role: 'hijo', phoneNumber: '+1234567893' },
-  { id: 5, name: 'Abuela Rosa', role: 'abuela', phoneNumber: '+1234567894' }
-];
->>>>>>> cegg
 
 // Estadísticas de notificaciones
 let notificationStats: NotificationStats = {

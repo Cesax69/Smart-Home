@@ -123,20 +123,9 @@ CREATE TRIGGER notification_history_trigger
     FOR EACH ROW EXECUTE FUNCTION notifications_schema.create_notification_history();
 
 -- ========================================
--- DATOS DE EJEMPLO Y CONFIGURACIONES
--- ========================================
-
--- Configuraciones por defecto para usuarios existentes (IDs 1-7 basados en setup-database.sql)
-INSERT INTO notifications_schema.user_notification_settings (user_id, email_notifications, push_notifications, whatsapp_notifications) 
-VALUES 
-    (1, true, true, true),   -- María (jefe del hogar)
-    (2, true, true, true),   -- Carlos (jefe del hogar)
-    (3, true, true, false),  -- Luis (hijo)
-    (4, true, true, false),  -- Pedro (hijo)
-    (5, true, true, false),  -- Miguel (hijo)
-    (6, true, true, false),  -- Ana (hija)
-    (7, true, true, false)   -- Sofía (hija)
-ON CONFLICT (user_id) DO NOTHING;
+-- Sin datos de ejemplo por defecto. Las configuraciones de notificaciones
+-- se crearán dinámicamente la primera vez que el usuario ajuste preferencias
+-- o cuando el servicio de notificaciones las inicialice.
 
 -- Función para limpiar notificaciones expiradas (ejecutar periódicamente)
 CREATE OR REPLACE FUNCTION notifications_schema.cleanup_expired_notifications()
@@ -205,5 +194,5 @@ BEGIN
     RAISE NOTICE '  - Configuraciones personalizables por usuario';
     RAISE NOTICE '  - Limpieza automática de notificaciones expiradas';
     RAISE NOTICE '  - Triggers para auditoría automática';
-    RAISE NOTICE 'Configuraciones creadas para usuarios 1-7';
+    RAISE NOTICE 'Sin datos de ejemplo: las configuraciones se crearán dinámicamente.';
 END $$;

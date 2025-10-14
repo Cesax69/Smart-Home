@@ -8,17 +8,27 @@ import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatInputModule } from '@angular/material/input';
 import { MatTabsModule } from '@angular/material/tabs';
 import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
-import { MatSnackBar, MatSnackBarModule } from '@angular/material/snack-bar';
+import { AlertService } from '../../../../../services/alert.service';
 import { MatListModule } from '@angular/material/list';
 import { MatChipsModule } from '@angular/material/chips';
 import { MatTooltipModule } from '@angular/material/tooltip';
 import { TaskService } from '../../../services/task.service';
 import { FileUploadService } from '../../../../../services/file-upload.service';
 import { AuthService } from '../../../../../services/auth.service';
-import { Task } from '../../../models/task.model';
+import { Task, TaskFile } from '../../../models/task.model';
 
 export interface TaskActionsDialogData {
   task: Task;
+}
+
+// Tipado para comentarios de tareas para evitar 'any'
+interface TaskComment {
+  id?: number;
+  taskId?: number;
+  comment: string;
+  createdBy?: number;
+  createdByName?: string;
+  createdAt?: Date | string;
 }
 
 @Component({
@@ -35,7 +45,6 @@ export interface TaskActionsDialogData {
     MatInputModule,
     MatTabsModule,
     MatProgressSpinnerModule,
-    MatSnackBarModule,
     MatListModule,
     MatChipsModule,
     MatTooltipModule
@@ -72,7 +81,7 @@ export interface TaskActionsDialogData {
                     <div class="comment-content">
                       <div class="comment-header">
                         <span class="comment-author">{{ comment.createdByName || 'Usuario' }}</span>
-                        <span class="comment-timestamp">{{ formatRelativeTime(comment.createdAt) }}</span>
+                        <span class="comment-timestamp">{{ comment.createdAt ? formatRelativeTime(comment.createdAt) : '' }}</span>
                       </div>
                       <div class="comment-message">{{ comment.comment }}</div>
                     </div>
@@ -149,22 +158,22 @@ export interface TaskActionsDialogData {
                 
                 <div class="files-list">
                   <div *ngFor="let file of files()" class="file-item">
-                    <mat-icon class="file-icon">{{ getFileIcon(file.mime_type) }}</mat-icon>
+                    <mat-icon class="file-icon">{{ getFileIcon(mime(file)) }}</mat-icon>
                     <div class="file-info">
-                      <div class="file-name">{{ file.file_name }}</div>
+                      <div class="file-name">{{ displayFileName(file) }}</div>
                       <div class="file-details">
-                        <span class="file-size">{{ formatFileSize(file.file_size) }}</span>
-                        <span class="file-date">{{ formatDate(file.created_at) }}</span>
-                        <span class="file-uploader">por {{ file.uploaded_by_name || 'Usuario' }}</span>
-                        <span class="file-type">{{ file.mime_type }}</span>
+                        <span class="file-size">{{ formatFileSize(getFileSize(file)) }}</span>
+                        <span class="file-date">{{ formatDate(getCreatedAt(file)) }}</span>
+                        <span class="file-uploader">por {{ getUploadedByName(file) || 'Usuario' }}</span>
+                        <span class="file-type">{{ mime(file) }}</span>
                       </div>
                     </div>
                     <div class="file-actions">
                       <button mat-icon-button 
                               (click)="previewFile(file)" 
-                              [matTooltip]="canPreviewFile(file.mime_type) ? 'Vista previa' : 'Descargar'"
+                              [matTooltip]="canPreviewFile(mime(file)) ? 'Vista previa' : 'Descargar'"
                               color="primary">
-                        <mat-icon>{{ canPreviewFile(file.mime_type) ? 'visibility' : 'download' }}</mat-icon>
+                        <mat-icon>{{ canPreviewFile(mime(file)) ? 'visibility' : 'download' }}</mat-icon>
                       </button>
                       <button mat-icon-button 
                               (click)="downloadFile(file)" 
@@ -717,8 +726,8 @@ export interface TaskActionsDialogData {
 })
 export class TaskActionsDialogComponent implements OnInit {
   commentForm: FormGroup;
-  comments = signal<any[]>([]);
-  files = signal<any[]>([]);
+  comments = signal<TaskComment[]>([]);
+  files = signal<TaskFile[]>([]);
   selectedFile = signal<File | null>(null);
   isAddingComment = signal(false);
   isUploading = signal(false);
@@ -731,7 +740,7 @@ export class TaskActionsDialogComponent implements OnInit {
     private taskService: TaskService,
     private fileUploadService: FileUploadService,
     private authService: AuthService,
-    private snackBar: MatSnackBar
+    private alerts: AlertService
   ) {
     this.commentForm = this.fb.group({
       comment: ['', [Validators.required, Validators.minLength(3)]]
@@ -750,7 +759,7 @@ export class TaskActionsDialogComponent implements OnInit {
   loadComments(): void {
     this.taskService.getTaskComments(this.data.task.id).subscribe({
       next: (comments) => {
-        this.comments.set(comments);
+        this.comments.set(comments as TaskComment[]);
       },
       error: (error) => {
         console.error('Error loading comments:', error);
@@ -761,7 +770,7 @@ export class TaskActionsDialogComponent implements OnInit {
   loadFiles(): void {
     this.taskService.getTaskFiles(this.data.task.id).subscribe({
       next: (files) => {
-        this.files.set(files);
+        this.files.set(files as TaskFile[]);
       },
       error: (error) => {
         console.error('Error loading files:', error);
@@ -776,20 +785,14 @@ export class TaskActionsDialogComponent implements OnInit {
 
       this.taskService.addComment(this.data.task.id, comment).subscribe({
         next: () => {
-          this.snackBar.open('Comentario agregado exitosamente', 'Cerrar', {
-            duration: 3000,
-            panelClass: ['success-snackbar']
-          });
+          this.alerts.success('Comentario agregado exitosamente');
           this.commentForm.reset();
           this.loadComments();
           this.isAddingComment.set(false);
         },
         error: (error) => {
           console.error('Error adding comment:', error);
-          this.snackBar.open('Error al agregar comentario', 'Cerrar', {
-            duration: 3000,
-            panelClass: ['error-snackbar']
-          });
+          this.alerts.error('Error al agregar comentario');
           this.isAddingComment.set(false);
         }
       });
@@ -797,11 +800,11 @@ export class TaskActionsDialogComponent implements OnInit {
   }
 
   // Métodos auxiliares para la UI mejorada
-  trackByCommentId(index: number, comment: any): number {
-    return comment.id || index;
+  trackByCommentId(index: number, comment: TaskComment): number {
+    return (comment.id ?? index) as number;
   }
 
-  isOwnComment(comment: any): boolean {
+  isOwnComment(comment: TaskComment): boolean {
     return comment.createdBy === this.currentUserId();
   }
 
@@ -838,10 +841,7 @@ export class TaskActionsDialogComponent implements OnInit {
       if (validation.valid) {
         this.selectedFile.set(file);
       } else {
-        this.snackBar.open(validation.error!, 'Cerrar', {
-          duration: 4000,
-          panelClass: ['error-snackbar']
-        });
+        this.alerts.error(validation.error!);
         event.target.value = '';
       }
     }
@@ -868,7 +868,7 @@ export class TaskActionsDialogComponent implements OnInit {
 
     this.isUploading.set(true);
     // Intentar reutilizar el folder existente donde están los archivos de la tarea
-    const existingFolderId = this.files().length > 0 ? (this.files()[0].folder_id || this.files()[0].folderId) : undefined;
+    const existingFolderId = this.files().length > 0 ? this.getFolderId(this.files()[0]) : undefined;
     const taskTitle = this.data.task.title;
 
     this.fileUploadService.uploadFile(file, { taskTitle, folderId: existingFolderId, subfolder: 'progreso' }).subscribe({
@@ -877,10 +877,7 @@ export class TaskActionsDialogComponent implements OnInit {
         const uploaded = Array.isArray(response?.uploaded) ? response.uploaded : [];
         const first = uploaded[0];
         if (!first) {
-          this.snackBar.open('No se pudo procesar la subida del archivo', 'Cerrar', {
-            duration: 3000,
-            panelClass: ['error-snackbar']
-          });
+          this.alerts.error('No se pudo procesar la subida del archivo');
           this.isUploading.set(false);
           return;
         }
@@ -897,30 +894,21 @@ export class TaskActionsDialogComponent implements OnInit {
 
         this.taskService.addTaskFile(this.data.task.id, fileInfo).subscribe({
           next: () => {
-            this.snackBar.open('Archivo subido exitosamente', 'Cerrar', {
-              duration: 3000,
-              panelClass: ['success-snackbar']
-            });
+            this.alerts.success('Archivo subido exitosamente');
             this.selectedFile.set(null);
             this.loadFiles();
             this.isUploading.set(false);
           },
           error: (error) => {
             console.error('Error adding file to task:', error);
-            this.snackBar.open('Error al asociar archivo con la tarea', 'Cerrar', {
-              duration: 3000,
-              panelClass: ['error-snackbar']
-            });
+            this.alerts.error('Error al asociar archivo con la tarea');
             this.isUploading.set(false);
           }
         });
       },
       error: (error) => {
         console.error('Error uploading file:', error);
-        this.snackBar.open('Error al subir archivo', 'Cerrar', {
-          duration: 3000,
-          panelClass: ['error-snackbar']
-        });
+        this.alerts.error('Error al subir archivo');
         this.isUploading.set(false);
       }
     });
@@ -928,13 +916,16 @@ export class TaskActionsDialogComponent implements OnInit {
 
   downloadFile(file: any): void {
     // En un entorno real, esto abriría el archivo o iniciaría la descarga
-    window.open(file.file_url, '_blank');
+    const url = file.fileUrl ?? file.file_url;
+    if (url) window.open(url, '_blank');
   }
 
   previewFile(file: any): void {
-    if (this.canPreviewFile(file.mime_type)) {
+    const mimeType = this.mime(file as TaskFile);
+    const url = file.fileUrl ?? file.file_url;
+    if (this.canPreviewFile(mimeType) && url) {
       // Para imágenes, PDFs y archivos de texto, abrir en nueva ventana
-      window.open(file.file_url, '_blank');
+      window.open(url, '_blank');
     } else {
       // Para otros tipos de archivo, descargar
       this.downloadFile(file);
@@ -971,5 +962,30 @@ export class TaskActionsDialogComponent implements OnInit {
   formatFileSize(bytes: number): string {
     if (!bytes || bytes === 0) return '0 B';
     return this.fileUploadService.formatFileSize(bytes);
+  }
+
+  // Helpers to handle backend snake_case vs frontend camelCase safely
+  mime(file: TaskFile): string {
+    return file.mimeType ?? (file as any).mime_type ?? '';
+  }
+
+  displayFileName(file: TaskFile): string {
+    return file.fileName ?? (file as any).file_name ?? '';
+  }
+
+  getFileSize(file: TaskFile): number {
+    return file.fileSize ?? (file as any).file_size ?? 0;
+  }
+
+  getCreatedAt(file: TaskFile): Date | string {
+    return file.createdAt ?? (file as any).created_at ?? '';
+  }
+
+  getUploadedByName(file: TaskFile): string {
+    return (file as any).uploaded_by_name ?? '';
+  }
+
+  getFolderId(file: TaskFile): string | undefined {
+    return file.folderId ?? (file as any).folder_id ?? undefined;
   }
 }

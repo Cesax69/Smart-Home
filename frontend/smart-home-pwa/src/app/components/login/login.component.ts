@@ -10,7 +10,7 @@ import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatInputModule } from '@angular/material/input';
 import { MatCheckboxModule } from '@angular/material/checkbox';
 import { MatDividerModule } from '@angular/material/divider';
-import { MatSnackBarModule, MatSnackBar } from '@angular/material/snack-bar';
+import { AlertService } from '../../services/alert.service';
 import { AuthService } from '../../services/auth.service';
 import { LoginRequest } from '../../models/user.model';
 
@@ -27,7 +27,6 @@ import { LoginRequest } from '../../models/user.model';
     MatIconModule,
     MatCheckboxModule,
     MatProgressSpinnerModule,
-    MatSnackBarModule
   ],
   templateUrl: './login.component.html',
   styleUrl: './login.component.scss'
@@ -42,7 +41,7 @@ export class LoginComponent {
     private fb: FormBuilder,
     private authService: AuthService,
     private router: Router,
-    private snackBar: MatSnackBar
+    private alerts: AlertService
   ) {
     this.loginForm = this.createForm();
   }
@@ -63,25 +62,7 @@ export class LoginComponent {
     }
   }
 
-  quickLogin(userType: 'admin' | 'member'): void {
-    const credentials = {
-      username: userType,
-      password: userType
-    };
-    
-    this.loginForm.patchValue(credentials);
-    this.performLogin();
-  }
-
-  quickLoginUser(username: string, password: string): void {
-    const credentials = {
-      username: username,
-      password: password
-    };
-    
-    this.loginForm.patchValue(credentials);
-    this.performLogin();
-  }
+  // Eliminado: accesos rápidos mock
 
   private performLogin(): void {
     this.isLoading.set(true);
@@ -130,12 +111,7 @@ export class LoginComponent {
       icon = '👤';
     }
 
-    this.snackBar.open(message, '✨', {
-      duration: 3000,
-      horizontalPosition: 'center',
-      verticalPosition: 'top',
-      panelClass: user.role === 'head_of_household' ? ['success-snackbar', 'admin-snackbar'] : ['success-snackbar', 'member-snackbar']
-    });
+    this.alerts.success(message);
   }
 
   togglePasswordVisibility(): void {

@@ -76,6 +76,21 @@ npm start
 
 El servicio estará disponible en: `http://localhost:3002`
 
+## 🚢 Ejecución con Docker (recomendado)
+
+Para un arranque limpio y reproducible del ecosistema completo:
+
+```powershell
+docker compose down -v
+docker compose up -d --build
+```
+
+Estado de datos iniciales:
+- `tasks_db`: solo esquema de tablas, sin datos de ejemplo.
+- `users_db`: 5 usuarios iniciales precargados (papa, mama, hijo1, hija1, hijo2).
+
+Nota: para asignar tareas a usuarios reales, obtén los `userId` consultando el Users Service o ejecuta `node backend/users-service/scripts/verify-users.js` desde la raíz del proyecto.
+
 ## 📊 Modelo de Datos
 
 El esquema completo de tablas (tareas, asignaciones, archivos, subtareas) está definido en `backend/setup-tasks-database.sql` y se aplica automáticamente al iniciar con Docker Compose.

@@ -146,3 +146,19 @@ El microservicio sigue una arquitectura en capas:
 - Tests unitarios y de integración
 - Logging estructurado
 - Métricas y monitoreo
+
+## 👤 Usuarios Iniciales y Verificación
+
+Cuando se levanta el stack con Docker Compose, `users_db` precarga 5 usuarios de la familia:
+
+- `papa/password` – Jefe del hogar
+- `mama/password` – Miembro
+- `hijo1/password` – Miembro (Hijo)
+- `hija1/password` – Miembro (Hija)
+- `hijo2/password` – Miembro (Hijo)
+
+Para verificar los usuarios iniciales desde la raíz del proyecto:
+
+```powershell
+node backend/users-service/scripts/verify-users.js
+```

@@ -13,9 +13,10 @@ import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
 import { MatProgressBarModule } from '@angular/material/progress-bar';
 import { MatMenuModule } from '@angular/material/menu';
 import { MatDialogModule, MatDialog } from '@angular/material/dialog';
-import { MatSnackBar, MatSnackBarModule } from '@angular/material/snack-bar';
 import { MatDividerModule } from '@angular/material/divider';
 import { MatTooltipModule } from '@angular/material/tooltip';
+import { MatSlideToggleModule } from '@angular/material/slide-toggle';
+import { AlertService } from '../../../../../services/alert.service';
 
 // Imports actualizados para la nueva estructura
 import { TaskService } from '../../../services/task.service';
@@ -24,7 +25,7 @@ import { Task } from '../../../models/task.model';
 import { User } from '../../../../../models/user.model';
 import { ConfirmDialogComponent } from '../../../../../components/confirm-dialog/confirm-dialog.component';
 import { TaskCreateComponent } from '../../admin/task-create/task-create.component';
-import { TaskEditComponent } from '../task-edit/task-edit.component';
+import { AdminTaskEditComponent } from '../../admin/task-edit/task-edit.component';
 
 @Component({
   selector: 'app-task-list',
@@ -43,9 +44,9 @@ import { TaskEditComponent } from '../task-edit/task-edit.component';
     MatProgressBarModule,
     MatMenuModule,
     MatDialogModule,
-    MatSnackBarModule,
     MatDividerModule,
-    MatTooltipModule
+    MatTooltipModule,
+    MatSlideToggleModule
   ],
   templateUrl: './task-list.component.html',
   styleUrl: './task-list.component.scss'
@@ -53,7 +54,7 @@ import { TaskEditComponent } from '../task-edit/task-edit.component';
 export class TaskListComponent implements OnInit {
   tasks = signal<Task[]>([]);
   filteredTasks = signal<Task[]>([]);
-  currentUser = signal<any>(null);
+  currentUser = signal<User | null>(null);
   isLoading = signal(true);
   private memberNameMap = new Map<number, string>();
 
@@ -62,6 +63,7 @@ export class TaskListComponent implements OnInit {
   priorityFilter = '';
   dueDateFilter = '';
   assignedUserFilter = '';
+  showArchived = false;
   
   // Lista de usuarios para el filtro
   familyMembers = signal<User[]>([]);
@@ -71,7 +73,7 @@ export class TaskListComponent implements OnInit {
   private authService = inject(AuthService);
   private router = inject(Router);
   private dialog = inject(MatDialog);
-  private snackBar = inject(MatSnackBar);
+  private alerts = inject(AlertService);
 
   ngOnInit(): void {
     // Verificar si hay usuario autenticado
@@ -86,22 +88,7 @@ export class TaskListComponent implements OnInit {
     }
   }
 
-  // Método para cambiar entre roles para pruebas
-  switchUserRole(): void {
-    const currentRole = this.currentUser()?.role;
-    const newRole = currentRole === 'head_of_household' ? 'family_member' : 'head_of_household';
-    
-    this.authService.loginByRole(newRole).subscribe({
-      next: (user) => {
-        this.currentUser.set(user);
-        this.loadTasks();
-        this.snackBar.open(`Cambiado a: ${newRole === 'head_of_household' ? 'Jefe del Hogar' : 'Miembro de la Familia'}`, 'Cerrar', { duration: 2000 });
-      },
-      error: (error) => {
-        console.error('Error al cambiar rol:', error);
-      }
-    });
-  }
+  // Eliminado: cambio de rol para pruebas
 
   loadTasks(): void {
     this.isLoading.set(true);
@@ -119,14 +106,14 @@ export class TaskListComponent implements OnInit {
     
     // Filtrar tareas por el usuario actual
     this.taskService.getTasks({ userId: currentUser.id }).subscribe({
-      next: (response: any) => {
+      next: (response: { tasks: Task[] }) => {
         this.tasks.set(response.tasks);
         this.applyFilters();
         this.isLoading.set(false);
       },
-      error: (error: any) => {
+      error: (error: Error) => {
         console.error('Error loading tasks:', error);
-        this.snackBar.open('Error al cargar las tareas', 'Cerrar', { duration: 3000 });
+        this.alerts.error('Error al cargar las tareas', undefined, { duration: 3000 });
         this.isLoading.set(false);
       }
     });
@@ -134,6 +121,15 @@ export class TaskListComponent implements OnInit {
 
   applyFilters(): void {
     let filtered = this.tasks();
+
+    // Manejo de archivadas:
+    // - Si el toggle está activo y no hay filtro de estado, mostrar SOLO archivadas
+    // - Si el toggle no está activo y no se filtra explícitamente por archivadas, ocultarlas
+    if (this.showArchived && !this.statusFilter) {
+      filtered = filtered.filter(task => task.status === 'archived');
+    } else if (!this.showArchived && this.statusFilter !== 'archived') {
+      filtered = filtered.filter(task => task.status !== 'archived');
+    }
 
     if (this.searchTerm) {
       const term = this.searchTerm.toLowerCase();
@@ -199,7 +195,7 @@ export class TaskListComponent implements OnInit {
 
   reloadTasks(): void {
     this.loadTasks();
-    this.snackBar.open('Tareas recargadas', 'Cerrar', { duration: 2000 });
+    this.alerts.info('Tareas recargadas', undefined, { duration: 2000 });
   }
 
   canManageTask(task: Task): boolean {
@@ -216,10 +212,11 @@ export class TaskListComponent implements OnInit {
 
   getPriorityLabel(priority: string): string {
     const labels = {
-      'low': 'Baja',
-      'medium': 'Media',
-      'high': 'Alta'
-    };
+      'baja': 'Baja',
+      'media': 'Media',
+      'alta': 'Alta',
+      'urgente': 'Urgente'
+    } as const;
     return labels[priority as keyof typeof labels] || priority;
   }
 
@@ -227,7 +224,12 @@ export class TaskListComponent implements OnInit {
     const labels = {
       'pending': 'Pendiente',
       'in_progress': 'En Progreso',
-      'completed': 'Completada'
+      'completed': 'Completada',
+      'archived': 'Archivada',
+      'pendiente': 'Pendiente',
+      'en_proceso': 'En Progreso',
+      'completada': 'Completada',
+      'archivada': 'Archivada'
     };
     return labels[status as keyof typeof labels] || status;
   }
@@ -272,9 +274,15 @@ export class TaskListComponent implements OnInit {
     });
   }
 
+  // Helper para manejar progreso con valor por defecto
+  getProgress(task: Task): number {
+    const p = (task as Task).progress;
+    return typeof p === 'number' ? p : 0;
+  }
+
   startTask(task: Task): void {
     this.taskService.updateTask(task.id, { status: 'in_progress' }).subscribe({
-      next: (updatedTask: any) => {
+      next: (updatedTask: Task) => {
         const tasks = this.tasks();
         const index = tasks.findIndex(t => t.id === task.id);
         if (index !== -1) {
@@ -282,11 +290,11 @@ export class TaskListComponent implements OnInit {
           this.tasks.set([...tasks]);
           this.applyFilters();
         }
-        this.snackBar.open('Tarea iniciada', 'Cerrar', { duration: 2000 });
+        this.alerts.success('Tarea iniciada', undefined, { duration: 2000 });
       },
       error: (error: any) => {
         console.error('Error starting task:', error);
-        this.snackBar.open('Error al iniciar la tarea', 'Cerrar', { duration: 3000 });
+        this.alerts.error('Error al iniciar la tarea', undefined, { duration: 3000 });
       }
     });
   }
@@ -308,7 +316,7 @@ export class TaskListComponent implements OnInit {
       if (result) {
         const currentUser = this.currentUser();
         if (!currentUser || !currentUser.id) {
-          this.snackBar.open('Error: Usuario no autenticado', 'Cerrar', { duration: 3000 });
+          this.alerts.error('Error: Usuario no autenticado', undefined, { duration: 3000 });
           return;
         }
 
@@ -322,14 +330,11 @@ export class TaskListComponent implements OnInit {
               this.tasks.set([...tasks]);
               this.applyFilters();
             }
-            this.snackBar.open('¡Felicidades! Tarea completada 🎉', 'Cerrar', { 
-              duration: 3000,
-              panelClass: ['success-snackbar']
-            });
+            this.alerts.success('¡Felicidades! Tarea completada 🎉', undefined, { duration: 3000 });
           },
-          error: (error: any) => {
+          error: (error: Error) => {
             console.error('Error completing task:', error);
-            this.snackBar.open('Error al completar la tarea', 'Cerrar', { duration: 3000 });
+            this.alerts.error('Error al completar la tarea', undefined, { duration: 3000 });
           }
         });
       }
@@ -337,7 +342,20 @@ export class TaskListComponent implements OnInit {
   }
 
   editTask(task: Task): void {
-    this.router.navigate(['/tasks/edit', task.id]);
+    const dialogRef = this.dialog.open(AdminTaskEditComponent, {
+      width: '800px',
+      maxWidth: '90vw',
+      maxHeight: '90vh',
+      disableClose: false,
+      data: { taskId: task.id }
+    });
+
+    dialogRef.afterClosed().subscribe(result => {
+      if (result === 'updated') {
+        this.loadTasks();
+        this.alerts.success('Tarea actualizada exitosamente', undefined, { duration: 3000 });
+      }
+    });
   }
 
   reassignTask(task: Task): void {
@@ -350,25 +368,32 @@ export class TaskListComponent implements OnInit {
       width: '400px',
       data: {
         title: 'Confirmar eliminación',
-        message: `¿Estás seguro de que deseas eliminar la tarea "${task.title}"?`,
+        message: `Para confirmar, escribe exactamente el nombre de la tarea: "${task.title}"`,
         confirmText: 'Eliminar',
-        cancelText: 'Cancelar'
+        cancelText: 'Cancelar',
+        icon: 'delete_forever',
+        color: 'warn',
+        requireText: true,
+        expectedText: task.title,
+        placeholder: task.title,
+        helperText: 'Escribe el nombre de la tarea para confirmar'
       }
     });
 
     dialogRef.afterClosed().subscribe(result => {
-      if (result) {
-        this.taskService.deleteTask(task.id).subscribe({
+      // Si requireText, el resultado es el texto ingresado
+      if (typeof result === 'string' && result.trim().length > 0) {
+        this.taskService.deleteTaskWithConfirmation(task.id, result).subscribe({
           next: () => {
             const tasks = this.tasks();
             const updatedTasks = tasks.filter(t => t.id !== task.id);
             this.tasks.set(updatedTasks);
             this.applyFilters();
-            this.snackBar.open('Tarea eliminada exitosamente', 'Cerrar', { duration: 3000 });
+            this.alerts.success('Tarea eliminada exitosamente', undefined, { duration: 3000 });
           },
-          error: (error: any) => {
+          error: (error: Error) => {
             console.error('Error deleting task:', error);
-            this.snackBar.open('Error al eliminar la tarea', 'Cerrar', { duration: 3000 });
+            this.alerts.error('Error al eliminar la tarea', undefined, { duration: 3000 });
           }
         });
       }
@@ -388,10 +413,7 @@ export class TaskListComponent implements OnInit {
       if (result) {
         // Si se creó una tarea, recargar la lista
         this.loadTasks();
-        this.snackBar.open('Tarea creada exitosamente', 'Cerrar', { 
-          duration: 3000,
-          panelClass: ['success-snackbar']
-        });
+        this.alerts.success('Tarea creada exitosamente', undefined, { duration: 3000 });
       }
     });
   }
@@ -409,9 +431,7 @@ export class TaskListComponent implements OnInit {
 
   // Nuevos métodos para las funcionalidades agregadas
   viewTaskDetails(task: Task): void {
-    this.snackBar.open(`Ver detalles de: ${task.title}`, 'Cerrar', {
-      duration: 3000
-    });
+    this.alerts.info('Ver detalles', `${task.title}`, { duration: 3000 });
     // TODO: Implementar modal de detalles completos
   }
 
@@ -420,15 +440,11 @@ export class TaskListComponent implements OnInit {
     if (comment && comment.trim()) {
       this.taskService.addComment(task.id, comment.trim()).subscribe({
         next: () => {
-          this.snackBar.open('Comentario agregado exitosamente', 'Cerrar', {
-            duration: 3000
-          });
+          this.alerts.success('Comentario agregado exitosamente', undefined, { duration: 3000 });
         },
         error: (error) => {
           console.error('Error adding comment:', error);
-          this.snackBar.open('Error al agregar comentario', 'Cerrar', {
-            duration: 3000
-          });
+          this.alerts.error('Error al agregar comentario', undefined, { duration: 3000 });
         }
       });
     }
@@ -452,15 +468,11 @@ export class TaskListComponent implements OnInit {
         
         this.taskService.addTaskFile(task.id, fileInfo).subscribe({
           next: () => {
-            this.snackBar.open(`Archivo "${file.name}" subido exitosamente`, 'Cerrar', {
-              duration: 3000
-            });
+            this.alerts.success(`Archivo "${file.name}" subido exitosamente`, undefined, { duration: 3000 });
           },
           error: (error) => {
             console.error('Error uploading file:', error);
-            this.snackBar.open('Error al subir archivo', 'Cerrar', {
-              duration: 3000
-            });
+            this.alerts.error('Error al subir archivo', undefined, { duration: 3000 });
           }
         });
       }
@@ -492,18 +504,91 @@ export class TaskListComponent implements OnInit {
 
     this.taskService.updateTask(task.id, updatedTask).subscribe({
       next: () => {
-        this.snackBar.open(`Progreso actualizado a ${newProgress}%`, 'Cerrar', {
-          duration: 2000
-        });
+        this.alerts.success(`Progreso actualizado a ${newProgress}%`, undefined, { duration: 2000 });
         // No necesitamos recargar todas las tareas ya que actualizamos localmente
       },
       error: (error) => {
         console.error('Error updating progress:', error);
-        this.snackBar.open('Error al actualizar el progreso', 'Cerrar', {
-          duration: 3000
-        });
+        this.alerts.error('Error al actualizar el progreso', undefined, { duration: 3000 });
         // En caso de error, recargar para sincronizar
         this.loadTasks();
+      }
+    });
+  }
+
+  // Archivar tarea
+  archiveTask(task: Task): void {
+    const dialogRef = this.dialog.open(ConfirmDialogComponent, {
+      width: '400px',
+      data: {
+        title: 'Archivar Tarea',
+        message: `¿Quieres archivar la tarea "${task.title}"?`,
+        confirmText: 'Archivar',
+        cancelText: 'Cancelar',
+        icon: 'inventory_2',
+        color: 'primary'
+      }
+    });
+
+    dialogRef.afterClosed().subscribe(result => {
+      if (result) {
+        this.taskService.archiveTask(task.id).subscribe({
+          next: (updatedTask: Task) => {
+            const tasks = this.tasks();
+            const index = tasks.findIndex(t => t.id === task.id);
+            if (index !== -1) {
+              tasks[index] = updatedTask;
+              this.tasks.set([...tasks]);
+              this.applyFilters();
+            } else {
+              // Fallback: recargar lista
+              this.loadTasks();
+            }
+            this.alerts.info('Tarea archivada', undefined, { duration: 2000 });
+          },
+          error: (error: Error) => {
+            console.error('Error archiving task:', error);
+            this.alerts.error('Error al archivar la tarea', undefined, { duration: 3000 });
+          }
+        });
+      }
+    });
+  }
+
+  // Restaurar tarea archivada
+  unarchiveTask(task: Task): void {
+    const dialogRef = this.dialog.open(ConfirmDialogComponent, {
+      width: '400px',
+      data: {
+        title: 'Restaurar Tarea',
+        message: `¿Quieres restaurar la tarea "${task.title}"?`,
+        confirmText: 'Restaurar',
+        cancelText: 'Cancelar',
+        icon: 'unarchive',
+        color: 'primary'
+      }
+    });
+
+    dialogRef.afterClosed().subscribe(result => {
+      if (result) {
+        this.taskService.unarchiveTask(task.id).subscribe({
+          next: (updatedTask: Task) => {
+            const tasks = this.tasks();
+            const index = tasks.findIndex(t => t.id === task.id);
+            if (index !== -1) {
+              tasks[index] = updatedTask;
+              this.tasks.set([...tasks]);
+              this.applyFilters();
+            } else {
+              this.loadTasks();
+            }
+            this.alerts.info('Tarea restaurada', undefined, { duration: 2000 });
+          },
+          error: (error: Error) => {
+            console.error('Error unarchiving task:', error);
+            this.alerts.error('Error al restaurar la tarea', undefined, { duration: 3000 });
+          }
+        });
       }
     });
   }

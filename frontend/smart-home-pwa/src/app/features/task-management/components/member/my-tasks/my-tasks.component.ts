@@ -12,12 +12,12 @@ import { MatInputModule } from '@angular/material/input';
 import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
 import { MatProgressBarModule } from '@angular/material/progress-bar';
 import { MatTabsModule } from '@angular/material/tabs';
-import { MatSnackBar, MatSnackBarModule } from '@angular/material/snack-bar';
 import { MatDialog, MatDialogModule } from '@angular/material/dialog';
 import { MatTooltipModule } from '@angular/material/tooltip';
 import { CdkDragDrop, DragDropModule, moveItemInArray, transferArrayItem } from '@angular/cdk/drag-drop';
 import { TaskService } from '../../../services/task.service';
 import { AuthService } from '../../../../../services/auth.service';
+import { AlertService } from '../../../../../services/alert.service';
 import { Task } from '../../../models/task.model';
 import { ConfirmDialogComponent } from '../../../../../components/confirm-dialog/confirm-dialog.component';
 import { TaskActionsDialogComponent } from './task-actions-dialog.component';
@@ -38,7 +38,6 @@ import { TaskActionsDialogComponent } from './task-actions-dialog.component';
     MatProgressSpinnerModule,
     MatProgressBarModule,
     MatTabsModule,
-    MatSnackBarModule,
     MatDialogModule,
     MatTooltipModule,
     DragDropModule
@@ -86,9 +85,10 @@ import { TaskActionsDialogComponent } from './task-actions-dialog.component';
             <mat-label>Prioridad</mat-label>
             <mat-select [(ngModel)]="priorityFilter" (selectionChange)="applyFilters()">
               <mat-option value="">Todas</mat-option>
-              <mat-option value="low">🟢 Baja</mat-option>
-              <mat-option value="medium">🟡 Media</mat-option>
-              <mat-option value="high">🔴 Alta</mat-option>
+              <mat-option value="baja">🟢 Baja</mat-option>
+              <mat-option value="media">🟡 Media</mat-option>
+              <mat-option value="alta">🔴 Alta</mat-option>
+              <mat-option value="urgente">🚨 Urgente</mat-option>
             </mat-select>
           </mat-form-field>
 
@@ -143,9 +143,10 @@ import { TaskActionsDialogComponent } from './task-actions-dialog.component';
                 <div class="task-header">
                   <div class="task-priority" [class]="'priority-' + task.priority">
                     @switch (task.priority) {
-                      @case ('high') { 🔴 }
-                      @case ('medium') { 🟡 }
-                      @case ('low') { 🟢 }
+                      @case ('alta') { 🔴 }
+                      @case ('media') { 🟡 }
+                      @case ('baja') { 🟢 }
+                      @case ('urgente') { 🚨 }
                     }
                   </div>
                   <div class="task-category">{{ getCategoryIcon(task.category) }}</div>
@@ -205,9 +206,10 @@ import { TaskActionsDialogComponent } from './task-actions-dialog.component';
                 <div class="task-header">
                   <div class="task-priority" [class]="'priority-' + task.priority">
                     @switch (task.priority) {
-                      @case ('high') { 🔴 }
-                      @case ('medium') { 🟡 }
-                      @case ('low') { 🟢 }
+                      @case ('alta') { 🔴 }
+                      @case ('media') { 🟡 }
+                      @case ('baja') { 🟢 }
+                      @case ('urgente') { 🚨 }
                     }
                   </div>
                   <div class="task-category">{{ getCategoryIcon(task.category) }}</div>
@@ -290,9 +292,10 @@ import { TaskActionsDialogComponent } from './task-actions-dialog.component';
                 <div class="task-header">
                   <div class="task-priority" [class]="'priority-' + task.priority">
                     @switch (task.priority) {
-                      @case ('high') { 🔴 }
-                      @case ('medium') { 🟡 }
-                      @case ('low') { 🟢 }
+                      @case ('alta') { 🔴 }
+                      @case ('media') { 🟡 }
+                      @case ('baja') { 🟢 }
+                      @case ('urgente') { 🚨 }
                     }
                   </div>
                   <div class="task-category">{{ getCategoryIcon(task.category) }}</div>
@@ -353,7 +356,7 @@ export class MyTasksComponent implements OnInit {
   private taskService = inject(TaskService);
   private authService = inject(AuthService);
   private router = inject(Router);
-  private snackBar = inject(MatSnackBar);
+  private alerts = inject(AlertService);
   private dialog = inject(MatDialog);
 
   ngOnInit(): void {
@@ -401,7 +404,7 @@ export class MyTasksComponent implements OnInit {
       error: (error: any) => {
         console.error('Error loading my tasks:', error);
         this.isLoading.set(false);
-        this.snackBar.open('Error al cargar tus tareas', 'Cerrar', { duration: 3000 });
+        this.alerts.error('Error al cargar tus tareas');
       }
     });
   }
@@ -539,19 +542,16 @@ export class MyTasksComponent implements OnInit {
               console.log('📋 All completed tasks:', this.completedTasks().map(t => ({ id: t.id, status: t.status })));
             }
             
-            this.snackBar.open(`Tarea ${this.getStatusLabel(newStatus)}`, 'Cerrar', { 
-              duration: 2000,
-              panelClass: ['success-snackbar']
-            });
+            this.alerts.success(`Tarea ${this.getStatusLabel(newStatus)}`);
           },
           error: (error) => {
             console.error('❌ Error completing task:', error);
-            this.snackBar.open('Error al completar la tarea', 'Cerrar', { duration: 3000 });
+            this.alerts.error('Error al completar la tarea');
           }
         });
       } else {
         console.error('❌ No hay usuario autenticado para completar la tarea');
-        this.snackBar.open('Error: No hay usuario autenticado', 'Cerrar', { duration: 3000 });
+        this.alerts.error('Error: No hay usuario autenticado');
       }
     } else {
       console.log('🔄 Processing status change to:', newStatus);
@@ -584,14 +584,11 @@ export class MyTasksComponent implements OnInit {
             console.log('📋 Completed tasks:', this.completedTasks().length);
           }
           
-          this.snackBar.open(`Tarea ${this.getStatusLabel(newStatus)}`, 'Cerrar', { 
-            duration: 2000,
-            panelClass: ['success-snackbar']
-          });
+          this.alerts.success(`Tarea ${this.getStatusLabel(newStatus)}`);
         },
         error: (error) => {
           console.error('❌ Error updating task status:', error);
-          this.snackBar.open('Error al actualizar la tarea', 'Cerrar', { duration: 3000 });
+          this.alerts.error('Error al actualizar la tarea');
         }
       });
     }
@@ -731,15 +728,11 @@ export class MyTasksComponent implements OnInit {
         // Actualizar con la respuesta del servidor para sincronizar
         this.updateTaskInLists(serverUpdatedTask);
         
-        this.snackBar.open(
-          `Progreso actualizado a ${newProgress}%`, 
-          'Cerrar', 
-          { duration: 2000 }
-        );
+        this.alerts.success(`Progreso actualizado a ${newProgress}%`);
       },
       error: (error: any) => {
         console.error('Error updating progress:', error);
-        this.snackBar.open('Error al actualizar el progreso', 'Cerrar', { duration: 3000 });
+        this.alerts.error('Error al actualizar el progreso');
         // En caso de error, recargar para sincronizar
         this.loadMyTasks();
       }

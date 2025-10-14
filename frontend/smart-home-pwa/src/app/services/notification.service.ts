@@ -3,6 +3,7 @@ import { isPlatformBrowser } from '@angular/common';
 import { BehaviorSubject, Observable } from 'rxjs';
 import { io, Socket } from 'socket.io-client';
 import { AuthService } from './auth.service';
+import { environment } from '../../environments/environment';
 import { User } from '../models/user.model';
 
 export interface Notification {
@@ -29,7 +30,8 @@ export class NotificationService {
   public unreadCount$ = this.unreadCountSubject.asObservable();
   public connectionStatus$ = this.connectionStatusSubject.asObservable();
 
-  private notificationsServiceUrl = 'http://localhost:3004';
+  private notificationsHttpUrl = environment.services.notifications;
+  private notificationsSocketUrl = (environment.services as any).notificationsSocket || environment.services.notifications;
   private currentUserId: string | null = null; // This should come from auth service
 
   constructor(
@@ -65,8 +67,8 @@ export class NotificationService {
       });
     }
     
-    // Load stored notifications from localStorage FIRST
-    this.loadStoredNotifications();
+    // Cargar notificaciones desde backend
+    this.loadNotificationsFromBackend(20, 0);
   }
 
   /**
@@ -102,9 +104,9 @@ export class NotificationService {
    */
   private connectToNotificationService(): void {
     try {
-      console.log('🔌 Attempting to connect to notifications service at:', this.notificationsServiceUrl);
+      console.log('🔌 Attempting to connect to notifications socket at:', this.notificationsSocketUrl);
       
-      this.socket = io(this.notificationsServiceUrl, {
+      this.socket = io(this.notificationsSocketUrl, {
         transports: ['websocket', 'polling'],
         timeout: 10000,
         reconnection: true,
@@ -124,17 +126,17 @@ export class NotificationService {
         }
       });
 
-      this.socket.on('disconnect', (reason) => {
+      this.socket.on('disconnect', (reason: string) => {
         console.log('❌ Disconnected from notifications service. Reason:', reason);
         this.connectionStatusSubject.next(false);
       });
 
-      this.socket.on('connect_error', (error) => {
+      this.socket.on('connect_error', (error: any) => {
         console.error('❌ Connection error:', error);
         this.connectionStatusSubject.next(false);
       });
 
-      this.socket.on('connection_confirmed', (data) => {
+      this.socket.on('connection_confirmed', (data: any) => {
         console.log('✅ Connection confirmed:', data);
       });
 
@@ -181,7 +183,7 @@ export class NotificationService {
 
     this.notificationsSubject.next(updatedNotifications);
     this.updateUnreadCount();
-    this.saveNotificationsToStorage();
+    // Persistencia manejada por backend
 
     // Show browser notification if permission is granted
     this.showBrowserNotification(notification);
@@ -200,7 +202,7 @@ export class NotificationService {
 
     this.notificationsSubject.next(updatedNotifications);
     this.updateUnreadCount();
-    this.saveNotificationsToStorage();
+    // Persistencia manejada por backend
   }
 
   /**
@@ -216,7 +218,7 @@ export class NotificationService {
 
     this.notificationsSubject.next(updatedNotifications);
     this.updateUnreadCount();
-    this.saveNotificationsToStorage();
+    // Persistencia manejada por backend
 
     // Sync with backend database
     this.syncMarkAsReadWithBackend(notificationId);
@@ -233,7 +235,7 @@ export class NotificationService {
 
     this.notificationsSubject.next(updatedNotifications);
     this.updateUnreadCount();
-    this.saveNotificationsToStorage();
+    // Persistencia manejada por backend
 
     // Sync with backend database
     this.syncMarkAllAsReadWithBackend();
@@ -250,7 +252,7 @@ export class NotificationService {
 
     this.notificationsSubject.next(updatedNotifications);
     this.updateUnreadCount();
-    this.saveNotificationsToStorage();
+    // Persistencia manejada por backend
 
     // Sync with backend database
     this.syncDeleteWithBackend(notificationId);
@@ -266,7 +268,7 @@ export class NotificationService {
     }
 
     try {
-      const response = await fetch(`${this.notificationsServiceUrl}/notifications/${this.currentUserId}?limit=${limit}&offset=${offset}`);
+      const response = await fetch(`${this.notificationsHttpUrl}/${this.currentUserId}?limit=${limit}&offset=${offset}`);
       
       if (response.ok) {
         const result = await response.json();
@@ -288,7 +290,6 @@ export class NotificationService {
           
           this.notificationsSubject.next(mergedNotifications);
           this.updateUnreadCount();
-          this.saveNotificationsToStorage();
           
           console.log(`📋 Loaded ${backendNotifications.length} notifications from backend`);
         }
@@ -305,7 +306,7 @@ export class NotificationService {
     if (!this.currentUserId) return;
 
     try {
-      const response = await fetch(`${this.notificationsServiceUrl}/notifications/${notificationId}/read`, {
+      const response = await fetch(`${this.notificationsHttpUrl}/${notificationId}/read`, {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json'
@@ -328,7 +329,7 @@ export class NotificationService {
     if (!this.currentUserId) return;
 
     try {
-      const response = await fetch(`${this.notificationsServiceUrl}/notifications/user/${this.currentUserId}/read-all`, {
+      const response = await fetch(`${this.notificationsHttpUrl}/user/${this.currentUserId}/read-all`, {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json'
@@ -351,7 +352,7 @@ export class NotificationService {
     if (!this.currentUserId) return;
 
     try {
-      const response = await fetch(`${this.notificationsServiceUrl}/notifications/${notificationId}`, {
+      const response = await fetch(`${this.notificationsHttpUrl}/${notificationId}`, {
         method: 'DELETE',
         headers: {
           'Content-Type': 'application/json'
@@ -374,7 +375,7 @@ export class NotificationService {
     if (!this.currentUserId) return 0;
 
     try {
-      const response = await fetch(`${this.notificationsServiceUrl}/notifications/${this.currentUserId}/unread-count`);
+      const response = await fetch(`${this.notificationsHttpUrl}/notifications/${this.currentUserId}/unread-count`);
       
       if (response.ok) {
         const result = await response.json();
@@ -414,7 +415,6 @@ export class NotificationService {
   clearAllNotifications(): void {
     this.notificationsSubject.next([]);
     this.unreadCountSubject.next(0);
-    this.saveNotificationsToStorage();
   }
 
   /**
@@ -470,39 +470,7 @@ export class NotificationService {
     return 'Notification' in window && Notification.permission === 'granted';
   }
 
-  /**
-   * Save notifications to localStorage
-   */
-  private saveNotificationsToStorage(): void {
-    try {
-      const notifications = this.notificationsSubject.value;
-      localStorage.setItem('smart_home_notifications', JSON.stringify(notifications));
-    } catch (error) {
-      console.error('Error saving notifications to storage:', error);
-    }
-  }
-
-  /**
-   * Load notifications from localStorage
-   */
-  private loadStoredNotifications(): void {
-    try {
-      const stored = localStorage.getItem('smart_home_notifications');
-      if (stored) {
-        const notifications: Notification[] = JSON.parse(stored);
-        // Convert timestamp strings back to Date objects
-        const processedNotifications = notifications.map(n => ({
-          ...n,
-          timestamp: new Date(n.timestamp)
-        }));
-        
-        this.notificationsSubject.next(processedNotifications);
-        this.updateUnreadCount();
-      }
-    } catch (error) {
-      console.error('Error loading notifications from storage:', error);
-    }
-  }
+  // Eliminado: almacenamiento local de notificaciones
 
   /**
    * Generate unique ID

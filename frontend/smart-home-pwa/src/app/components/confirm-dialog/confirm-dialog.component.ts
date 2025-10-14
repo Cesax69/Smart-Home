@@ -198,9 +198,9 @@ export class ConfirmDialogComponent {
 
   isInputValid(): boolean {
     if (!this.data.requireText) return true;
-    const normalize = (s: string) => s.replace(/\s+/g, '').toUpperCase();
-    const expected = normalize((this.data.expectedText || '').trim());
-    const entered = normalize((this.inputValue || '').trim());
+    const normalize = (s: string) => (s || '').trim().toUpperCase();
+    const expected = normalize(this.data.expectedText || '');
+    const entered = normalize(this.inputValue || '');
     if (!expected) {
       return entered.length > 0;
     }
@@ -212,7 +212,7 @@ export class ConfirmDialogComponent {
     const expectedRaw = (this.data.expectedText || '').trim();
     const enteredRaw = (this.inputValue || '').trim();
     if (!expectedRaw || enteredRaw.length === 0) return false;
-    const normalize = (s: string) => s.replace(/\s+/g, '').toUpperCase();
+    const normalize = (s: string) => (s || '').trim().toUpperCase();
     return normalize(enteredRaw) !== normalize(expectedRaw);
   }
 }

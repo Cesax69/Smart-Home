@@ -81,16 +81,20 @@
   box-shadow: 0 8px 16px rgba(0,0,0,0.15);
 }
 
-.task-card.priority-high {
+.task-card.priority-alta {
   border-left-color: #f44336;
 }
 
-.task-card.priority-medium {
+.task-card.priority-media {
   border-left-color: #ff9800;
 }
 
-.task-card.priority-low {
+.task-card.priority-baja {
   border-left-color: #4caf50;
+}
+
+.task-card.priority-urgente {
+  border-left-color: #d32f2f;
 }
 
 .task-header {
@@ -121,19 +125,24 @@
   height: 24px;
 }
 
-.priority-high {
+.priority-alta {
   background-color: #ffebee;
   color: #c62828;
 }
 
-.priority-medium {
+.priority-media {
   background-color: #fff3e0;
   color: #ef6c00;
 }
 
-.priority-low {
+.priority-baja {
   background-color: #e8f5e8;
   color: #2e7d32;
+}
+
+.priority-urgente {
+  background-color: #ffebee;
+  color: #b71c1c;
 }
 
 .status-pending {

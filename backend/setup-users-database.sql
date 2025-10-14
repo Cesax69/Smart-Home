@@ -92,29 +92,54 @@ VALUES
     (2, 'Hija', 'Hija mujer de la familia')
 ON CONFLICT (role_id, sub_role_name) DO NOTHING;
 
--- Insertar usuarios de ejemplo con credenciales simplificadas
+-- Insertar usuarios iniciales (familia)
 INSERT INTO users (username, email, password_hash, first_name, last_name, family_role_id, family_sub_role_id, birth_date) 
 VALUES 
-    -- Usuario admin (jefe del hogar)
-    ('admin', 'admin@smarthome.com', '$2b$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi', 'Admin', 'Usuario', 1, NULL, '1985-01-01'),
-    
-    -- Usuario member (miembro del hogar)
-    ('member', 'member@smarthome.com', '$2b$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi', 'Member', 'Usuario', 2, 3, '1990-01-01')
+    -- Papá (jefe del hogar)
+    ('papa', 'papa@smarthome.com', '$2b$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi', 'Carlos', 'Gómez', 1, (SELECT id FROM family_sub_roles WHERE role_id = 2 AND sub_role_name = 'Papá' LIMIT 1), '1980-05-12'),
+    -- Mamá (miembro)
+    ('mama', 'mama@smarthome.com', '$2b$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi', 'María', 'Gómez', 2, (SELECT id FROM family_sub_roles WHERE role_id = 2 AND sub_role_name = 'Mamá' LIMIT 1), '1982-08-22'),
+    -- Hijo (miembro)
+    ('hijo1', 'hijo1@smarthome.com', '$2b$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi', 'Luis', 'Gómez', 2, (SELECT id FROM family_sub_roles WHERE role_id = 2 AND sub_role_name = 'Hijo' LIMIT 1), '2010-03-15'),
+    -- Hija (miembro)
+    ('hija1', 'hija1@smarthome.com', '$2b$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi', 'Sofía', 'Gómez', 2, (SELECT id FROM family_sub_roles WHERE role_id = 2 AND sub_role_name = 'Hija' LIMIT 1), '2012-07-19'),
+    -- Hijo (miembro)
+    ('hijo2', 'hijo2@smarthome.com', '$2b$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi', 'Pedro', 'Gómez', 2, (SELECT id FROM family_sub_roles WHERE role_id = 2 AND sub_role_name = 'Hijo' LIMIT 1), '2014-11-02')
 ON CONFLICT (email) DO NOTHING;
 
--- Preferencias de usuario
-INSERT INTO user_preferences (user_id, theme, language) 
+-- Insertar familia solicitada: papá (jefe), mamá y 3 hijos
+INSERT INTO users (username, email, password_hash, first_name, last_name, family_role_id, family_sub_role_id, birth_date)
 VALUES 
-    (1, 'light', 'es'), -- Admin
-    (2, 'light', 'es')  -- Member
-ON CONFLICT DO NOTHING;
+    -- Papá (jefe del hogar)
+    ('papa', 'papa@smarthome.com', '$2b$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi', 'Carlos', 'Gómez', 1, (SELECT id FROM family_sub_roles WHERE role_id = 2 AND sub_role_name = 'Papá' LIMIT 1), '1980-05-12'),
+    -- Mamá (miembro)
+    ('mama', 'mama@smarthome.com', '$2b$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi', 'María', 'Gómez', 2, (SELECT id FROM family_sub_roles WHERE role_id = 2 AND sub_role_name = 'Mamá' LIMIT 1), '1982-08-22'),
+    -- Hijo (miembro)
+    ('hijo1', 'hijo1@smarthome.com', '$2b$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi', 'Luis', 'Gómez', 2, (SELECT id FROM family_sub_roles WHERE role_id = 2 AND sub_role_name = 'Hijo' LIMIT 1), '2010-03-15'),
+    -- Hija (miembro)
+    ('hija1', 'hija1@smarthome.com', '$2b$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi', 'Sofía', 'Gómez', 2, (SELECT id FROM family_sub_roles WHERE role_id = 2 AND sub_role_name = 'Hija' LIMIT 1), '2012-07-19'),
+    -- Hijo (miembro)
+    ('hijo2', 'hijo2@smarthome.com', '$2b$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi', 'Pedro', 'Gómez', 2, (SELECT id FROM family_sub_roles WHERE role_id = 2 AND sub_role_name = 'Hijo' LIMIT 1), '2014-11-02')
+ON CONFLICT (email) DO NOTHING;
+
+-- Preferencias de usuario para la familia
+INSERT INTO user_preferences (user_id, theme, language)
+SELECT id, 'light', 'es' FROM users WHERE username IN ('papa','mama','hijo1','hija1','hijo2');
+
+-- Preferencias para nuevos usuarios de la familia
+INSERT INTO user_preferences (user_id, theme, language)
+SELECT id, 'light', 'es' FROM users WHERE username IN ('papa','mama','hijo1','hija1','hijo2');
 
 -- Mensaje de confirmación
 DO $$
 BEGIN
     RAISE NOTICE 'Base de datos de Usuarios Smart Home configurada exitosamente!';
     RAISE NOTICE 'Sistema de roles familiares implementado:';
-    RAISE NOTICE '  - Jefe del hogar: admin/admin';
-    RAISE NOTICE '  - Miembro: member/member';
-    RAISE NOTICE 'Total de usuarios creados: 2';
+    RAISE NOTICE 'Usuarios iniciales creados (familia):';
+    RAISE NOTICE '  - Papá: papa/password';
+    RAISE NOTICE '  - Mamá: mama/password';
+    RAISE NOTICE '  - Hijo: hijo1/password';
+    RAISE NOTICE '  - Hija: hija1/password';
+    RAISE NOTICE '  - Hijo: hijo2/password';
+    RAISE NOTICE 'Total de usuarios creados: 5';
 END $$;

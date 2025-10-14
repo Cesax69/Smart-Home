@@ -43,6 +43,8 @@ export class TaskService {
         return 'en_proceso';
       case 'completed':
         return 'completada';
+      case 'archived':
+        return 'archivada';
       default:
         return 'pendiente';
     }
@@ -59,6 +61,8 @@ export class TaskService {
         return 'in_progress';
       case 'completada':
         return 'completed';
+      case 'archivada':
+        return 'archived';
       default:
         return 'pending';
     }
@@ -141,7 +145,7 @@ export class TaskService {
     const mappedTask = {
       id: dbTask.id,
       title: dbTask.title,
-      description: dbTask.description,
+      description: dbTask.description ?? undefined,
       category: this.normalizeCategory(dbTask.category as unknown as string),
       priority: (['baja', 'media', 'alta', 'urgente'].includes((dbTask.priority as unknown as string) || '')
         ? (dbTask.priority as unknown as TaskPriority)
@@ -171,7 +175,7 @@ export class TaskService {
    * Valida el estado de una tarea
    */
   private isValidStatus(status: string): status is TaskStatus {
-    return ['pendiente', 'en_proceso', 'completada'].includes(status);
+    return ['pendiente', 'en_proceso', 'completada', 'archivada'].includes(status);
   }
 
   /**
@@ -198,9 +202,7 @@ export class TaskService {
         throw new Error('El título de la tarea es requerido');
       }
 
-      if (!taskData.description || taskData.description.trim().length === 0) {
-        throw new Error('La descripción de la tarea es requerida');
-      }
+      // Descripción ahora es opcional: no validar requerida
 
       const assigneeIds = Array.isArray(taskData.assignedUserIds) && taskData.assignedUserIds.length > 0
         ? taskData.assignedUserIds
@@ -214,7 +216,7 @@ export class TaskService {
         throw new Error('El ID del creador es requerido y debe ser válido');
       }
 
-      if (!this.isValidCategory(taskData.category)) {
+      if (!taskData.category || !this.isValidCategory(taskData.category)) {
         throw new Error('Categoría de tarea inválida');
       }
 
@@ -239,7 +241,7 @@ export class TaskService {
         const insertTaskParams = [
           taskData.createdById,
           taskData.title.trim(),
-          taskData.description.trim(),
+          taskData.description ? taskData.description.trim() : null,
           this.mapAppStatusToDb(status),
           priority,
           taskData.category,
@@ -745,6 +747,99 @@ export class TaskService {
   }
 
   /**
+   * Archiva una tarea guardando su estado previo correctamente
+   */
+  async archiveTask(id: number): Promise<Task | null> {
+    try {
+      if (!id || id <= 0) {
+        throw new Error('ID de tarea inválido');
+      }
+      const client = await databaseService.getConnection();
+      try {
+        const query = `
+          WITH original AS (
+            SELECT status FROM public.tasks WHERE id = $1
+          )
+          UPDATE public.tasks t
+          SET previous_status = original.status,
+              status = 'archived',
+              updated_at = NOW()
+          FROM original
+          WHERE t.id = $1
+          RETURNING 
+            t.id,
+            t.user_id AS created_by_id,
+            t.title,
+            t.description,
+            t.category,
+            t.priority,
+            t.status,
+            t.due_date,
+            t.completed_at,
+            t.created_at,
+            t.updated_at,
+            t.progress
+        `;
+        const { rows } = await client.query(query, [id]);
+        if (!rows.length) return null;
+        const task = this.mapDatabaseTaskToTask(rows[0] as DatabaseTask);
+        // Publicar como actualización de tarea
+        await this.publishEvent('TareaActualizada', task);
+        return task;
+      } finally {
+        client.release();
+      }
+    } catch (error) {
+      console.error('Error en archiveTask:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Restaura una tarea desde estado archivado
+   */
+  async unarchiveTask(id: number): Promise<Task | null> {
+    try {
+      if (!id || id <= 0) {
+        throw new Error('ID de tarea inválido');
+      }
+      const client = await databaseService.getConnection();
+      try {
+        const query = `
+          UPDATE public.tasks t
+          SET status = COALESCE(t.previous_status, 'pending'),
+              previous_status = NULL,
+              updated_at = NOW()
+          WHERE t.id = $1
+          RETURNING 
+            t.id,
+            t.user_id AS created_by_id,
+            t.title,
+            t.description,
+            t.category,
+            t.priority,
+            t.status,
+            t.due_date,
+            t.completed_at,
+            t.created_at,
+            t.updated_at,
+            t.progress
+        `;
+        const { rows } = await client.query(query, [id]);
+        if (!rows.length) return null;
+        const task = this.mapDatabaseTaskToTask(rows[0] as DatabaseTask);
+        await this.publishEvent('TareaActualizada', task);
+        return task;
+      } finally {
+        client.release();
+      }
+    } catch (error) {
+      console.error('Error en unarchiveTask:', error);
+      throw error;
+    }
+  }
+
+  /**
    * Listar archivos asociados a una tarea
    */
   async getTaskFiles(taskId: number): Promise<any[]> {
@@ -841,6 +936,64 @@ export class TaskService {
       }
     } catch (error) {
       console.error('Error en addTaskFiles:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Actualizar metadatos de un archivo de tarea
+   */
+  async updateTaskFile(fileRecordId: number, fileData: any): Promise<any | null> {
+    try {
+      if (!fileRecordId || fileRecordId <= 0) {
+        throw new Error('ID de archivo inválido');
+      }
+
+      const allowedFields = [
+        'file_name',
+        'file_path',
+        'file_url',
+        'file_size',
+        'file_type',
+        'mime_type',
+        'uploaded_by',
+        'storage_type',
+        'google_drive_id',
+        'is_image',
+        'thumbnail_path'
+      ];
+
+      const setClauses: string[] = [];
+      const params: any[] = [];
+
+      for (const key of allowedFields) {
+        if (Object.prototype.hasOwnProperty.call(fileData, key) && fileData[key] !== undefined) {
+          params.push(fileData[key]);
+          setClauses.push(`${key} = $${params.length}`);
+        }
+      }
+
+      if (setClauses.length === 0) {
+        // Nada que actualizar
+        return null;
+      }
+
+      const client = await databaseService.getConnection();
+      try {
+        params.push(fileRecordId);
+        const query = `
+          UPDATE public.task_files
+          SET ${setClauses.join(', ')}
+          WHERE id = $${params.length}
+          RETURNING id, task_id, file_name, file_path, file_url, file_size, file_type, mime_type, uploaded_by, storage_type, google_drive_id, is_image, thumbnail_path, created_at
+        `;
+        const { rows } = await client.query(query, params);
+        return rows[0] || null;
+      } finally {
+        client.release();
+      }
+    } catch (error) {
+      console.error('Error en updateTaskFile:', error);
       throw error;
     }
   }

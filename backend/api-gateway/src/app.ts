@@ -45,7 +45,7 @@ class APIGateway {
         'http://localhost:4200'
       ],
       methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
-      allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With'],
+      allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With', 'X-Confirm-Code', 'x-confirm-code'],
       credentials: true
     };
     this.app.use(cors(corsOptions));

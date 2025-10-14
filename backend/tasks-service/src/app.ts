@@ -27,13 +27,8 @@ class App {
   private initializeMiddlewares(): void {
     // CORS - Permitir solicitudes desde cualquier origen
     this.app.use(cors({
-<<<<<<< HEAD
-      origin: '*',
-      methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
-=======
       origin: ['http://localhost:4200', 'http://localhost:3000', '*'],
       methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
->>>>>>> cegg
       allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With'],
       credentials: true
     }));

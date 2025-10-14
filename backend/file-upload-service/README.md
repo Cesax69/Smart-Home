@@ -236,3 +236,19 @@ LOG_LEVEL=info
 **File Upload Service** - Microservicio especializado para carga de archivos  
 Versión: 1.0.0  
 Puerto: 3005
+
+## 🚢 Ejecución con Docker (recomendado)
+
+Para arrancar en estado limpio (sin archivos previos en volúmenes):
+
+```powershell
+docker compose down -v
+docker compose up -d --build
+```
+
+Volúmenes gestionados por Docker Compose:
+- `file_uploads` → almacenamiento persistente de archivos subidos
+- `file_temp` → archivos temporales
+- `file_quarantine` → cuarentena de archivos
+
+Al ejecutar `down -v`, se eliminan estos volúmenes y el servicio comienza sin archivos residuales.
