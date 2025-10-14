@@ -27,8 +27,8 @@ class App {
   private initializeMiddlewares(): void {
     // CORS - Permitir solicitudes desde cualquier origen
     this.app.use(cors({
-      origin: '*',
-      methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+      origin: ['http://localhost:4200', 'http://localhost:3000', '*'],
+      methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
       allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With'],
       credentials: true
     }));
@@ -76,6 +76,10 @@ class App {
             getById: 'GET /api/tasks/:id',
             update: 'PUT /api/tasks/:id',
             delete: 'DELETE /api/tasks/:id',
+            start: 'PATCH /api/tasks/:id/start',
+            complete: 'PATCH /api/tasks/:id/complete',
+            archive: 'PATCH /api/tasks/:id/archive',
+            unarchive: 'PATCH /api/tasks/:id/unarchive',
             comments: {
               get: 'GET /api/tasks/:id/comments',
               add: 'POST /api/tasks/:id/comments'

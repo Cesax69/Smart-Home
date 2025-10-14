@@ -2,11 +2,7 @@
   <div class="header">
     <h1>Lista de Tareas</h1>
     <div class="header-actions">
-      <!-- Botón para cambiar rol (solo para pruebas) -->
-      <button mat-stroked-button color="accent" (click)="switchUserRole()" class="role-switch-btn">
-        <mat-icon>swap_horiz</mat-icon>
-        Cambiar a {{ currentUser()?.role === 'head_of_household' ? 'Miembro' : 'Jefe' }}
-      </button>
+      <!-- Eliminado: Botón para cambiar rol (solo pruebas) -->
       
       @if (currentUser()?.role === 'head_of_household') {
         <button mat-raised-button color="primary" (click)="goToCreateTask()">
@@ -41,9 +37,10 @@
           <mat-label>Prioridad</mat-label>
           <mat-select [(ngModel)]="priorityFilter" (selectionChange)="applyFilters()">
             <mat-option value="">Todas</mat-option>
-            <mat-option value="low">Baja</mat-option>
-            <mat-option value="medium">Media</mat-option>
-            <mat-option value="high">Alta</mat-option>
+            <mat-option value="baja">Baja</mat-option>
+            <mat-option value="media">Media</mat-option>
+            <mat-option value="alta">Alta</mat-option>
+            <mat-option value="urgente">Urgente</mat-option>
           </mat-select>
         </mat-form-field>
 
@@ -77,6 +74,11 @@
           <mat-icon>refresh</mat-icon>
           Recargar
         </button>
+
+        <!-- Toggle para vista de archivadas -->
+        <mat-slide-toggle [(ngModel)]="showArchived" (change)="applyFilters()">
+          Ver archivadas
+        </mat-slide-toggle>
       </div>
     </mat-card-content>
   </mat-card>
@@ -157,6 +159,19 @@
                       </button>
                     }
                     
+                    <!-- Archivar / Restaurar -->
+                    @if (task.status !== 'archived') {
+                      <button mat-menu-item (click)="archiveTask(task)">
+                        <mat-icon>inventory_2</mat-icon>
+                        <span>Archivar</span>
+                      </button>
+                    } @else {
+                      <button mat-menu-item (click)="unarchiveTask(task)">
+                        <mat-icon>unarchive</mat-icon>
+                        <span>Restaurar</span>
+                      </button>
+                    }
+
                     <!-- Reasignar: solo para jefe del hogar -->
                     @if (currentUser()?.role === 'head_of_household') {
                       <button mat-menu-item (click)="reassignTask(task)">
@@ -182,6 +197,26 @@
           <mat-card-content>
             @if (task.description) {
               <p class="task-description">{{ task.description }}</p>
+            }
+
+            <!-- Barra de progreso para tareas en progreso -->
+            @if (task.status === 'in_progress' && task.progress !== undefined && task.progress !== null) {
+              <div class="progress-section">
+                <div class="progress-label">Progreso: {{ task.progress }}%</div>
+                <mat-progress-bar [value]="task.progress" mode="determinate"></mat-progress-bar>
+                <div class="progress-controls">
+                  <button mat-icon-button (click)="updateProgress(task, -10)" 
+                          [disabled]="getProgress(task) <= 0"
+                          matTooltip="Reducir progreso">
+                    <mat-icon>remove</mat-icon>
+                  </button>
+                  <button mat-icon-button (click)="updateProgress(task, 10)" 
+                          [disabled]="getProgress(task) >= 100"
+                          matTooltip="Aumentar progreso">
+                    <mat-icon>add</mat-icon>
+                  </button>
+                </div>
+              </div>
             }
 
             <div class="task-details">
@@ -225,9 +260,12 @@
                 </button>
               }
               
-              <!-- Botón Completar: solo para tareas en progreso -->
+              <!-- Botón Completar: solo para tareas en progreso con 100% de progreso -->
               @if (task.status === 'in_progress') {
-                <button mat-raised-button color="accent" (click)="completeTask(task)">
+                <button mat-raised-button color="accent" 
+                        (click)="completeTask(task)"
+                        [disabled]="getProgress(task) < 100"
+                        [matTooltip]="getProgress(task) < 100 ? 'Completa el progreso al 100% para finalizar la tarea' : 'Marcar como completada'">
                   <mat-icon>check_circle</mat-icon>
                   Completar
                 </button>

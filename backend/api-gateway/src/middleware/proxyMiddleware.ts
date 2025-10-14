@@ -18,6 +18,15 @@ const createServiceProxy = (service: ServiceConfig) => {
     // Para uploads multipart, evitamos parseo del body
     parseReqBody: service.stripApiPrefix ? false : PROXY_CONFIG.parseReqBody,
     memoizeHost: PROXY_CONFIG.memoizeHost,
+    // Asegurar reenvío de headers personalizados
+    proxyReqOptDecorator: (proxyReqOpts: any, srcReq: Request) => {
+      const confirmCode = srcReq.headers['x-confirm-code'] || srcReq.headers['X-Confirm-Code' as any];
+      if (confirmCode) {
+        proxyReqOpts.headers = proxyReqOpts.headers || {};
+        proxyReqOpts.headers['x-confirm-code'] = confirmCode as string;
+      }
+      return proxyReqOpts;
+    },
     
     // Modificar la URL de la petición para mantener el prefijo /api
     proxyReqPathResolver: (req: Request) => {

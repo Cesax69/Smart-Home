@@ -33,6 +33,38 @@ El almacenamiento local directo fue deprecado. Los contenedores montan volúmene
 ### ⚡ Arranque rápido
 Usa Docker Compose para levantar todo el sistema con un solo comando.
 
+## 👤 Usuarios Iniciales (pre-cargados)
+
+Los siguientes usuarios se crean automáticamente en `users_db` al iniciar con Docker Compose:
+
+- `papa/password` – Jefe del hogar
+- `mama/password` – Miembro
+- `hijo1/password` – Miembro (Hijo)
+- `hija1/password` – Miembro (Hija)
+- `hijo2/password` – Miembro (Hijo)
+
+Notas de datos iniciales:
+- `users_db`: se precargan los 5 usuarios de la familia.
+- `tasks_db`: solo esquema de tablas, sin datos de ejemplo.
+- `notifications_schema`: tablas y funciones listas; las configuraciones de usuario se crean dinámicamente.
+
+## 🧹 Arranque limpio con Docker Compose
+
+Para compartir el proyecto en estado limpio (solo usuarios iniciales y sin datos previos), usa:
+
+```powershell
+docker compose down -v
+docker compose up -d --build
+```
+
+Esto elimina contenedores y volúmenes previos y reconstruye todo con los scripts SQL actualizados.
+
+### 🔎 Verificar usuarios cargados
+```powershell
+node backend/users-service/scripts/verify-users.js
+```
+Muestra `username`, `family_role` y `sub_role` para los 5 usuarios iniciales.
+
 ## 🛠️ Configuración Manual (Opcional)
 
 ### Configurar PostgreSQL (manual)
@@ -63,7 +95,7 @@ cd frontend/smart-home-pwa && npm start
 | **API Gateway** | http://localhost:3000 | Punto de entrada de APIs |
 | **Users Service** | http://localhost:3001 | Gestión de usuarios y roles |
 | **Tasks Service** | http://localhost:3002 | Gestión de tareas familiares |
-| **File Upload** | http://localhost:3004 | Subida y organización de archivos |
+| **File Upload** | http://localhost:3005 | Subida y organización de archivos |
 | **Notifications** | http://localhost:3003 | Sistema de notificaciones |
 
 ## 🗄️ Configuración de Base de Datos

@@ -1,12 +1,16 @@
 import { Request, Response } from 'express';
 import { TaskService } from '../services/taskService';
+import { NotificationService } from '../services/notificationService';
 import { CreateTaskRequest, UpdateTaskRequest, TaskResponse, TaskCategory, TaskStatus } from '../types/Task';
+import { databaseService } from '../config/database';
 
 export class TaskController {
   private taskService: TaskService;
+  private notificationService: NotificationService;
 
   constructor() {
     this.taskService = new TaskService();
+    this.notificationService = new NotificationService();
   }
 
   /**
@@ -30,6 +34,22 @@ export class TaskController {
 
       const newTask = await this.taskService.createTask(taskData);
 
+      // Send notification for task assignment
+      try {
+        const assignedUserIds: number[] = [];
+        if (hasSingleAssignee) {
+          assignedUserIds.push(taskData.assignedUserId!);
+        }
+        if (hasMultipleAssignees) {
+          assignedUserIds.push(...taskData.assignedUserIds!);
+        }
+        
+        await this.notificationService.sendTaskAssignedNotification(newTask, assignedUserIds);
+      } catch (notificationError) {
+        console.warn('⚠️ Failed to send task assignment notification:', notificationError);
+        // Continue with the response even if notification fails
+      }
+
       res.status(201).json({
         success: true,
         data: newTask,
@@ -50,7 +70,17 @@ export class TaskController {
    */
   async getAllTasks(req: Request, res: Response): Promise<void> {
     try {
-      const tasks = await this.taskService.getAllTasks();
+      // Verificar si hay un parámetro userId para filtrar tareas
+      const userId = req.query.userId ? parseInt(req.query.userId as string) : null;
+      
+      let tasks;
+      if (userId && !isNaN(userId) && userId > 0) {
+        // Si se proporciona userId, obtener tareas específicas del usuario
+        tasks = await this.taskService.getTasksByMember(userId);
+      } else {
+        // Si no se proporciona userId, obtener todas las tareas
+        tasks = await this.taskService.getAllTasks();
+      }
 
       res.status(200).json({
         success: true,
@@ -138,10 +168,10 @@ export class TaskController {
     try {
       const status = req.params.status as TaskStatus;
 
-      if (!['pendiente', 'en_proceso', 'completada'].includes(status)) {
+      if (!['pendiente', 'en_proceso', 'completada', 'archivada'].includes(status)) {
         res.status(400).json({
           success: false,
-          message: 'Estado inválido. Debe ser: pendiente, en_proceso o completada'
+          message: 'Estado inválido. Debe ser: pendiente, en_proceso, completada o archivada'
         } as TaskResponse);
         return;
       }
@@ -230,12 +260,12 @@ export class TaskController {
   }
 
   /**
-   * GET /tasks/:id - Obtener una tarea por ID
+   * GET /tasks/:id - Obtener una tarea específica por ID
    */
   async getTaskById(req: Request, res: Response): Promise<void> {
     try {
       const taskId = parseInt(req.params.id);
-
+      
       if (isNaN(taskId) || taskId <= 0) {
         res.status(400).json({
           success: false,
@@ -244,7 +274,9 @@ export class TaskController {
         return;
       }
 
+      console.log(`[DEBUG] Controller - Getting task with ID: ${taskId}`);
       const task = await this.taskService.getTaskById(taskId);
+      console.log(`[DEBUG] Controller - Retrieved task:`, JSON.stringify(task, null, 2));
 
       if (!task) {
         res.status(404).json({
@@ -256,8 +288,7 @@ export class TaskController {
 
       res.status(200).json({
         success: true,
-        data: task,
-        message: 'Tarea encontrada exitosamente'
+        data: task
       } as TaskResponse);
 
     } catch (error) {
@@ -276,6 +307,13 @@ export class TaskController {
     try {
       const taskId = parseInt(req.params.id);
       const updateData: UpdateTaskRequest = req.body;
+
+      // LOGS DE DEPURACIÓN EN EL CONTROLADOR
+      console.log('=== DEPURACIÓN CONTROLLER ===');
+      console.log('Task ID:', taskId);
+      console.log('Request body:', JSON.stringify(req.body, null, 2));
+      console.log('Update data:', JSON.stringify(updateData, null, 2));
+      console.log('=== FIN DEPURACIÓN CONTROLLER ===');
 
       if (isNaN(taskId) || taskId <= 0) {
         res.status(400).json({
@@ -325,6 +363,37 @@ export class TaskController {
         return;
       }
 
+      // Obtener la tarea para validar por nombre
+      const existingTask = await this.taskService.getTaskById(taskId);
+      if (!existingTask) {
+        res.status(404).json({
+          success: false,
+          message: 'Tarea no encontrada'
+        } as TaskResponse);
+        return;
+      }
+
+      // Confirmación requerida para eliminación permanente: nombre exacto de la tarea
+      const providedCode = (req.body && (req.body.confirmationCode || req.body.code))
+        || (req.headers['x-confirm-code'] as string | undefined);
+      const expectedCode = String(existingTask.title || existingTask.description || '').trim();
+
+      if (!expectedCode) {
+        res.status(400).json({
+          success: false,
+          message: 'La tarea no tiene nombre disponible para confirmar eliminación'
+        } as TaskResponse);
+        return;
+      }
+
+      if (!providedCode || String(providedCode).trim().toUpperCase() !== expectedCode.toUpperCase()) {
+        res.status(400).json({
+          success: false,
+          message: 'Se requiere escribir el nombre exacto de la tarea para eliminar'
+        } as TaskResponse);
+        return;
+      }
+
       const deleted = await this.taskService.deleteTask(taskId);
 
       if (!deleted) {
@@ -346,6 +415,52 @@ export class TaskController {
         success: false,
         message: error instanceof Error ? error.message : 'Error interno del servidor'
       } as TaskResponse);
+    }
+  }
+
+  /**
+   * PATCH /tasks/:id/archive - Archivar una tarea (soft delete)
+   */
+  async archiveTask(req: Request, res: Response): Promise<void> {
+    try {
+      const taskId = parseInt(req.params.id);
+      if (isNaN(taskId) || taskId <= 0) {
+        res.status(400).json({ success: false, message: 'ID de tarea inválido' } as TaskResponse);
+        return;
+      }
+
+      const updated = await this.taskService.archiveTask(taskId);
+      if (!updated) {
+        res.status(404).json({ success: false, message: 'Tarea no encontrada' } as TaskResponse);
+        return;
+      }
+      res.status(200).json({ success: true, data: updated, message: 'Tarea archivada exitosamente' } as TaskResponse);
+    } catch (error) {
+      console.error('Error en archiveTask controller:', error);
+      res.status(500).json({ success: false, message: error instanceof Error ? error.message : 'Error interno del servidor' } as TaskResponse);
+    }
+  }
+
+  /**
+   * PATCH /tasks/:id/unarchive - Restaurar una tarea archivada
+   */
+  async unarchiveTask(req: Request, res: Response): Promise<void> {
+    try {
+      const taskId = parseInt(req.params.id);
+      if (isNaN(taskId) || taskId <= 0) {
+        res.status(400).json({ success: false, message: 'ID de tarea inválido' } as TaskResponse);
+        return;
+      }
+
+      const updated = await this.taskService.unarchiveTask(taskId);
+      if (!updated) {
+        res.status(404).json({ success: false, message: 'Tarea no encontrada' } as TaskResponse);
+        return;
+      }
+      res.status(200).json({ success: true, data: updated, message: 'Tarea restaurada exitosamente' } as TaskResponse);
+    } catch (error) {
+      console.error('Error en unarchiveTask controller:', error);
+      res.status(500).json({ success: false, message: error instanceof Error ? error.message : 'Error interno del servidor' } as TaskResponse);
     }
   }
 
@@ -606,6 +721,10 @@ export class TaskController {
   async completeTask(req: Request, res: Response): Promise<void> {
     try {
       const id = parseInt(req.params.id);
+      
+      console.log('🔄 completeTask called with:');
+      console.log('  - Task ID:', id);
+      console.log('  - Request body:', JSON.stringify(req.body, null, 2));
 
       if (isNaN(id) || id <= 0) {
         res.status(400).json({
@@ -617,7 +736,8 @@ export class TaskController {
 
       const updatedTask = await this.taskService.updateTask(id, { 
         status: 'completada',
-        completedAt: new Date()
+        completedAt: new Date(),
+        progress: 100
       });
 
       if (!updatedTask) {
@@ -626,6 +746,30 @@ export class TaskController {
           message: 'Tarea no encontrada'
         } as TaskResponse);
         return;
+      }
+
+      console.log('✅ Task updated successfully:', {
+        id: updatedTask.id,
+        title: updatedTask.title,
+        status: updatedTask.status,
+        assignedUserId: updatedTask.assignedUserId
+      });
+
+      // Send notification for task completion
+      try {
+        // Get user ID from request body or default to the assigned user
+        const completedByUserId = req.body.userId || updatedTask.assignedUserId?.toString() || '1'; // Default to '1' if not available
+        
+        console.log('📧 Sending notification with:');
+        console.log('  - completedByUserId:', completedByUserId);
+        console.log('  - req.body.userId:', req.body.userId);
+        console.log('  - updatedTask.assignedUserId:', updatedTask.assignedUserId);
+        
+        await this.notificationService.sendTaskCompletedNotification(updatedTask, completedByUserId);
+        console.log('✅ Notification sent successfully');
+      } catch (notificationError) {
+        console.warn('⚠️ Failed to send task completion notification:', notificationError);
+        // Continue with the response even if notification fails
       }
 
       res.status(200).json({
@@ -640,6 +784,55 @@ export class TaskController {
         success: false,
         message: error instanceof Error ? error.message : 'Error interno del servidor'
       } as TaskResponse);
+    }
+  }
+
+  /**
+   * Método de depuración para obtener datos raw de la base de datos
+   */
+  async getTaskRawData(req: Request, res: Response): Promise<void> {
+    try {
+      const taskId = parseInt(req.params.id);
+      
+      if (isNaN(taskId)) {
+        res.status(400).json({
+          success: false,
+          message: 'ID de tarea inválido'
+        });
+        return;
+      }
+
+      // Obtener datos directamente de la base de datos
+      const query = 'SELECT * FROM tasks WHERE id = $1';
+      const result = await databaseService.query(query, [taskId]);
+      
+      if (result.rows.length === 0) {
+        res.status(404).json({
+          success: false,
+          message: 'Tarea no encontrada'
+        });
+        return;
+      }
+
+      const rawTask = result.rows[0];
+      
+      res.status(200).json({
+        success: true,
+        message: 'Datos raw de la tarea obtenidos correctamente',
+        data: {
+          raw: rawTask,
+          progress_type: typeof rawTask.progress,
+          status_type: typeof rawTask.status,
+          progress_value: rawTask.progress,
+          status_value: rawTask.status
+        }
+      });
+    } catch (error) {
+      console.error('Error obteniendo datos raw de la tarea:', error);
+      res.status(500).json({
+        success: false,
+        message: 'Error interno del servidor'
+      });
     }
   }
 
@@ -660,6 +853,63 @@ export class TaskController {
       res.status(500).json({
         success: false,
         message: 'Error en el servicio'
+      });
+    }
+  }
+
+  /**
+   * Endpoint de prueba para verificar el valor de progress directamente desde la base de datos
+   */
+  async getTaskProgressTest(req: Request, res: Response): Promise<void> {
+    try {
+      const taskId = parseInt(req.params.id);
+      
+      if (!taskId || taskId <= 0) {
+        res.status(400).json({
+          success: false,
+          error: 'ID de tarea inválido'
+        });
+        return;
+      }
+
+      // Consulta directa a la base de datos sin mapeo
+      const databaseService = require('../services/databaseService').default;
+      const client = await databaseService.getConnection();
+      
+      try {
+        const query = 'SELECT id, title, progress FROM public.tasks WHERE id = $1';
+        const { rows } = await client.query(query, [taskId]);
+        
+        if (!rows.length) {
+          res.status(404).json({
+            success: false,
+            error: 'Tarea no encontrada'
+          });
+          return;
+        }
+
+        const rawTask = rows[0];
+        console.log('TEST ENDPOINT - Raw task from DB:', JSON.stringify(rawTask, null, 2));
+        console.log('TEST ENDPOINT - Progress value:', rawTask.progress, 'Type:', typeof rawTask.progress);
+
+        res.json({
+          success: true,
+          data: {
+            id: rawTask.id,
+            title: rawTask.title,
+            progress: rawTask.progress,
+            progressType: typeof rawTask.progress,
+            rawData: rawTask
+          }
+        });
+      } finally {
+        client.release();
+      }
+    } catch (error) {
+      console.error('Error en getTaskProgressTest:', error);
+      res.status(500).json({
+        success: false,
+        error: 'Error interno del servidor'
       });
     }
   }

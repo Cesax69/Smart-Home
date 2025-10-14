@@ -1,6 +1,17 @@
 import { Request, Response } from 'express';
 import { WhatsAppService } from '../services/whatsappService';
 import { NotificationRequest, NotificationResponse } from '../types/Notification';
+import { notificationPersistenceService } from '../services/notification.persistence.service';
+
+// Variable global para almacenar la instancia de la aplicación
+let appInstance: any = null;
+
+/**
+ * Función para establecer la instancia de la aplicación
+ */
+export function setAppInstance(app: any): void {
+  appInstance = app;
+}
 
 /**
  * Controlador de Notificaciones Familiares
@@ -22,7 +33,7 @@ export class NotificationController {
           message: "Datos inválidos. Se requiere: { userId: number, type: NotificationType, priority: NotificationPriority, taskData?: TaskNotificationData, message?: string }",
           timestamp: new Date().toISOString(),
           error: "INVALID_FAMILY_NOTIFICATION_DATA",
-          supportedTypes: ["tarea_asignada", "tarea_completada", "recordatorio_tarea", "tarea_vencida", "felicitacion", "reunion_familiar", "emergencia_hogar", "recordatorio_general"],
+          supportedTypes: ["tarea_asignada", "tarea_completada", "tarea_actualizada", "recordatorio_tarea", "tarea_vencida", "felicitacion", "reunion_familiar", "emergencia_hogar", "recordatorio_general"],
           supportedPriorities: ["baja", "media", "alta", "urgente"]
         });
         return;
@@ -30,6 +41,44 @@ export class NotificationController {
 
       // Procesar la notificación familiar
       const result = await WhatsAppService.sendFamilyNotification(requestData);
+
+      // Enviar notificación en tiempo real si hay una instancia de Socket.IO disponible
+      if (appInstance && appInstance.getSocketIO) {
+        const io = appInstance.getSocketIO();
+        
+        // Crear notificación para el frontend
+        const realtimeNotification = {
+          id: `notif_${Date.now()}`,
+          type: requestData.type === 'tarea_completada' ? 'task_completed' : 'system_alert',
+          title: requestData.type === 'tarea_completada' ? 'Tarea Completada' : 'Nueva Notificación',
+          message: result.message || `Notificación de tipo ${requestData.type}`,
+          timestamp: new Date().toISOString(),
+          read: false,
+          userId: requestData.userId.toString(),
+          metadata: {
+            taskData: {
+              ...requestData.taskData,
+              completedByUserName: requestData.taskData?.completedByUserName || requestData.taskData?.completedByName
+            },
+            notificationType: requestData.type,
+            priority: requestData.priority
+          }
+        };
+
+        // Enviar notificación en tiempo real a todos los jefes de hogar
+        if (result.householdHeads && result.householdHeads.length > 0) {
+          result.householdHeads.forEach((head: any) => {
+            const roomName = `user_${head.id}`;
+            io.to(roomName).emit('new_notification', realtimeNotification);
+            console.log(`📱 Notificación en tiempo real enviada al jefe de hogar (usuario ${head.id})`);
+          });
+        } else {
+          // Fallback: enviar al usuario que completó la tarea
+          const roomName = `user_${requestData.userId}`;
+          io.to(roomName).emit('new_notification', realtimeNotification);
+          console.log(`📱 Notificación en tiempo real enviada al usuario ${requestData.userId}`);
+        }
+      }
 
       // Responder con éxito
       res.status(200).json({
@@ -195,5 +244,209 @@ export class NotificationController {
       whatsappService: whatsappInfo,
       timestamp: new Date().toISOString()
     });
+  }
+
+  /**
+   * Obtiene notificaciones de un usuario con paginación
+   * GET /notifications/:userId
+   */
+  static async getUserNotifications(req: Request, res: Response): Promise<void> {
+    try {
+      const userId = parseInt(req.params.userId || '0');
+      const limit = parseInt((req.query.limit as string) || '20') || 20;
+      const offset = parseInt((req.query.offset as string) || '0') || 0;
+      const unreadOnly = req.query.unreadOnly === 'true';
+
+      if (isNaN(userId)) {
+        res.status(400).json({
+          success: false,
+          message: "ID de usuario inválido",
+          timestamp: new Date().toISOString()
+        });
+        return;
+      }
+
+      const notifications = await notificationPersistenceService.getUserNotifications(
+        userId, limit, offset, unreadOnly
+      );
+
+      res.status(200).json({
+        success: true,
+        data: notifications,
+        pagination: {
+          limit,
+          offset,
+          count: notifications.length
+        },
+        timestamp: new Date().toISOString()
+      });
+
+    } catch (error) {
+      console.error('❌ Error obteniendo notificaciones del usuario:', error);
+      res.status(500).json({
+        success: false,
+        message: "Error interno del servidor",
+        timestamp: new Date().toISOString()
+      });
+    }
+  }
+
+  /**
+   * Marca una notificación como leída
+   * PUT /notifications/:notificationId/read
+   */
+  static async markNotificationAsRead(req: Request, res: Response): Promise<void> {
+    try {
+      const notificationId = req.params.notificationId;
+      const userId = parseInt(req.body.userId);
+
+      if (!notificationId || isNaN(userId)) {
+        res.status(400).json({
+          success: false,
+          message: "ID de notificación o usuario inválido",
+          timestamp: new Date().toISOString()
+        });
+        return;
+      }
+
+      const success = await notificationPersistenceService.markAsRead(notificationId, userId);
+
+      if (success) {
+        res.status(200).json({
+          success: true,
+          message: "Notificación marcada como leída",
+          timestamp: new Date().toISOString()
+        });
+      } else {
+        res.status(404).json({
+          success: false,
+          message: "Notificación no encontrada",
+          timestamp: new Date().toISOString()
+        });
+      }
+
+    } catch (error) {
+      console.error('❌ Error marcando notificación como leída:', error);
+      res.status(500).json({
+        success: false,
+        message: "Error interno del servidor",
+        timestamp: new Date().toISOString()
+      });
+    }
+  }
+
+  /**
+   * Marca todas las notificaciones de un usuario como leídas
+   * PUT /notifications/user/:userId/read-all
+   */
+  static async markAllNotificationsAsRead(req: Request, res: Response): Promise<void> {
+    try {
+      const userId = parseInt(req.params.userId || '0');
+
+      if (isNaN(userId)) {
+        res.status(400).json({
+          success: false,
+          message: "ID de usuario inválido",
+          timestamp: new Date().toISOString()
+        });
+        return;
+      }
+
+      const count = await notificationPersistenceService.markAllAsRead(userId);
+
+      res.status(200).json({
+        success: true,
+        message: `${count} notificaciones marcadas como leídas`,
+        data: { updatedCount: count },
+        timestamp: new Date().toISOString()
+      });
+
+    } catch (error) {
+      console.error('❌ Error marcando todas las notificaciones como leídas:', error);
+      res.status(500).json({
+        success: false,
+        message: "Error interno del servidor",
+        timestamp: new Date().toISOString()
+      });
+    }
+  }
+
+  /**
+   * Obtiene el conteo de notificaciones no leídas de un usuario
+   * GET /notifications/:userId/unread-count
+   */
+  static async getUnreadCount(req: Request, res: Response): Promise<void> {
+    try {
+      const userId = parseInt(req.params.userId || '0');
+
+      if (isNaN(userId)) {
+        res.status(400).json({
+          success: false,
+          message: "ID de usuario inválido",
+          timestamp: new Date().toISOString()
+        });
+        return;
+      }
+
+      const count = await notificationPersistenceService.getUnreadCount(userId);
+
+      res.status(200).json({
+        success: true,
+        data: { unreadCount: count },
+        timestamp: new Date().toISOString()
+      });
+
+    } catch (error) {
+      console.error('❌ Error obteniendo conteo de notificaciones no leídas:', error);
+      res.status(500).json({
+        success: false,
+        message: "Error interno del servidor",
+        timestamp: new Date().toISOString()
+      });
+    }
+  }
+
+  /**
+   * Elimina una notificación
+   * DELETE /notifications/:notificationId
+   */
+  static async deleteNotification(req: Request, res: Response): Promise<void> {
+    try {
+      const notificationId = req.params.notificationId;
+      const userId = parseInt(req.body.userId);
+
+      if (!notificationId || isNaN(userId)) {
+        res.status(400).json({
+          success: false,
+          message: "ID de notificación o usuario inválido",
+          timestamp: new Date().toISOString()
+        });
+        return;
+      }
+
+      const success = await notificationPersistenceService.deleteNotification(notificationId, userId);
+
+      if (success) {
+        res.status(200).json({
+          success: true,
+          message: "Notificación eliminada",
+          timestamp: new Date().toISOString()
+        });
+      } else {
+        res.status(404).json({
+          success: false,
+          message: "Notificación no encontrada",
+          timestamp: new Date().toISOString()
+        });
+      }
+
+    } catch (error) {
+      console.error('❌ Error eliminando notificación:', error);
+      res.status(500).json({
+        success: false,
+        message: "Error interno del servidor",
+        timestamp: new Date().toISOString()
+      });
+    }
   }
 }

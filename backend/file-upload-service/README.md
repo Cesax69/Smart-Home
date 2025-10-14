@@ -47,7 +47,7 @@ npm start
 
 ## 🚀 Ejecución
 
-El servicio se ejecuta en el puerto **3003** por defecto.
+El servicio se ejecuta en el puerto **3005** por defecto.
 
 ```bash
 # Desarrollo con recarga automática
@@ -64,7 +64,7 @@ npm start
 {
   "success": true,
   "message": "Archivo subido exitosamente",
-  "fileUrl": "http://localhost:3003/files/imagen-1234567890.jpg",
+  "fileUrl": "https://drive.google.com/uc?id=ARCHIVO_ID",
   "fileInfo": {
     "originalName": "imagen.jpg",
     "filename": "imagen-1234567890.jpg",
@@ -87,7 +87,7 @@ Campo: file (archivo)
 
 **Ejemplo con curl:**
 ```bash
-curl -X POST -F "file=@imagen.jpg" http://localhost:3003/upload
+curl -X POST -F "file=@imagen.jpg" http://localhost:3005/upload
 ```
 
 **Respuesta exitosa:**
@@ -95,7 +95,7 @@ curl -X POST -F "file=@imagen.jpg" http://localhost:3003/upload
 {
   "success": true,
   "message": "Archivo subido exitosamente",
-  "fileUrl": "http://localhost:3003/files/imagen-1234567890.jpg",
+  "fileUrl": "https://drive.google.com/uc?id=ARCHIVO_ID",
   "fileInfo": {
     "originalName": "imagen.jpg",
     "filename": "imagen-1234567890.jpg",
@@ -108,12 +108,12 @@ curl -X POST -F "file=@imagen.jpg" http://localhost:3003/upload
 
 ### 📁 Acceder a Archivos
 ```http
-GET /files/:filename
+GET /drive/files
 ```
 
 **Ejemplo:**
 ```
-http://localhost:3003/files/imagen-1234567890.jpg
+http://localhost:3005/drive/files
 ```
 
 ### ❤️ Health Check
@@ -150,7 +150,7 @@ GET /
 
 ```env
 # Configuración del Servidor
-PORT=3003
+PORT=3005
 NODE_ENV=development
 
 # Configuración de Archivos
@@ -159,7 +159,7 @@ MAX_FILE_SIZE=10485760
 ALLOWED_FILE_TYPES=image/jpeg,image/png,image/gif,image/webp,application/pdf,text/plain
 
 # Configuración de URLs
-BASE_URL=http://localhost:3003
+BASE_URL=http://localhost:3005
 
 # Configuración de Logs
 LOG_LEVEL=info
@@ -235,4 +235,20 @@ LOG_LEVEL=info
 
 **File Upload Service** - Microservicio especializado para carga de archivos  
 Versión: 1.0.0  
-Puerto: 3003
+Puerto: 3005
+
+## 🚢 Ejecución con Docker (recomendado)
+
+Para arrancar en estado limpio (sin archivos previos en volúmenes):
+
+```powershell
+docker compose down -v
+docker compose up -d --build
+```
+
+Volúmenes gestionados por Docker Compose:
+- `file_uploads` → almacenamiento persistente de archivos subidos
+- `file_temp` → archivos temporales
+- `file_quarantine` → cuarentena de archivos
+
+Al ejecutar `down -v`, se eliminan estos volúmenes y el servicio comienza sin archivos residuales.

@@ -1,6 +1,6 @@
 import { Injectable, signal } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
-import { Observable, BehaviorSubject, tap, map } from 'rxjs';
+import { Observable, BehaviorSubject, tap, of, map } from 'rxjs';
 import { User, LoginRequest, LoginResponse } from '../models/user.model';
 import { environment } from '../../environments/environment';
 
@@ -29,7 +29,7 @@ export class AuthService {
 
   // Método para login con backend real (preparado para futuro uso)
   private backendLogin(credentials: LoginRequest): Observable<LoginResponse> {
-    return this.http.post<LoginResponse>(`${this.API_URL}/auth/login`, credentials)
+    return this.http.post<LoginResponse>(`${this.API_URL}/login`, credentials)
       .pipe(
         tap(response => {
           this.setCurrentUser(response.user, response.token);
@@ -37,11 +37,14 @@ export class AuthService {
       );
   }
 
-  
-
-  // Método para login por rol (simplificado)
+  // Login por rol ya no admite modo mock; usar endpoint real si aplica
   loginByRole(role: 'head_of_household' | 'family_member'): Observable<LoginResponse> {
-    return this.http.post<LoginResponse>(`${this.API_URL}/auth/login-by-role`, { role });
+    return this.http.post<LoginResponse>(`${this.API_URL}/login-by-role`, { role })
+      .pipe(
+        tap(response => {
+          this.setCurrentUser(response.user, response.token);
+        })
+      );
   }
 
   logout(): void {
@@ -77,7 +80,7 @@ export class AuthService {
 
   getFamilyMembers(): Observable<User[]> {
     // Consultar el microservicio de usuarios
-    return this.http.get<any>(`${this.API_URL}/users`).pipe(
+    return this.http.get<any>(`${environment.services.users}`).pipe(
       tap(response => {
         console.log('Family members from microservice:', response);
       }),
@@ -86,7 +89,8 @@ export class AuthService {
     );
   }
 
-  
+  // Método para obtener miembros de la familia
+  // Eliminado: almacenamiento local de usuarios mock
 
   private setCurrentUser(user: User, token: string): void {
     if (typeof window !== 'undefined' && typeof localStorage !== 'undefined') {

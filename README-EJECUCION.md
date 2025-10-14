@@ -29,6 +29,27 @@ psql -U postgres -d tasks_db -f backend/setup-tasks-database.sql
 .\start-all-services.ps1
 ```
 
+## 🚢 Ejecución con Docker (recomendado)
+
+Para un arranque limpio y reproducible usando Docker Compose:
+
+```powershell
+docker compose down -v
+docker compose up -d --build
+```
+
+Usuarios iniciales creados automáticamente en `users_db`:
+- `papa/password` (Jefe del hogar)
+- `mama/password` (Miembro)
+- `hijo1/password` (Miembro)
+- `hija1/password` (Miembro)
+- `hijo2/password` (Miembro)
+
+Verificación rápida:
+```powershell
+node backend/users-service/scripts/verify-users.js
+```
+
 ## 🌐 URLs de los Servicios
 
 | Servicio | Puerto | URL |
@@ -36,8 +57,8 @@ psql -U postgres -d tasks_db -f backend/setup-tasks-database.sql
 | **API Gateway** | 3000 | http://localhost:3000 |
 | **Users Service** | 3001 | http://localhost:3001 |
 | **Tasks Service** | 3002 | http://localhost:3002 |
-| **File Upload Service** | 3004 | http://localhost:3004 |
-| **Notifications Service** | 3003 | http://localhost:3003 |
+| **File Upload Service** | 3005 | http://localhost:3005 |
+| **Notifications Service** | 3004 | http://localhost:3004 |
 
 ## 🗄️ Configuración de Base de Datos
 

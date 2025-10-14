@@ -8,7 +8,7 @@ Microservicio completo para la gestión de tareas del hogar desarrollado con Nod
 - **Base de datos PostgreSQL** con esquema dedicado
 - **TypeScript** para tipado estático y mejor desarrollo
 - **Validación de datos** robusta en todos los endpoints
-- **Eventos simulados** para integración con servicio de notificaciones
+- **Eventos** para integración con servicio de notificaciones
 - **Health check** para monitoreo del servicio
 - **Filtros avanzados** por usuario y estado
 - **Manejo de errores** comprehensivo
@@ -75,6 +75,21 @@ npm start
 ```
 
 El servicio estará disponible en: `http://localhost:3002`
+
+## 🚢 Ejecución con Docker (recomendado)
+
+Para un arranque limpio y reproducible del ecosistema completo:
+
+```powershell
+docker compose down -v
+docker compose up -d --build
+```
+
+Estado de datos iniciales:
+- `tasks_db`: solo esquema de tablas, sin datos de ejemplo.
+- `users_db`: 5 usuarios iniciales precargados (papa, mama, hijo1, hija1, hijo2).
+
+Nota: para asignar tareas a usuarios reales, obtén los `userId` consultando el Users Service o ejecuta `node backend/users-service/scripts/verify-users.js` desde la raíz del proyecto.
 
 ## 📊 Modelo de Datos
 

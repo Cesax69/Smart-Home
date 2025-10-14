@@ -24,7 +24,7 @@ STORAGE_TYPE=google_drive  # 'local' o 'google_drive'
 # Configuración de Google Drive
 GOOGLE_DRIVE_CLIENT_ID=tu_client_id_aqui
 GOOGLE_DRIVE_CLIENT_SECRET=tu_client_secret_aqui
-GOOGLE_DRIVE_REDIRECT_URI=http://localhost:3003/auth/google/callback
+GOOGLE_DRIVE_REDIRECT_URI=http://localhost:3005/auth/google/callback
 GOOGLE_DRIVE_REFRESH_TOKEN=tu_refresh_token_aqui
 GOOGLE_DRIVE_FOLDER_ID=id_de_carpeta_opcional
 ```
@@ -41,7 +41,7 @@ GOOGLE_DRIVE_FOLDER_ID=id_de_carpeta_opcional
 2. Clic en **Create Credentials > OAuth 2.0 Client IDs**
 3. Configura:
    - **Application type**: Web application
-   - **Authorized redirect URIs**: `http://localhost:3003/auth/google/callback`
+   - **Authorized redirect URIs**: `http://localhost:3005/auth/google/callback`
 4. Guarda el **Client ID** y **Client Secret**
 
 #### Paso 3: Obtener Refresh Token
@@ -53,7 +53,7 @@ const { google } = require('googleapis');
 const oauth2Client = new google.auth.OAuth2(
   'TU_CLIENT_ID',
   'TU_CLIENT_SECRET',
-  'http://localhost:3003/auth/google/callback'
+  'http://localhost:3005/auth/google/callback'
 );
 
 // Genera la URL de autorización
@@ -85,7 +85,7 @@ console.log('Visita esta URL:', authUrl);
 ```bash
 curl -X POST \
   -F "file=@imagen.jpg" \
-  http://localhost:3003/upload
+  http://localhost:3005/upload
 ```
 
 **Respuesta con Google Drive:**
@@ -111,13 +111,13 @@ curl -X POST \
 ### Listar Archivos de Google Drive
 
 ```bash
-curl http://localhost:3003/drive/files?pageSize=20
+curl http://localhost:3005/drive/files?pageSize=20
 ```
 
 ### Verificar Estado del Servicio
 
 ```bash
-curl http://localhost:3003/health
+curl http://localhost:3005/health
 ```
 
 ## 🔄 Migración desde Almacenamiento Local

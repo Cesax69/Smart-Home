@@ -86,43 +86,7 @@
           </mat-card-content>
         </mat-card>
 
-        <!-- Sección de acceso rápido -->
-        <mat-card class="quick-access-card">
-          <mat-card-header>
-            <mat-card-title class="quick-access-title">
-              <mat-icon>flash_on</mat-icon>
-              Acceso Rápido
-            </mat-card-title>
-          </mat-card-header>
-          <mat-card-content>
-            <p class="quick-access-subtitle">Para pruebas y demostración</p>
-            <div class="quick-buttons">
-              <button mat-stroked-button 
-                      color="primary"
-                      class="quick-button"
-                      [disabled]="isLoading()"
-                      (click)="quickLogin('admin')">
-                <mat-icon>admin_panel_settings</mat-icon>
-                <div class="button-text">
-                  <span class="role-title">Administrador</span>
-                  <span class="role-subtitle">admin / admin</span>
-                </div>
-              </button>
-
-              <button mat-stroked-button 
-                      color="accent"
-                      class="quick-button"
-                      [disabled]="isLoading()"
-                      (click)="quickLogin('member')">
-                <mat-icon>person</mat-icon>
-                <div class="button-text">
-                  <span class="role-title">Miembro</span>
-                  <span class="role-subtitle">member / member</span>
-                </div>
-              </button>
-            </div>
-          </mat-card-content>
-        </mat-card>
+        <!-- Eliminado: Acceso rápido mock -->
 
         <!-- Footer -->
         <div class="footer">

@@ -48,7 +48,7 @@ services: {
   auth: 'http://localhost:3001/api',      // Users Service
   tasks: 'http://localhost:3002/api',     // Tasks Service  
   notifications: 'http://localhost:3003/api', // Notifications Service
-  fileUpload: 'http://localhost:3004/api'     // File Upload Service
+  fileUpload: 'http://localhost:3005/api'     // File Upload Service
 }
 ```
 
@@ -97,7 +97,7 @@ export const environment = {
     auth: 'http://localhost:3001/api',
     tasks: 'http://localhost:3002/api',
     notifications: 'http://localhost:3003/api',
-    fileUpload: 'http://localhost:3004/api'
+    fileUpload: 'http://localhost:3005/api'
   }
 };
 ```

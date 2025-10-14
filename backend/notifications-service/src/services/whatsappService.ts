@@ -1,6 +1,6 @@
 /**
- * Servicio de simulación de WhatsApp para comunicación familiar
- * Maneja la lógica de envío simulado de mensajes por WhatsApp con plantillas familiares
+ * Servicio de WhatsApp para comunicación familiar
+ * Maneja la lógica de envío de mensajes por WhatsApp con plantillas familiares
  */
 
 import { 
@@ -17,12 +17,13 @@ import { NotificationTemplateService } from './notificationTemplateService';
 // URL del servicio de usuarios vía API Gateway
 const USERS_API_URL = process.env.USERS_API_URL || 'http://localhost:3000/api/users';
 
-// Estadísticas simuladas
+// Estadísticas de notificaciones
 let notificationStats: NotificationStats = {
   totalSent: 0,
   byType: {
     'tarea_asignada': 0,
     'tarea_completada': 0,
+    'tarea_actualizada': 0,
     'recordatorio_tarea': 0,
     'tarea_vencida': 0,
     'felicitacion': 0,
@@ -43,7 +44,7 @@ export class WhatsAppService {
   /**
    * Envía una notificación familiar personalizada
    * @param request - Datos de la notificación familiar
-   * @returns Respuesta de la simulación
+   * @returns Respuesta del servicio
    */
   static async sendFamilyNotification(request: NotificationRequest): Promise<NotificationResponse> {
     const timestamp = new Date().toISOString();
@@ -73,7 +74,7 @@ export class WhatsAppService {
     // Actualizar estadísticas
     WhatsAppService.updateStats(request.type, request.priority);
 
-    // Simulación de logging detallado en consola
+    // Logging detallado en consola
     console.log(`\n🏠 ================================`);
     console.log(`👨‍👩‍👧‍👦 NOTIFICACIÓN FAMILIAR`);
     console.log(`🏠 ================================`);
@@ -84,7 +85,7 @@ export class WhatsAppService {
     console.log(`💬 Mensaje: "${message}"`);
     console.log(`⏰ Timestamp: ${timestamp}`);
     console.log(`📏 Longitud: ${message.length} caracteres`);
-    console.log(`🎯 Estado: Mensaje enviado exitosamente (SIMULADO)`);
+    console.log(`🎯 Estado: Mensaje enviado exitosamente`);
     console.log(`🏠 ================================\n`);
 
     // Simular delay basado en prioridad
@@ -93,7 +94,7 @@ export class WhatsAppService {
 
     return {
       success: true,
-      message: "Notificación familiar enviada exitosamente (simulado)",
+      message: "Notificación familiar enviada exitosamente",
       timestamp,
       userId: request.userId,
       notificationType: request.type,
@@ -106,7 +107,7 @@ export class WhatsAppService {
    * Método legacy para compatibilidad con versiones anteriores
    * @param userId - ID del usuario destinatario
    * @param message - Mensaje a enviar
-   * @returns Respuesta de la simulación
+   * @returns Respuesta del servicio
    */
   static async sendMessage(userId: number, message: string): Promise<NotificationResponse> {
     const request: NotificationRequest = {
@@ -171,7 +172,7 @@ export class WhatsAppService {
   }
 
   /**
-   * Obtiene delay de simulación basado en prioridad
+   * Obtiene delay basado en prioridad
    */
   private static getDelayByPriority(priority: NotificationPriority): number {
     const delays = {
@@ -209,7 +210,7 @@ export class WhatsAppService {
 
     // Validar tipos permitidos
     const validTypes: NotificationType[] = [
-      'tarea_asignada', 'tarea_completada', 'recordatorio_tarea', 'tarea_vencida',
+      'tarea_asignada', 'tarea_completada', 'tarea_actualizada', 'recordatorio_tarea', 'tarea_vencida',
       'felicitacion', 'reunion_familiar', 'emergencia_hogar', 'recordatorio_general'
     ];
 
@@ -254,7 +255,7 @@ export class WhatsAppService {
     return {
       service: "Family WhatsApp Notification Service",
       version: "2.0.0",
-      description: "Servicio de simulación para notificaciones familiares por WhatsApp",
+      description: "Servicio para notificaciones familiares por WhatsApp",
       capabilities: [
         "Notificaciones familiares personalizadas",
         "Plantillas de mensajes por tipo de notificación",

@@ -38,6 +38,53 @@
                 <mat-icon matSuffix>description</mat-icon>
               </mat-form-field>
 
+              <!-- Categoría -->
+              <mat-form-field appearance="outline" class="full-width">
+                <mat-label>Categoría</mat-label>
+                <mat-select formControlName="category" required>
+                  <mat-option value="limpieza">
+                    <mat-icon>cleaning_services</mat-icon>
+                    Limpieza
+                  </mat-option>
+                  <mat-option value="cocina">
+                    <mat-icon>kitchen</mat-icon>
+                    Cocina
+                  </mat-option>
+                  <mat-option value="lavanderia">
+                    <mat-icon>local_laundry_service</mat-icon>
+                    Lavandería
+                  </mat-option>
+                  <mat-option value="jardin">
+                    <mat-icon>yard</mat-icon>
+                    Jardín
+                  </mat-option>
+                  <mat-option value="mantenimiento">
+                    <mat-icon>build</mat-icon>
+                    Mantenimiento
+                  </mat-option>
+                  <mat-option value="organizacion">
+                    <mat-icon>inventory_2</mat-icon>
+                    Organización
+                  </mat-option>
+                  <mat-option value="mascotas">
+                    <mat-icon>pets</mat-icon>
+                    Mascotas
+                  </mat-option>
+                  <mat-option value="compras">
+                    <mat-icon>shopping_cart</mat-icon>
+                    Compras
+                  </mat-option>
+                  <mat-option value="otros">
+                    <mat-icon>more_horiz</mat-icon>
+                    Otros
+                  </mat-option>
+                </mat-select>
+                <mat-icon matSuffix>category</mat-icon>
+                <mat-error *ngIf="taskForm.get('category')?.invalid && taskForm.get('category')?.touched">
+                  {{ getErrorMessage('category') }}
+                </mat-error>
+              </mat-form-field>
+
               <!-- Adjuntos -->
               <div class="attachments">
                 <mat-card class="attachments-card">
@@ -144,7 +191,7 @@
                     Alta
                   </mat-option>
                   <mat-option value="urgente">
-                    <mat-icon class="priority-icon high">priority_high</mat-icon>
+                    <mat-icon class="priority-icon urgent">priority_high</mat-icon>
                     Urgente
                   </mat-option>
                 </mat-select>

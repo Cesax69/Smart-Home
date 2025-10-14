@@ -24,6 +24,11 @@ export const routes: Routes = [
       {
         path: 'tasks',
         loadChildren: () => import('./features/task-management/task-management.routes').then(m => m.taskManagementRoutes)
+      },
+      {
+        path: 'notifications',
+        loadComponent: () => import('./components/notifications-list/notifications-list.component').then(m => m.NotificationsListComponent),
+        canActivate: [authGuard]
       }
     ]
   },

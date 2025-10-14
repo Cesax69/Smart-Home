@@ -86,6 +86,7 @@ export class AdminTaskEditComponent implements OnInit {
     this.taskForm = this.fb.group({
       title: ['', [Validators.required, Validators.minLength(3)]],
       description: [''],
+      category: ['limpieza', [Validators.required]],
       priority: ['media', [Validators.required, FormValidators.priorityValidator()]],
       startDate: [null, [FormValidators.futureDateValidator()]],
       dueDate: [null, [FormValidators.futureDateValidator()]],
@@ -137,8 +138,9 @@ export class AdminTaskEditComponent implements OnInit {
         this.taskForm.patchValue({
           title: t.title,
           description: t.description || '',
-          // Mapear prioridad del modelo (en) a valor español del selector
-          priority: (t.priority === 'low' ? 'baja' : t.priority === 'medium' ? 'media' : 'alta'),
+          category: t.category,
+          // Prioridad ya viene en español; usar directamente
+          priority: t.priority,
           startDate: t.startDate ? new Date(t.startDate) : null,
           dueDate: t.dueDate ? new Date(t.dueDate) : null,
           assignedUserIds: Array.isArray(t.assignedUserIds) && t.assignedUserIds.length > 0
@@ -166,7 +168,8 @@ export class AdminTaskEditComponent implements OnInit {
   private loadExistingFiles(): void {
     this.taskService.getTaskFiles(this.taskId!).subscribe({
       next: (files: TaskFile[]) => {
-        this.existingFiles = files || [];
+        const normalized = (files || []).map(f => this.normalizeTaskFile(f));
+        this.existingFiles = normalized;
         const folderId = this.existingFiles[0]?.folderId;
         if (folderId) {
           this.loadDriveFilesFromFolder(folderId);
@@ -377,21 +380,24 @@ export class AdminTaskEditComponent implements OnInit {
           return;
         }
         this.taskService.replaceTaskFile(file.id, u).subscribe({
-          next: (updated) => {
+          next: (updated: any) => {
             // Actualizar el registro en la lista local
-            this.existingFiles = this.existingFiles.map(f => f.id === file.id ? {
-              ...f,
-              fileName: updated.fileName,
-              fileUrl: updated.fileUrl,
-              filePath: updated.filePath,
-              fileSize: updated.fileSize,
-              mimeType: updated.mimeType,
-              storageType: updated.storageType,
-              googleDriveId: updated.googleDriveId,
-              isImage: updated.isImage,
-              folderId: updated.folderId,
-              folderName: updated.folderName
-            } : f);
+            this.existingFiles = this.existingFiles.map(f => {
+              if (f.id !== file.id) return f;
+              const normalized = this.normalizeTaskFile(updated);
+              return {
+                ...f,
+                fileName: normalized.fileName,
+                fileUrl: normalized.fileUrl,
+                fileSize: normalized.fileSize,
+                mimeType: normalized.mimeType,
+                storageType: normalized.storageType,
+                googleDriveId: normalized.googleDriveId,
+                isImage: normalized.isImage,
+                folderId: normalized.folderId,
+                folderName: normalized.folderName
+              } as TaskFile;
+            });
             this.alertService.update(alertId, { type: 'success', title: 'Archivo reemplazado', message: 'Se actualizó correctamente', loading: false, duration: 2500 });
           },
           error: () => {
@@ -413,6 +419,34 @@ export class AdminTaskEditComponent implements OnInit {
     }
     // Reset input para permitir seleccionar el mismo archivo otra vez si hace falta
     input.value = '';
+  }
+
+  private normalizeTaskFile(rec: any): TaskFile {
+    const fileName = rec?.fileName ?? rec?.file_name ?? rec?.filename ?? '';
+    const fileUrl = rec?.fileUrl ?? rec?.file_url ?? rec?.filePath ?? rec?.file_path ?? '';
+    const mimeType = rec?.mimeType ?? rec?.mime_type ?? rec?.file_type ?? '';
+    const fileSize = rec?.fileSize ?? rec?.size ?? rec?.file_size ?? 0;
+    const googleDriveId = rec?.googleDriveId ?? rec?.google_drive_id ?? null;
+    const isImage = typeof rec?.isImage === 'boolean' ? rec.isImage
+      : (typeof rec?.is_image === 'boolean' ? rec.is_image
+      : (typeof mimeType === 'string' ? mimeType.startsWith('image/') : false));
+    const folderId = rec?.folderId ?? rec?.folder_id ?? undefined;
+    const folderName = rec?.folderName ?? rec?.folder_name ?? undefined;
+    const storageType = rec?.storageType ?? rec?.storage_type ?? rec?.storage ?? undefined;
+
+    return {
+      id: rec?.id ?? 0,
+      taskId: rec?.taskId ?? rec?.task_id ?? this.taskId!,
+      fileName,
+      fileUrl,
+      fileSize,
+      mimeType,
+      storageType,
+      googleDriveId: googleDriveId ?? undefined,
+      isImage,
+      folderId,
+      folderName
+    } as TaskFile;
   }
 
   private extractDriveFileId(url?: string): string | null {
@@ -495,6 +529,7 @@ export class AdminTaskEditComponent implements OnInit {
     const updates: UpdateTaskRequest = {
       title: v.title,
       description: v.description || undefined,
+      category: v.category,
       priority: v.priority,
       assignedUserIds: Array.isArray(v.assignedUserIds) ? v.assignedUserIds : undefined,
       startDate: v.startDate ? (v.startDate as Date).toISOString() as any : undefined,

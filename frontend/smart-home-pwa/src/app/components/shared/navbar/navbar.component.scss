@@ -1,24 +1,444 @@
-.app-navbar {
-      position: sticky;
-      top: 0;
-      z-index: 1000;
-      box-shadow: 0 2px 4px rgba(0,0,0,0.1);
-    }
-    .brand {
-      display: flex;
-      align-items: center;
-      gap: 8px;
-      font-weight: 600;
-      color: #fff;
-    }
-    .nav-links {
-      display: flex;
-      gap: 8px;
-    }
-    .spacer { flex: 1 1 auto; }
-    .user-area {
-      display: flex;
-      align-items: center;
-      gap: 8px;
-    }
-    .user-name { color: #fff; font-size: 14px; }
+/* Professional Navbar Styles */
+.professional-navbar {
+  position: sticky;
+  top: 0;
+  z-index: 1000;
+  background: linear-gradient(135deg, #1976d2 0%, #1565c0 50%, #0d47a1 100%);
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.15);
+  min-height: 64px;
+  padding: 0 24px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+/* Brand Section */
+.brand-container {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  cursor: pointer;
+  padding: 8px 16px;
+  border-radius: 12px;
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  background: rgba(255, 255, 255, 0.1);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+}
+
+.brand-container:hover {
+  background: rgba(255, 255, 255, 0.2);
+  transform: translateY(-2px);
+  box-shadow: 0 8px 25px rgba(0, 0, 0, 0.2);
+}
+
+.brand-logo {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  background: linear-gradient(135deg, #ffd700, #ffb300);
+  border-radius: 10px;
+  box-shadow: 0 4px 12px rgba(255, 215, 0, 0.3);
+}
+
+.home-icon {
+  font-size: 24px;
+  color: #1565c0;
+  font-weight: bold;
+}
+
+.brand-info {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+}
+
+.brand-name {
+  font-size: 1.4rem;
+  font-weight: 700;
+  color: white;
+  line-height: 1.2;
+  letter-spacing: -0.5px;
+}
+
+.brand-subtitle {
+  font-size: 0.75rem;
+  color: rgba(255, 255, 255, 0.8);
+  font-weight: 400;
+  margin-top: 2px;
+}
+
+/* Toolbar Spacer */
+.toolbar-spacer {
+  flex: 1 1 auto;
+}
+
+/* Navigation Buttons */
+.nav-buttons {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+.nav-button {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 20px;
+  border-radius: 25px;
+  font-weight: 500;
+  font-size: 0.9rem;
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  text-transform: none;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+}
+
+.nav-button mat-icon {
+  font-size: 20px;
+  width: 20px;
+  height: 20px;
+}
+
+.primary-nav {
+  background: rgba(255, 255, 255, 0.95);
+  color: #1976d2;
+}
+
+.primary-nav:hover {
+  background: white;
+  transform: translateY(-2px);
+  box-shadow: 0 6px 20px rgba(25, 118, 210, 0.3);
+  color: #1565c0;
+}
+
+.secondary-nav {
+  background: rgba(255, 255, 255, 0.9);
+  color: #388e3c;
+}
+
+.secondary-nav:hover {
+  background: white;
+  transform: translateY(-2px);
+  box-shadow: 0 6px 20px rgba(56, 142, 60, 0.3);
+  color: #2e7d32;
+}
+
+.tertiary-nav {
+  background: rgba(255, 255, 255, 0.9);
+  color: #f57c00;
+}
+
+.tertiary-nav:hover {
+  background: white;
+  transform: translateY(-2px);
+  box-shadow: 0 6px 20px rgba(245, 124, 0, 0.3);
+  color: #ef6c00;
+}
+
+/* User Section */
+.user-section {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+
+/* Notification Wrapper */
+.notification-wrapper {
+  position: relative;
+}
+
+.notification-btn {
+  position: relative;
+  width: 48px;
+  height: 48px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, #ff6b6b, #ee5a24);
+  color: white;
+  border: 2px solid rgba(255, 255, 255, 0.2);
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  box-shadow: 0 4px 15px rgba(238, 90, 36, 0.3);
+  overflow: visible;
+}
+
+.notification-btn:hover {
+  transform: translateY(-2px) scale(1.05);
+  box-shadow: 0 8px 25px rgba(238, 90, 36, 0.4);
+  background: linear-gradient(135deg, #ff7979, #fd79a8);
+}
+
+.notification-icon {
+  font-size: 24px;
+  width: 24px;
+  height: 24px;
+  color: white;
+  animation: pulse 2s infinite;
+}
+
+.notification-badge {
+  position: absolute;
+  top: -2px;
+  right: -2px;
+  background: linear-gradient(135deg, #00b894, #00cec9);
+  color: white;
+  border-radius: 12px;
+  min-width: 20px;
+  height: 20px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 11px;
+  font-weight: 600;
+  border: 2px solid white;
+  box-shadow: 0 2px 8px rgba(0, 184, 148, 0.4);
+  animation: bounce 1s infinite;
+}
+
+.connection-indicator {
+  position: absolute;
+  bottom: 2px;
+  right: 2px;
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  background: #e74c3c;
+  border: 2px solid white;
+  transition: all 0.3s ease;
+}
+
+.connection-indicator.connected {
+  background: #27ae60;
+  box-shadow: 0 0 8px rgba(39, 174, 96, 0.6);
+}
+
+@keyframes pulse-notification {
+  0% {
+    transform: scale(1);
+    box-shadow: 0 2px 8px rgba(244, 67, 54, 0.4);
+  }
+  50% {
+    transform: scale(1.1);
+    box-shadow: 0 4px 16px rgba(244, 67, 54, 0.6);
+  }
+  100% {
+    transform: scale(1);
+    box-shadow: 0 2px 8px rgba(244, 67, 54, 0.4);
+  }
+}
+
+/* User Profile Section */
+.user-profile-section {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.user-info {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  text-align: right;
+}
+
+.user-name {
+  color: white;
+  font-size: 0.9rem;
+  font-weight: 600;
+  line-height: 1.2;
+}
+
+.user-role {
+  color: rgba(255, 255, 255, 0.8);
+  font-size: 0.75rem;
+  font-weight: 400;
+}
+
+.user-menu-trigger {
+  width: 48px;
+  height: 48px;
+  background: rgba(255, 255, 255, 0.15);
+  border: 2px solid rgba(255, 255, 255, 0.3);
+  border-radius: 50%;
+  color: white;
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.user-menu-trigger:hover {
+  background: rgba(255, 255, 255, 0.25);
+  border-color: rgba(255, 255, 255, 0.5);
+  transform: scale(1.05);
+  box-shadow: 0 8px 25px rgba(0, 0, 0, 0.2);
+}
+
+.user-menu-trigger mat-icon {
+  font-size: 28px;
+  width: 28px;
+  height: 28px;
+}
+
+/* Professional User Menu */
+::ng-deep .professional-user-menu {
+  .mat-mdc-menu-panel {
+    background: white;
+    border-radius: 16px;
+    box-shadow: 0 20px 60px rgba(0, 0, 0, 0.15);
+    border: 1px solid rgba(0, 0, 0, 0.05);
+    overflow: hidden;
+    min-width: 300px;
+    margin-top: 8px;
+  }
+}
+
+.menu-header-section {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 20px;
+  background: linear-gradient(135deg, #1976d2 0%, #1565c0 100%);
+  color: white;
+  margin: -8px -8px 8px -8px;
+}
+
+.menu-user-avatar {
+  font-size: 48px;
+  width: 48px;
+  height: 48px;
+  color: #ffd700;
+  background: rgba(255, 255, 255, 0.1);
+  border-radius: 50%;
+  padding: 8px;
+}
+
+.menu-user-details {
+  flex: 1;
+}
+
+.menu-user-name {
+  font-size: 1.1rem;
+  font-weight: 600;
+  margin-bottom: 4px;
+}
+
+.menu-user-role {
+  font-size: 0.85rem;
+  opacity: 0.9;
+  font-weight: 400;
+}
+
+/* Menu Items */
+::ng-deep .professional-user-menu .mat-mdc-menu-item {
+  padding: 16px 20px;
+  font-size: 0.9rem;
+  font-weight: 500;
+  transition: all 0.3s ease;
+  color: #333;
+}
+
+::ng-deep .professional-user-menu .mat-mdc-menu-item:hover {
+  background: linear-gradient(90deg, rgba(25, 118, 210, 0.1), rgba(25, 118, 210, 0.05));
+  color: #1976d2;
+}
+
+::ng-deep .professional-user-menu .mat-mdc-menu-item mat-icon {
+  margin-right: 16px;
+  color: #1976d2;
+  font-size: 20px;
+  width: 20px;
+  height: 20px;
+}
+
+.logout-menu-item {
+  color: #f44336 !important;
+  border-top: 1px solid rgba(0, 0, 0, 0.1);
+  margin-top: 8px;
+}
+
+::ng-deep .professional-user-menu .logout-menu-item:hover {
+  background: linear-gradient(90deg, rgba(244, 67, 54, 0.1), rgba(244, 67, 54, 0.05)) !important;
+  color: #d32f2f !important;
+}
+
+::ng-deep .professional-user-menu .logout-menu-item mat-icon {
+  color: #f44336 !important;
+}
+
+/* Responsive Design */
+@media (max-width: 768px) {
+  .professional-navbar {
+    padding: 0 16px;
+    min-height: 56px;
+  }
+
+  .brand-name {
+    font-size: 1.2rem;
+  }
+
+  .brand-subtitle {
+    display: none;
+  }
+
+  .nav-buttons {
+    display: none;
+  }
+
+  .user-info {
+    display: none;
+  }
+
+  .notification-btn,
+  .user-menu-trigger {
+    width: 40px;
+    height: 40px;
+  }
+
+  .notification-icon,
+  .user-menu-trigger mat-icon {
+    font-size: 20px;
+  }
+}
+
+@media (max-width: 480px) {
+  .professional-navbar {
+    padding: 0 12px;
+  }
+
+  .brand-container {
+    padding: 6px 12px;
+  }
+
+  .brand-logo {
+    width: 32px;
+    height: 32px;
+  }
+
+  .home-icon {
+    font-size: 20px;
+  }
+
+  .brand-name {
+    font-size: 1.1rem;
+  }
+
+  .user-section {
+    gap: 8px;
+  }
+}
+
+/* Additional Professional Touches */
+.professional-navbar::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.3), transparent);
+}
+
+.professional-navbar::after {
+  content: '';
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, rgba(0, 0, 0, 0.1), transparent);
+}

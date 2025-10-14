@@ -173,8 +173,8 @@ export class FormValidators {
         return null;
       }
 
-      // Acepta prioridades en inglés y español para compatibilidad con creación/edición
-      const validPriorities = ['low', 'medium', 'high', 'baja', 'media', 'alta', 'urgente'];
+      // Solo acepta prioridades en español
+      const validPriorities = ['baja', 'media', 'alta', 'urgente'];
       
       if (!validPriorities.includes(control.value)) {
         return { 
