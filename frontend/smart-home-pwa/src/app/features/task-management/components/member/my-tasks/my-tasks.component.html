@@ -1,0 +1,285 @@
+<div class="trello-board">
+  <!-- Header con estadísticas -->
+  <div class="board-header">
+    <div class="header-content">
+      <h1 class="board-title">
+        <mat-icon class="title-icon">dashboard</mat-icon>
+        Mi Tablero de Tareas
+      </h1>
+      <div class="board-stats">
+        <div class="stat-card pending">
+          <div class="stat-number">{{ filteredPendingTasks().length }}</div>
+          <div class="stat-label">Por Hacer</div>
+        </div>
+        <div class="stat-card in-progress">
+          <div class="stat-number">{{ filteredInProgressTasks().length }}</div>
+          <div class="stat-label">En Progreso</div>
+        </div>
+        <div class="stat-card completed">
+          <div class="stat-number">{{ filteredCompletedTasks().length }}</div>
+          <div class="stat-label">Completadas</div>
+        </div>
+      </div>
+      <button mat-fab color="primary" class="refresh-btn" (click)="reloadTasks()" [disabled]="isLoading()">
+        <mat-icon>refresh</mat-icon>
+      </button>
+    </div>
+  </div>
+
+  <!-- Filtros modernos -->
+  <div class="filters-section">
+    <div class="search-container">
+      <mat-form-field appearance="outline" class="search-field">
+        <mat-label>Buscar tareas</mat-label>
+        <input matInput [(ngModel)]="searchTerm" (input)="applyFilters()" placeholder="Buscar por título...">
+        <mat-icon matSuffix>search</mat-icon>
+      </mat-form-field>
+      
+      <mat-form-field appearance="outline" class="filter-field">
+        <mat-label>Prioridad</mat-label>
+        <mat-select [(ngModel)]="priorityFilter" (selectionChange)="applyFilters()">
+          <mat-option value="">Todas</mat-option>
+          <mat-option value="baja">🟢 Baja</mat-option>
+          <mat-option value="media">🟡 Media</mat-option>
+          <mat-option value="alta">🔴 Alta</mat-option>
+          <mat-option value="urgente">🚨 Urgente</mat-option>
+        </mat-select>
+      </mat-form-field>
+
+      <mat-form-field appearance="outline" class="filter-field">
+        <mat-label>Vencimiento</mat-label>
+        <mat-select [(ngModel)]="dueDateFilter" (selectionChange)="applyFilters()">
+          <mat-option value="">Todas</mat-option>
+          <mat-option value="overdue">⚠️ Vencidas</mat-option>
+          <mat-option value="today">📅 Hoy</mat-option>
+          <mat-option value="tomorrow">⏰ Mañana</mat-option>
+          <mat-option value="week">📆 Esta semana</mat-option>
+        </mat-select>
+      </mat-form-field>
+
+      <button mat-stroked-button (click)="clearFilters()" class="clear-filters-btn">
+        <mat-icon>clear_all</mat-icon>
+        Limpiar
+      </button>
+    </div>
+  </div>
+
+  <!-- Tablero estilo Trello -->
+  <div class="kanban-board" cdkDropListGroup>
+    <!-- Columna: Por Hacer -->
+    <div class="kanban-column pending-column">
+      <div class="column-header">
+        <div class="column-title">
+          <mat-icon class="column-icon">pending_actions</mat-icon>
+          <span>Por Hacer</span>
+          <span class="task-count">{{ filteredPendingTasks().length }}</span>
+        </div>
+      </div>
+      
+      <div class="column-content" 
+           cdkDropList 
+           [cdkDropListData]="filteredPendingTasks()"
+           (cdkDropListDropped)="onTaskDrop($event, 'pending')">
+        
+        @if (filteredPendingTasks().length === 0) {
+          <div class="empty-column">
+            <mat-icon class="empty-icon">task_alt</mat-icon>
+            <p>¡Genial! No hay tareas pendientes</p>
+          </div>
+        }
+        
+        @for (task of filteredPendingTasks(); track task.id) {
+          <div class="task-card" 
+               cdkDrag
+               [class.overdue]="isOverdue(task)"
+               (click)="openTaskActions(task)">
+            
+            <div class="task-header">
+              <div class="task-priority" [class]="'priority-' + task.priority">
+                @switch (task.priority) {
+                  @case ('alta') { 🔴 }
+                  @case ('media') { 🟡 }
+                  @case ('baja') { 🟢 }
+                  @case ('urgente') { 🚨 }
+                }
+              </div>
+              <div class="task-category">{{ getCategoryIcon(task.category) }}</div>
+            </div>
+            
+            <h3 class="task-title">{{ task.title }}</h3>
+            <p class="task-description">{{ task.description | slice:0:80 }}{{ task.description && task.description.length > 80 ? '...' : '' }}</p>
+            
+            <div class="task-footer">
+              @if (task.dueDate) {
+                <div class="due-date" [class.overdue]="isOverdue(task)">
+                  <mat-icon>schedule</mat-icon>
+                  {{ formatDueDate(task.dueDate) }}
+                </div>
+              }
+              
+              <div class="task-actions">
+                <button mat-icon-button (click)="$event.stopPropagation(); startTask(task)" 
+                        matTooltip="Iniciar tarea">
+                  <mat-icon>play_arrow</mat-icon>
+                </button>
+              </div>
+            </div>
+          </div>
+        }
+      </div>
+    </div>
+
+    <!-- Columna: En Progreso -->
+    <div class="kanban-column in-progress-column">
+      <div class="column-header">
+        <div class="column-title">
+          <mat-icon class="column-icon">hourglass_empty</mat-icon>
+          <span>En Progreso</span>
+          <span class="task-count">{{ filteredInProgressTasks().length }}</span>
+        </div>
+      </div>
+      
+      <div class="column-content" 
+           cdkDropList 
+           [cdkDropListData]="filteredInProgressTasks()"
+           (cdkDropListDropped)="onTaskDrop($event, 'in_progress')">
+        
+        @if (filteredInProgressTasks().length === 0) {
+          <div class="empty-column">
+            <mat-icon class="empty-icon">work</mat-icon>
+            <p>Arrastra tareas aquí para comenzar</p>
+          </div>
+        }
+        
+        @for (task of filteredInProgressTasks(); track task.id) {
+          <div class="task-card working" 
+               cdkDrag
+               [class.overdue]="isOverdue(task)"
+               (click)="openTaskActions(task)">
+            
+            <div class="task-header">
+              <div class="task-priority" [class]="'priority-' + task.priority">
+                @switch (task.priority) {
+                  @case ('alta') { 🔴 }
+                  @case ('media') { 🟡 }
+                  @case ('baja') { 🟢 }
+                  @case ('urgente') { 🚨 }
+                }
+              </div>
+              <div class="task-category">{{ getCategoryIcon(task.category) }}</div>
+              <div class="working-indicator">
+                <mat-icon class="pulse">work</mat-icon>
+              </div>
+            </div>
+            
+            <h3 class="task-title">{{ task.title }}</h3>
+            <p class="task-description">{{ task.description | slice:0:80 }}{{ task.description && task.description.length > 80 ? '...' : '' }}</p>
+            
+            @if (task.progress !== undefined) {
+              <div class="progress-section">
+                <div class="progress-label">Progreso: {{ task.progress }}%</div>
+                <mat-progress-bar [value]="task.progress" mode="determinate"></mat-progress-bar>
+                <div class="progress-controls">
+                  <button mat-icon-button (click)="$event.stopPropagation(); updateProgress(task, -10)" 
+                          [disabled]="task.progress <= 0"
+                          matTooltip="Reducir progreso">
+                    <mat-icon>remove</mat-icon>
+                  </button>
+                  <button mat-icon-button (click)="$event.stopPropagation(); updateProgress(task, 10)" 
+                          [disabled]="task.progress >= 100"
+                          matTooltip="Aumentar progreso">
+                    <mat-icon>add</mat-icon>
+                  </button>
+                </div>
+              </div>
+            }
+            
+            <div class="task-footer">
+              @if (task.dueDate) {
+                <div class="due-date" [class.overdue]="isOverdue(task)">
+                  <mat-icon>schedule</mat-icon>
+                  {{ formatDueDate(task.dueDate) }}
+                </div>
+              }
+              
+              <div class="task-actions">
+                <button mat-icon-button 
+                        (click)="$event.stopPropagation(); completeTask(task)" 
+                        [disabled]="(task.progress || 0) < 100"
+                        [matTooltip]="(task.progress || 0) < 100 ? 'Completa el progreso al 100% para activar' : 'Completar tarea'">
+                  <mat-icon>check_circle</mat-icon>
+                </button>
+              </div>
+            </div>
+          </div>
+        }
+      </div>
+    </div>
+
+    <!-- Columna: Completadas -->
+    <div class="kanban-column completed-column">
+      <div class="column-header">
+        <div class="column-title">
+          <mat-icon class="column-icon">check_circle</mat-icon>
+          <span>Completadas</span>
+          <span class="task-count">{{ filteredCompletedTasks().length }}</span>
+        </div>
+      </div>
+      
+      <div class="column-content" 
+           cdkDropList 
+           [cdkDropListData]="filteredCompletedTasks()"
+           (cdkDropListDropped)="onTaskDrop($event, 'completed')">
+        
+        @if (filteredCompletedTasks().length === 0) {
+          <div class="empty-column">
+            <mat-icon class="empty-icon">celebration</mat-icon>
+            <p>Las tareas completadas aparecerán aquí</p>
+          </div>
+        }
+        
+        @for (task of filteredCompletedTasks(); track task.id) {
+          <div class="task-card completed" 
+               cdkDrag
+               (click)="openTaskActions(task)">
+            
+            <div class="task-header">
+              <div class="task-priority" [class]="'priority-' + task.priority">
+                @switch (task.priority) {
+                  @case ('alta') { 🔴 }
+                  @case ('media') { 🟡 }
+                  @case ('baja') { 🟢 }
+                  @case ('urgente') { 🚨 }
+                }
+              </div>
+              <div class="task-category">{{ getCategoryIcon(task.category) }}</div>
+              <div class="completed-indicator">
+                <mat-icon class="success">check_circle</mat-icon>
+              </div>
+            </div>
+            
+            <h3 class="task-title">{{ task.title }}</h3>
+            <p class="task-description">{{ task.description | slice:0:80 }}{{ task.description && task.description.length > 80 ? '...' : '' }}</p>
+            
+            <div class="task-footer">
+              @if (task.completedAt) {
+                <div class="completed-date">
+                  <mat-icon>event_available</mat-icon>
+                  Completada: {{ formatCompletedDate(task.completedAt) }}
+                </div>
+              }
+            </div>
+          </div>
+        }
+      </div>
+    </div>
+  </div>
+
+  <!-- Loading overlay -->
+  @if (isLoading()) {
+    <div class="loading-overlay">
+      <mat-progress-spinner diameter="50" mode="indeterminate"></mat-progress-spinner>
+      <p>Cargando tareas...</p>
+    </div>
+  }
+</div>

@@ -8,7 +8,7 @@
     "dev": "nodemon src/app.ts",
     "build": "tsc",
     "build:watch": "tsc --watch",
-    "db:init": "node dist/config/initDb.js"
+    "db:init": "node init-database.js"
   },
   "keywords": [
     "microservice",
