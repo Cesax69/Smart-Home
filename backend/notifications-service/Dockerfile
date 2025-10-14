@@ -8,7 +8,7 @@ WORKDIR /app
 COPY package*.json ./
 
 # Instalar todas las dependencias (incluye devDependencies para el build)
-RUN npm ci
+RUN npm install
 
 # Copiar código fuente
 COPY . .
@@ -28,7 +28,7 @@ RUN chown -R notificationsservice:nodejs /app
 USER notificationsservice
 
 # Exponer puerto
-EXPOSE 3003
+EXPOSE 3004
 
 # Comando de inicio
 CMD ["npm", "start"]

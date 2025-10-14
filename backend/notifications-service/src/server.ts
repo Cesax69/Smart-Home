@@ -6,8 +6,16 @@ import App from './app';
  */
 
 // Crear y iniciar la aplicación
-const app = new App();
-app.listen();
+async function startServer() {
+  const app = new App();
+  await app.initialize();
+  app.listen();
+}
+
+startServer().catch(error => {
+  console.error('❌ Error starting server:', error);
+  process.exit(1);
+});
 
 // Manejo de señales del sistema para cierre graceful
 process.on('SIGTERM', () => {

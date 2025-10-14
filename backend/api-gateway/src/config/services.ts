@@ -72,7 +72,9 @@ export const PROXY_CONFIG = {
  * Obtener la configuración de un servicio por su path
  */
 export const getServiceByPath = (path: string): ServiceConfig | undefined => {
-  return Object.values(SERVICES).find(service => path.startsWith(service.path));
+  // Ordenar servicios por longitud de path descendente para evaluar rutas más específicas primero
+  const sortedServices = Object.values(SERVICES).sort((a, b) => b.path.length - a.path.length);
+  return sortedServices.find(service => path.startsWith(service.path));
 };
 
 /**

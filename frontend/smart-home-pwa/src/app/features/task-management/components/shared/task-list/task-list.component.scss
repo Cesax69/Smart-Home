@@ -191,6 +191,45 @@
   color: #f44336;
 }
 
+/* Estilos para la sección de progreso */
+.progress-section {
+  margin: 16px 0;
+  padding: 12px;
+  background-color: #f8f9fa;
+  border-radius: 8px;
+  border: 1px solid #e9ecef;
+}
+
+.progress-label {
+  font-size: 0.875rem;
+  color: #495057;
+  margin-bottom: 8px;
+  font-weight: 500;
+}
+
+.progress-controls {
+  display: flex;
+  justify-content: center;
+  gap: 8px;
+  margin-top: 12px;
+}
+
+.progress-controls button {
+  width: 36px;
+  height: 36px;
+  min-width: 36px;
+}
+
+.progress-controls button mat-icon {
+  font-size: 20px;
+  width: 20px;
+  height: 20px;
+}
+
+.progress-controls button:disabled {
+  opacity: 0.5;
+}
+
 mat-card-actions {
   display: flex;
   gap: 8px;

@@ -25,6 +25,8 @@ export class TaskService {
         return 'mascotas';
       case 'compras':
         return 'compras';
+      case 'educacion':
+        return 'otros'; // Mapear educacion a otros
       default:
         return 'otros';
     }
@@ -41,8 +43,6 @@ export class TaskService {
         return 'en_proceso';
       case 'completed':
         return 'completada';
-      case 'archived':
-        return 'archivada';
       default:
         return 'pendiente';
     }
@@ -59,8 +59,6 @@ export class TaskService {
         return 'in_progress';
       case 'completada':
         return 'completed';
-      case 'archivada':
-        return 'archived';
       default:
         return 'pending';
     }
@@ -69,9 +67,11 @@ export class TaskService {
   /**
    * Publica un evento real al servicio de notificaciones
    */
-  private async publishEvent(eventType: string, taskData: Task) {
+  private async publishEvent(eventType: string, taskData: Task, userId?: number) {
     try {
-      console.log(`EVENTO PUBLICADO: ${eventType}, UsuarioID: ${taskData.assignedUserId}, TareaID: ${taskData.id}, Título: ${taskData.title}`);
+      // Usar el userId proporcionado o el assignedUserId como fallback
+      const notificationUserId = userId || taskData.assignedUserId;
+      console.log(`EVENTO PUBLICADO: ${eventType}, UsuarioID: ${notificationUserId}, TareaID: ${taskData.id}, Título: ${taskData.title}`);
       
       // Mapear tipos de eventos a tipos de notificación
       let notificationType: string;
@@ -91,7 +91,7 @@ export class TaskService {
 
       // Preparar datos para el webhook de notificaciones
       const notificationPayload = {
-        userId: taskData.assignedUserId,
+        userId: notificationUserId,
         type: notificationType,
         priority: taskData.priority === 'urgente' ? 'alta' : taskData.priority === 'alta' ? 'media' : 'baja',
         taskData: {
@@ -134,10 +134,14 @@ export class TaskService {
    * Convierte un registro de base de datos a objeto Task
    */
   private mapDatabaseTaskToTask(dbTask: DatabaseTask): Task {
-    return {
+    // LOGS DE DEPURACIÓN USANDO console.log para mayor visibilidad
+    console.log('=== MAPEO PROGRESS ===');
+    console.log('dbTask.progress:', dbTask.progress, 'Type:', typeof dbTask.progress);
+    
+    const mappedTask = {
       id: dbTask.id,
       title: dbTask.title,
-      description: dbTask.description ?? undefined,
+      description: dbTask.description,
       category: this.normalizeCategory(dbTask.category as unknown as string),
       priority: (['baja', 'media', 'alta', 'urgente'].includes((dbTask.priority as unknown as string) || '')
         ? (dbTask.priority as unknown as TaskPriority)
@@ -148,26 +152,26 @@ export class TaskService {
       assignedUserName: dbTask.assigned_user_name,
       createdById: dbTask.created_by_id,
       createdByName: dbTask.created_by_name,
-      startDate: dbTask.start_date,
       dueDate: dbTask.due_date,
       estimatedTime: dbTask.estimated_time,
-      // Recurrencia
-      isRecurring: dbTask.is_recurring ?? undefined,
-      recurrenceInterval: (dbTask.recurrence_type ?? undefined) as any,
       reward: dbTask.reward,
       fileUrl: dbTask.file_url || undefined,
       completedAt: dbTask.completed_at,
       createdAt: dbTask.created_at,
       updatedAt: dbTask.updated_at,
-      progress: dbTask.progress || 0
+      progress: dbTask.progress !== null && dbTask.progress !== undefined ? dbTask.progress : 0
     };
+    
+    console.log('mappedTask.progress:', mappedTask.progress);
+    console.log('=== FIN MAPEO ===');
+    return mappedTask;
   }
 
   /**
    * Valida el estado de una tarea
    */
   private isValidStatus(status: string): status is TaskStatus {
-    return ['pendiente', 'en_proceso', 'completada', 'archivada'].includes(status);
+    return ['pendiente', 'en_proceso', 'completada'].includes(status);
   }
 
   /**
@@ -185,16 +189,6 @@ export class TaskService {
   }
 
   /**
-   * Normaliza el tiempo estimado: convierte cadenas vacías a NULL y valores a entero
-   */
-  private normalizeEstimatedTime(value: any): number | null {
-    if (value === undefined || value === null || value === '') return null;
-    const n = Number(value);
-    if (Number.isNaN(n)) return null;
-    return Math.trunc(n);
-  }
-
-  /**
    * Crea una nueva tarea doméstica
    */
   async createTask(taskData: CreateTaskRequest): Promise<Task> {
@@ -204,7 +198,9 @@ export class TaskService {
         throw new Error('El título de la tarea es requerido');
       }
 
-      // Descripción opcional: si viene vacía, se guarda como NULL
+      if (!taskData.description || taskData.description.trim().length === 0) {
+        throw new Error('La descripción de la tarea es requerida');
+      }
 
       const assigneeIds = Array.isArray(taskData.assignedUserIds) && taskData.assignedUserIds.length > 0
         ? taskData.assignedUserIds
@@ -218,8 +214,7 @@ export class TaskService {
         throw new Error('El ID del creador es requerido y debe ser válido');
       }
 
-      // La categoría es opcional: si viene, validar; si no, se guarda como NULL
-      if (taskData.category && !this.isValidCategory(taskData.category)) {
+      if (!this.isValidCategory(taskData.category)) {
         throw new Error('Categoría de tarea inválida');
       }
 
@@ -236,25 +231,19 @@ export class TaskService {
       // Insertar en la base de datos: tabla tasks + task_assignments
       const client = await databaseService.getConnection();
       try {
-        const isRecurring = !!taskData.isRecurring;
-        const recurrenceType = isRecurring ? (taskData.recurrenceInterval || null) : null;
         const insertTaskQuery = `
-          INSERT INTO public.tasks (user_id, title, description, status, priority, category, start_date, due_date, estimated_time, is_recurring, recurrence_type)
-          VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
-          RETURNING id, user_id AS created_by_id, title, description, category, priority, status, start_date, due_date, estimated_time, is_recurring, recurrence_type, completed_at, created_at, updated_at
+          INSERT INTO public.tasks (user_id, title, description, status, priority, category, due_date)
+          VALUES ($1, $2, $3, $4, $5, $6, $7)
+          RETURNING id, user_id AS created_by_id, title, description, category, priority, status, due_date, completed_at, created_at, updated_at, progress
         `;
         const insertTaskParams = [
           taskData.createdById,
           taskData.title.trim(),
-          (taskData.description && taskData.description.trim().length > 0) ? taskData.description.trim() : null,
+          taskData.description.trim(),
           this.mapAppStatusToDb(status),
           priority,
-          (taskData.category ? taskData.category : null),
-          taskData.startDate || null,
-          taskData.dueDate || null,
-          this.normalizeEstimatedTime(taskData.estimatedTime),
-          isRecurring,
-          recurrenceType
+          taskData.category,
+          taskData.dueDate || null
         ];
 
         const { rows: taskRows } = await client.query(insertTaskQuery, insertTaskParams);
@@ -280,16 +269,14 @@ export class TaskService {
           assigned_user_id: assigneeIds[0],
           assigned_user_ids: assigneeIds,
           created_by_id: t.created_by_id,
-          start_date: t.start_date,
           due_date: t.due_date,
-          estimated_time: t.estimated_time,
-          is_recurring: t.is_recurring,
-          recurrence_type: t.recurrence_type,
+          estimated_time: taskData.estimatedTime,
           reward: taskData.reward,
           file_url: taskData.fileUrl,
           completed_at: t.completed_at,
           created_at: t.created_at,
-          updated_at: t.updated_at
+          updated_at: t.updated_at,
+          progress: t.progress || 0
         } as any;
 
         const newTask = this.mapDatabaseTaskToTask(dbTask);
@@ -320,14 +307,11 @@ export class TaskService {
             t.category,
             t.priority,
             t.status,
-            t.start_date,
             t.due_date,
-            t.estimated_time,
-            t.is_recurring,
-            t.recurrence_type,
             t.completed_at,
             t.created_at,
             t.updated_at,
+            t.progress,
             (
               SELECT ta.user_id 
               FROM public.task_assignments ta 
@@ -396,12 +380,11 @@ export class TaskService {
             t.category,
             t.priority,
             t.status,
-            t.start_date,
             t.due_date,
-            t.estimated_time,
             t.completed_at,
             t.created_at,
             t.updated_at,
+            t.progress,
             (
               SELECT ta.user_id 
               FROM public.task_assignments ta 
@@ -458,12 +441,11 @@ export class TaskService {
             t.category,
             t.priority,
             t.status,
-            t.start_date,
             t.due_date,
-            t.estimated_time,
             t.completed_at,
             t.created_at,
             t.updated_at,
+            t.progress,
             (
               SELECT ta.user_id 
               FROM public.task_assignments ta 
@@ -519,7 +501,6 @@ export class TaskService {
             t.priority,
             t.status,
             t.due_date,
-            t.estimated_time,
             t.completed_at,
             t.created_at,
             t.updated_at,
@@ -576,14 +557,11 @@ export class TaskService {
             t.category,
             t.priority,
             t.status,
-            t.start_date,
             t.due_date,
-            t.estimated_time,
-            t.is_recurring,
-            t.recurrence_type,
             t.completed_at,
             t.created_at,
             t.updated_at,
+            t.progress,
             (
               SELECT ta.user_id 
               FROM public.task_assignments ta 
@@ -608,7 +586,20 @@ export class TaskService {
         `;
         const { rows } = await client.query(query, [id]);
         if (!rows.length) return null;
-        return this.mapDatabaseTaskToTask(rows[0] as DatabaseTask);
+        
+        // LOGS DE DEPURACIÓN USANDO console.log para mayor visibilidad
+        console.log('=== DEPURACIÓN PROGRESS ===');
+        console.log('Task ID:', id);
+        console.log('Raw progress from DB:', rows[0].progress);
+        console.log('Progress type:', typeof rows[0].progress);
+        console.log('Raw row data:', JSON.stringify(rows[0], null, 2));
+        
+        const mappedTask = this.mapDatabaseTaskToTask(rows[0] as DatabaseTask);
+        
+        console.log('Mapped task progress:', mappedTask.progress);
+        console.log('=== FIN DEPURACIÓN ===');
+        
+        return mappedTask;
       } finally {
         client.release();
       }
@@ -647,21 +638,26 @@ export class TaskService {
 
         if (updateData.title !== undefined) { fields.push(`title = $${idx++}`); params.push(updateData.title); }
         if (updateData.description !== undefined) { fields.push(`description = $${idx++}`); params.push(updateData.description); }
-        if (updateData.category !== undefined) { fields.push(`category = $${idx++}`); params.push(updateData.category ? updateData.category : null); }
+        if (updateData.category !== undefined) { fields.push(`category = $${idx++}`); params.push(updateData.category); }
         if (updateData.priority !== undefined) { fields.push(`priority = $${idx++}`); params.push(updateData.priority); }
         if (updateData.status !== undefined) { fields.push(`status = $${idx++}`); params.push(this.mapAppStatusToDb(updateData.status)); }
-        if (updateData.startDate !== undefined) { fields.push(`start_date = $${idx++}`); params.push(updateData.startDate || null); }
         if (updateData.dueDate !== undefined) { fields.push(`due_date = $${idx++}`); params.push(updateData.dueDate || null); }
-        if (updateData.estimatedTime !== undefined) { fields.push(`estimated_time = $${idx++}`); params.push(this.normalizeEstimatedTime(updateData.estimatedTime)); }
         if (updateData.completedAt !== undefined) { fields.push(`completed_at = $${idx++}`); params.push(updateData.completedAt || null); }
-        if (updateData.isRecurring !== undefined) { fields.push(`is_recurring = $${idx++}`); params.push(!!updateData.isRecurring); }
-        if (updateData.recurrenceInterval !== undefined) { fields.push(`recurrence_type = $${idx++}`); params.push(updateData.recurrenceInterval || null); }
         if (updateData.progress !== undefined) { fields.push(`progress = $${idx++}`); params.push(updateData.progress); }
 
         fields.push(`updated_at = NOW()`);
 
-        const updateQuery = `UPDATE public.tasks SET ${fields.join(', ')} WHERE id = $${idx} RETURNING id, user_id AS created_by_id, title, description, category, priority, status, start_date, due_date, estimated_time, is_recurring, recurrence_type, completed_at, created_at, updated_at, progress`;
+        const updateQuery = `UPDATE public.tasks SET ${fields.join(', ')} WHERE id = $${idx} RETURNING id, user_id AS created_by_id, title, description, category, priority, status, due_date, completed_at, created_at, updated_at, progress`;
         params.push(id);
+
+        // LOGS DE DEPURACIÓN PARA EL PROGRESO
+        console.log('=== DEPURACIÓN UPDATE TASK ===');
+        console.log('Task ID:', id);
+        console.log('Update data received:', JSON.stringify(updateData, null, 2));
+        console.log('Fields to update:', fields);
+        console.log('Parameters:', params);
+        console.log('Update query:', updateQuery);
+        console.log('=== FIN DEPURACIÓN UPDATE ===');
 
         const { rows } = await client.query(updateQuery, params);
         if (!rows.length) return null;
@@ -696,98 +692,28 @@ export class TaskService {
             : (updateData.assignedUserId ?? undefined as any),
           assigned_user_ids: Array.isArray(updateData.assignedUserIds) ? updateData.assignedUserIds : undefined,
           created_by_id: rows[0].created_by_id,
-          start_date: rows[0].start_date,
           due_date: rows[0].due_date,
-          estimated_time: rows[0].estimated_time,
-          is_recurring: rows[0].is_recurring,
-          recurrence_type: rows[0].recurrence_type,
+          estimated_time: updateData.estimatedTime,
           reward: updateData.reward,
           file_url: updateData.fileUrl,
           completed_at: rows[0].completed_at,
           created_at: rows[0].created_at,
           updated_at: rows[0].updated_at,
-          progress: rows[0].progress || updateData.progress || 0
+          progress: rows[0].progress !== null && rows[0].progress !== undefined ? rows[0].progress : 0
         } as any;
 
         const updatedTask = this.mapDatabaseTaskToTask(dbTask);
-        await this.publishEvent('TareaActualizada', updatedTask);
+        
+        // Pasar el userId del request body para las notificaciones
+        const notificationUserId = (updateData as any).userId;
+        await this.publishEvent('TareaActualizada', updatedTask, notificationUserId);
+        
         return updatedTask;
       } finally {
         client.release();
       }
     } catch (error) {
       console.error('Error en updateTask:', error);
-      throw error;
-    }
-  }
-
-  /**
-   * Archiva una tarea persistiendo el estado previo en previous_status
-   */
-  async archiveTask(id: number): Promise<Task | null> {
-    try {
-      if (!id || id <= 0) throw new Error('ID de tarea inválido');
-      const client = await databaseService.getConnection();
-      try {
-        // Actualiza status a 'archived' y guarda el estado previo (usando el valor original)
-        const updateQuery = `
-          WITH original AS (
-            SELECT id, status AS old_status
-            FROM public.tasks
-            WHERE id = $1
-          )
-          UPDATE public.tasks t
-          SET 
-            previous_status = CASE WHEN LOWER(original.old_status) <> 'archived' THEN original.old_status ELSE t.previous_status END,
-            status = 'archived',
-            updated_at = NOW()
-          FROM original
-          WHERE t.id = original.id
-          RETURNING t.id, t.user_id AS created_by_id, t.title, t.description, t.category, t.priority, t.status, t.start_date, t.due_date, t.estimated_time, t.is_recurring, t.recurrence_type, t.completed_at, t.created_at, t.updated_at, t.progress
-        `;
-        const { rows } = await client.query(updateQuery, [id]);
-        if (!rows.length) return null;
-        const dbTask = rows[0] as any;
-        const updatedTask = this.mapDatabaseTaskToTask(dbTask);
-        await this.publishEvent('TareaActualizada', updatedTask);
-        return updatedTask;
-      } finally {
-        client.release();
-      }
-    } catch (error) {
-      console.error('Error en archiveTask:', error);
-      throw error;
-    }
-  }
-
-  /**
-   * Restaura una tarea archivada al estado previo si existe, o a 'pending' por defecto
-   */
-  async unarchiveTask(id: number): Promise<Task | null> {
-    try {
-      if (!id || id <= 0) throw new Error('ID de tarea inválido');
-      const client = await databaseService.getConnection();
-      try {
-        const updateQuery = `
-          UPDATE public.tasks
-          SET 
-            status = COALESCE(previous_status, 'pending'),
-            previous_status = NULL,
-            updated_at = NOW()
-          WHERE id = $1
-          RETURNING id, user_id AS created_by_id, title, description, category, priority, status, start_date, due_date, estimated_time, is_recurring, recurrence_type, completed_at, created_at, updated_at, progress
-        `;
-        const { rows } = await client.query(updateQuery, [id]);
-        if (!rows.length) return null;
-        const dbTask = rows[0] as any;
-        const updatedTask = this.mapDatabaseTaskToTask(dbTask);
-        await this.publishEvent('TareaActualizada', updatedTask);
-        return updatedTask;
-      } finally {
-        client.release();
-      }
-    } catch (error) {
-      console.error('Error en unarchiveTask:', error);
       throw error;
     }
   }
@@ -802,39 +728,10 @@ export class TaskService {
       }
       const client = await databaseService.getConnection();
       try {
-        const { rows } = await client.query(`SELECT id, user_id AS created_by_id, title, description, category, priority, status, due_date, completed_at, created_at, updated_at FROM public.tasks WHERE id = $1`, [id]);
+        const { rows } = await client.query(`SELECT id, user_id AS created_by_id, title, description, category, priority, status, due_date, completed_at, created_at, updated_at, progress FROM public.tasks WHERE id = $1`, [id]);
         if (!rows.length) return false;
         const dbTaskBefore: DatabaseTask = rows[0] as any;
-
-        // Obtener archivos asociados a la tarea para intentar borrarlos del almacenamiento externo (Google Drive)
-        const { rows: fileRows } = await client.query(
-          `SELECT id, google_drive_id, file_url, folder_id FROM public.task_files WHERE task_id = $1`,
-          [id]
-        );
-
-        // Intentar eliminación remota de archivos (no bloquear la operación si falla)
-        await this.deleteRemoteFilesIfAny(fileRows).catch(() => {});
-
-        // Intentar eliminación remota de carpetas raíz asociadas (no bloquear si falla)
-        let folderIds = Array.from(new Set((fileRows || []).map((r: any) => r.folder_id).filter((f: any) => !!f)));
-        // Si no hay folderIds registrados (por ejemplo, se eliminaron los archivos y quedó la carpeta vacía),
-        // intentar resolver la carpeta por nombre de la tarea y eliminarla.
-        if (!folderIds.length) {
-          try {
-            const fallbackFolderId = await this.resolveDriveFolderIdByTitle(dbTaskBefore.title || '');
-            if (fallbackFolderId) {
-              folderIds = [fallbackFolderId];
-            }
-          } catch {}
-        }
-        await this.deleteRemoteFoldersIfAny(folderIds).catch(() => {});
-
-        // Eliminar registros de archivos de la BD
-        await client.query(`DELETE FROM public.task_files WHERE task_id = $1`, [id]);
-
-        // Eliminar la tarea de la BD
         await client.query(`DELETE FROM public.tasks WHERE id = $1`, [id]);
-
         const deletedTask = this.mapDatabaseTaskToTask(dbTaskBefore);
         await this.publishEvent('TareaEliminada', deletedTask);
         return true;
@@ -848,26 +745,6 @@ export class TaskService {
   }
 
   /**
-   * Resuelve el ID de la carpeta de Drive usando el título de la tarea
-   * Busca por nombre exacto (normalizado como en el servicio de subida)
-   */
-  private async resolveDriveFolderIdByTitle(taskTitle: string): Promise<string | null> {
-    const baseGateway = (process.env.API_GATEWAY_URL || 'http://localhost:3000').replace(/\/$/, '');
-    const safeTitle = (taskTitle || '').toString().trim().replace(/[\\/:*?"<>|]/g, '-');
-    if (!safeTitle) return null;
-    const url = `${baseGateway}/api/files/drive/folders/by-name?name=${encodeURIComponent(safeTitle)}`;
-    try {
-      const res = await fetch(url, { method: 'GET' });
-      if (!res.ok) return null;
-      const data = await res.json().catch(() => null);
-      const id = data?.folder?.id;
-      return id || null;
-    } catch {
-      return null;
-    }
-  }
-
-  /**
    * Listar archivos asociados a una tarea
    */
   async getTaskFiles(taskId: number): Promise<any[]> {
@@ -877,26 +754,24 @@ export class TaskService {
       }
       const client = await databaseService.getConnection();
       try {
-        // Devolver metadatos completos del archivo SIN JOIN externo para evitar errores de esquema ajeno
+        // Hacer JOIN con la tabla users para obtener el nombre del usuario
         const { rows } = await client.query(`
           SELECT 
-            tf.id,
-            tf.task_id,
-            tf.file_name,
-            tf.file_path,
-            tf.file_url,
-            tf.file_size,
-            tf.file_type,
-            tf.mime_type,
-            tf.uploaded_by,
-            tf.storage_type,
-            tf.google_drive_id,
-            tf.is_image,
-            tf.thumbnail_path,
-            tf.folder_id,
-            tf.folder_name,
+            tf.id, 
+            tf.task_id, 
+            tf.file_name, 
+            tf.file_path, 
+            tf.file_url, 
+            tf.file_size, 
+            tf.file_type, 
+            tf.mime_type, 
+            tf.uploaded_by, 
+            tf.storage_type, 
+            tf.google_drive_id, 
+            tf.is_image, 
+            tf.thumbnail_path, 
             tf.created_at,
-            'Usuario'::text as uploaded_by_name
+            'Usuario' as uploaded_by_name
           FROM public.task_files tf
           WHERE tf.task_id = $1
           ORDER BY tf.created_at DESC
@@ -937,15 +812,13 @@ export class TaskService {
             storage_type,
             google_drive_id,
             is_image,
-            thumbnail_path,
-            folder_id,
-            folder_name
+            thumbnail_path
           } = f;
 
           const { rows } = await client.query(`
-            INSERT INTO public.task_files (task_id, file_name, file_path, file_url, file_size, file_type, mime_type, uploaded_by, storage_type, google_drive_id, is_image, thumbnail_path, folder_id, folder_name)
-            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
-            RETURNING id, task_id, file_name, file_path, file_url, file_size, file_type, mime_type, uploaded_by, storage_type, google_drive_id, is_image, thumbnail_path, folder_id, folder_name, created_at
+            INSERT INTO public.task_files (task_id, file_name, file_path, file_url, file_size, file_type, mime_type, uploaded_by, storage_type, google_drive_id, is_image, thumbnail_path)
+            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
+            RETURNING id, task_id, file_name, file_path, file_url, file_size, file_type, mime_type, uploaded_by, storage_type, google_drive_id, is_image, thumbnail_path, created_at
           `, [
             taskId,
             file_name || 'archivo',
@@ -958,9 +831,7 @@ export class TaskService {
             storage_type || 'google_drive',
             google_drive_id || null,
             is_image || false,
-            thumbnail_path || null,
-            folder_id || null,
-            folder_name || null
+            thumbnail_path || null
           ]);
           inserted.push(rows[0]);
         }
@@ -1073,117 +944,6 @@ export class TaskService {
   }
 
   /**
-   * Intenta eliminar archivos asociados en el servicio de subida (Google Drive)
-   * No lanza error si las operaciones remotas fallan.
-   */
-  private async deleteRemoteFilesIfAny(files: Array<{ id: number; google_drive_id: string | null; file_url: string | null }>): Promise<void> {
-    if (!Array.isArray(files) || files.length === 0) return;
-
-    const baseGateway = (process.env.API_GATEWAY_URL || 'http://localhost:3000').replace(/\/$/, '');
-    const filesPath = '/api/files/drive/files';
-
-    const extractDriveId = (url?: string | null) => {
-      if (!url) return null;
-      // Ejemplos admitidos:
-      // https://drive.google.com/uc?id=FILE_ID
-      // https://drive.google.com/file/d/FILE_ID/view
-      const m1 = url.match(/[?&]id=([^&]+)/);
-      if (m1 && m1[1]) return m1[1];
-      const m2 = url.match(/\/file\/d\/([^/]+)/);
-      if (m2 && m2[1]) return m2[1];
-      return null;
-    };
-
-    const tasks: Promise<any>[] = [];
-    for (const f of files) {
-      const driveId = (f.google_drive_id || extractDriveId(f.file_url))?.toString();
-      if (!driveId) continue;
-      const url = `${baseGateway}${filesPath}/${driveId}`;
-      tasks.push(
-        fetch(url, { method: 'DELETE' }).catch(() => null)
-      );
-    }
-
-    // Ejecutar en paralelo y no bloquear por errores
-    await Promise.allSettled(tasks);
-  }
-
-  /**
-   * Intenta eliminar carpetas asociadas en el servicio de subida (Google Drive)
-   * No lanza error si las operaciones remotas fallan.
-   */
-  private async deleteRemoteFoldersIfAny(folderIds: string[]): Promise<void> {
-    if (!Array.isArray(folderIds) || folderIds.length === 0) return;
-
-    const baseGateway = (process.env.API_GATEWAY_URL || 'http://localhost:3000').replace(/\/$/, '');
-    const foldersPath = '/api/files/drive/folders';
-
-    const tasks: Promise<any>[] = [];
-    for (const folderId of folderIds) {
-      const url = `${baseGateway}${foldersPath}/${folderId}?recursive=true`;
-      tasks.push(
-        fetch(url, { method: 'DELETE' }).catch(() => null)
-      );
-    }
-
-    await Promise.allSettled(tasks);
-  }
-
-  /**
-   * Actualiza un registro de archivo asociado a una tarea
-   */
-  async updateTaskFile(fileRecordId: number, fileData: any): Promise<any | null> {
-    try {
-      if (!fileRecordId || fileRecordId <= 0) {
-        throw new Error('ID de archivo inválido');
-      }
-      const client = await databaseService.getConnection();
-      try {
-        const { rows: existingRows } = await client.query(`SELECT * FROM public.task_files WHERE id = $1`, [fileRecordId]);
-        if (!existingRows.length) return null;
-
-        const fields: string[] = [];
-        const params: any[] = [];
-        let idx = 1;
-
-        const map = (key: string, value: any) => {
-          if (value !== undefined) { fields.push(`${key} = $${idx++}`); params.push(value); }
-        };
-
-        map('file_name', fileData.file_name);
-        map('file_path', fileData.file_path);
-        map('file_url', fileData.file_url);
-        map('file_size', fileData.file_size);
-        map('file_type', fileData.file_type);
-        map('mime_type', fileData.mime_type);
-        map('uploaded_by', fileData.uploaded_by);
-        map('storage_type', fileData.storage_type);
-        map('google_drive_id', fileData.google_drive_id);
-        map('is_image', fileData.is_image);
-        map('thumbnail_path', fileData.thumbnail_path);
-        map('folder_id', fileData.folder_id);
-        map('folder_name', fileData.folder_name);
-
-        if (!fields.length) {
-          // No hay cambios, devolver el registro actual
-          return existingRows[0];
-        }
-
-        const updateQuery = `UPDATE public.task_files SET ${fields.join(', ')} WHERE id = $${idx} RETURNING id, task_id, file_name, file_path, file_url, file_size, file_type, mime_type, uploaded_by, storage_type, google_drive_id, is_image, thumbnail_path, folder_id, folder_name, created_at`;
-        params.push(fileRecordId);
-
-        const { rows } = await client.query(updateQuery, params);
-        return rows[0] || null;
-      } finally {
-        client.release();
-      }
-    } catch (error) {
-      console.error('Error en updateTaskFile:', error);
-      throw error;
-    }
-  }
-
-  /**
    * Obtiene estadísticas de las tareas familiares
    */
   async getTaskStats(): Promise<TaskStats> {
@@ -1279,7 +1039,6 @@ export class TaskService {
             t.priority,
             t.status,
             t.due_date,
-            t.estimated_time,
             t.completed_at,
             t.created_at,
             t.updated_at,
@@ -1333,10 +1092,10 @@ export class TaskService {
             t.priority,
             t.status,
             t.due_date,
-            t.estimated_time,
             t.completed_at,
             t.created_at,
             t.updated_at,
+            t.progress,
             (
               SELECT ta.user_id 
               FROM public.task_assignments ta 

@@ -104,8 +104,9 @@ services:
       - DB_NAME=tasks_db
       - DB_USER=postgres
       - DB_PASSWORD=linux
-      - API_GATEWAY_URL=http://api-gateway:3000
       - DB_SCHEMA=public
+      - USERS_SERVICE_URL=http://users-service:3001
+      - NOTIFICATION_SERVICE_URL=http://notifications-service:3004
     depends_on:
       postgres-tasks:
         condition: service_healthy
@@ -120,12 +121,17 @@ services:
       dockerfile: Dockerfile
     container_name: smart-home-notifications-service
     ports:
-      - "3003:3003"
+      - "3004:3004"
     environment:
       - NODE_ENV=production
-      - PORT=3003
+      - PORT=3004
       - WHATSAPP_API_URL=https://api.whatsapp.com/send
       - WEBHOOK_SECRET=your-webhook-secret-change-in-production
+      - REDIS_HOST=smart-home-redis
+      - REDIS_PORT=6379
+      - REDIS_PASSWORD=smartHomeRedis2024
+    depends_on:
+      - redis
     networks:
       - smart-home-network
     restart: unless-stopped
@@ -142,7 +148,6 @@ services:
       - ./backend/file-upload-service/.env
     environment:
       - NODE_ENV=production
-      - PORT=3005
       - MAX_FILE_SIZE=10485760
       - ALLOWED_EXTENSIONS=jpg,jpeg,png,gif,pdf,doc,docx,txt
     volumes:
@@ -151,6 +156,24 @@ services:
       - file_quarantine:/app/quarantine
     networks:
       - smart-home-network
+    restart: unless-stopped
+
+  # Redis Service for Notifications and Caching
+  redis:
+    image: redis:7-alpine
+    container_name: smart-home-redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    networks:
+      - smart-home-network
+    command: redis-server --requirepass smartHomeRedis2024 --appendonly yes
+    healthcheck:
+      test: ["CMD", "redis-cli", "-a", "smartHomeRedis2024", "ping"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
     restart: unless-stopped
 
 networks:
@@ -167,4 +190,6 @@ volumes:
   file_temp:
     driver: local
   file_quarantine:
+    driver: local
+  redis_data:
     driver: local

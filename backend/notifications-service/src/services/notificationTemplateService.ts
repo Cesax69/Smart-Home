@@ -11,15 +11,15 @@ export class NotificationTemplateService {
     {
       type: 'tarea_asignada',
       priority: 'media',
-      template: '🏠 ¡Hola {memberName}! Te han asignado una nueva tarea: "{taskTitle}" en la categoría {taskCategory}. {dueDate} {reward} ¡Gracias por ayudar en casa! 💪',
-      variables: ['memberName', 'taskTitle', 'taskCategory', 'dueDate', 'reward'],
+      template: '🏠 Nueva tarea asignada: "{taskTitle}" en {taskCategory}. {dueDate} {reward} Asignada por {createdByName}.',
+      variables: ['memberName', 'taskTitle', 'taskCategory', 'dueDate', 'reward', 'createdByName'],
       description: 'Notificación cuando se asigna una nueva tarea a un miembro de la familia'
     },
     {
       type: 'tarea_asignada',
       priority: 'alta',
-      template: '🚨 ¡{memberName}! TAREA URGENTE: "{taskTitle}" - {taskCategory}. {dueDate} {reward} ¡Tu familia cuenta contigo! 🏠',
-      variables: ['memberName', 'taskTitle', 'taskCategory', 'dueDate', 'reward'],
+      template: '🚨 TAREA URGENTE: "{taskTitle}" - {taskCategory}. {dueDate} {reward} Asignada por {createdByName}.',
+      variables: ['memberName', 'taskTitle', 'taskCategory', 'dueDate', 'reward', 'createdByName'],
       description: 'Notificación urgente para tareas de alta prioridad'
     },
 
@@ -27,9 +27,9 @@ export class NotificationTemplateService {
     {
       type: 'tarea_completada',
       priority: 'baja',
-      template: '🎉 ¡Excelente trabajo, {memberName}! Has completado "{taskTitle}". {reward} ¡La familia está orgullosa de ti! 👏',
-      variables: ['memberName', 'taskTitle', 'reward'],
-      description: 'Felicitación por completar una tarea'
+      template: '✅ Tarea completada: "{taskTitle}" ha sido finalizada por {completedByName}. {reward}',
+      variables: ['memberName', 'taskTitle', 'reward', 'completedByName'],
+      description: 'Notificación por completar una tarea'
     },
 
     // Plantillas para recordatorios
@@ -113,6 +113,7 @@ export class NotificationTemplateService {
     message = message.replace('{taskTitle}', taskData.taskTitle || 'Tarea sin título');
     message = message.replace('{taskCategory}', this.getCategoryDisplayName(taskData.taskCategory || taskData.category || 'general'));
     message = message.replace('{createdByName}', taskData.createdByName || 'Sistema');
+    message = message.replace('{completedByName}', taskData.completedByUserName || taskData.completedByName || 'Usuario');
 
     // Formatear fecha de vencimiento
     if (taskData.dueDate) {
@@ -124,7 +125,7 @@ export class NotificationTemplateService {
 
     // Agregar información de recompensa
     if (taskData.reward) {
-      message = message.replace('{reward}', `🎁 Recompensa: ${taskData.reward}. `);
+      message = message.replace('{reward}', `Recompensa: ${taskData.reward}.`);
     } else {
       message = message.replace('{reward}', '');
     }

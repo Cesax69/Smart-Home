@@ -8,6 +8,7 @@ import { MatToolbarModule } from '@angular/material/toolbar';
 import { MatMenuModule } from '@angular/material/menu';
 import { AuthService } from '../../services/auth.service';
 import { User } from '../../models/user.model';
+import { NotificationBellComponent } from '../notification-bell/notification-bell.component';
 
 @Component({
   selector: 'app-dashboard-member',
@@ -18,7 +19,8 @@ import { User } from '../../models/user.model';
     MatButtonModule,
     MatIconModule,
     MatToolbarModule,
-    MatMenuModule
+    MatMenuModule,
+    NotificationBellComponent
   ],
   template: `
     <div class="dashboard-container">
@@ -31,9 +33,12 @@ import { User } from '../../models/user.model';
             <p>{{ currentUser()?.firstName }} {{ currentUser()?.lastName }}</p>
           </div>
         </div>
-        <button mat-icon-button [matMenuTriggerFor]="userMenu" class="user-menu-btn">
-          <mat-icon>account_circle</mat-icon>
-        </button>
+        <div class="header-actions">
+          <app-notification-bell></app-notification-bell>
+          <button mat-icon-button [matMenuTriggerFor]="userMenu" class="user-menu-btn">
+            <mat-icon>account_circle</mat-icon>
+          </button>
+        </div>
         <mat-menu #userMenu="matMenu">
           <button mat-menu-item (click)="navigateTo('/profile')">
             <mat-icon>person</mat-icon>

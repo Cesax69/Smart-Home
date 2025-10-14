@@ -1,6 +1,6 @@
 import { Injectable, signal } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
-import { Observable, BehaviorSubject, tap, map } from 'rxjs';
+import { Observable, BehaviorSubject, tap, of, map } from 'rxjs';
 import { User, LoginRequest, LoginResponse } from '../models/user.model';
 import { environment } from '../../environments/environment';
 
@@ -9,6 +9,7 @@ import { environment } from '../../environments/environment';
 })
 export class AuthService {
   private readonly API_URL = environment.services.auth;
+  private readonly USE_MOCK = environment.useMockData;
   private currentUserSubject = new BehaviorSubject<User | null>(null);
   private tokenKey = 'smart_home_token';
   
@@ -24,7 +25,11 @@ export class AuthService {
   }
 
   login(credentials: LoginRequest): Observable<LoginResponse> {
-    return this.backendLogin(credentials);
+    if (this.USE_MOCK) {
+      return this.mockLogin(credentials);
+    } else {
+      return this.backendLogin(credentials);
+    }
   }
 
   // Método para login con backend real (preparado para futuro uso)
@@ -37,11 +42,79 @@ export class AuthService {
       );
   }
 
-  
+  // Método mock actual (se mantendrá hasta que el backend esté listo)
+  private mockLogin(credentials: LoginRequest): Observable<LoginResponse> {
+    return new Observable<LoginResponse>(observer => {
+      setTimeout(() => {
+        // Simular validación de datos
+        if (!credentials.username || !credentials.password) {
+          observer.error({ error: { message: 'Usuario y contraseña son requeridos' } });
+          return;
+        }
+
+        // Validar credenciales específicas
+        let user: User | undefined;
+        
+        if (credentials.username === 'admin' && credentials.password === 'admin') {
+          user = this.getStoredUsers().find(u => u.username === 'admin');
+        } else if (credentials.username === 'member' && credentials.password === 'member') {
+          user = this.getStoredUsers().find(u => u.username === 'member');
+        } else if (credentials.username === 'cesar_garay' && credentials.password === 'member') {
+          user = this.getStoredUsers().find(u => u.username === 'cesar_garay');
+        } else if (credentials.username === 'zahir_rodriguez' && credentials.password === 'member') {
+          user = this.getStoredUsers().find(u => u.username === 'zahir_rodriguez');
+        }
+
+        if (!user) {
+          observer.error({ error: { message: 'Credenciales inválidas' } });
+          return;
+        }
+
+        const response: LoginResponse = {
+          user: user,
+          token: 'mock_token_' + Date.now(),
+          message: '¡Inicio de sesión exitoso!'
+        };
+
+        this.setCurrentUser(response.user, response.token);
+        observer.next(response);
+        observer.complete();
+      }, 800); // Simular delay de red
+    });
+  }
 
   // Método para login por rol (simplificado)
   loginByRole(role: 'head_of_household' | 'family_member'): Observable<LoginResponse> {
-    return this.http.post<LoginResponse>(`${this.API_URL}/auth/login-by-role`, { role });
+    if (this.USE_MOCK) {
+      return this.mockLoginByRole(role);
+    } else {
+      // Cuando el backend esté listo, implementar endpoint específico
+      return this.http.post<LoginResponse>(`${this.API_URL}/auth/login-by-role`, { role });
+    }
+  }
+
+  private mockLoginByRole(role: 'head_of_household' | 'family_member'): Observable<LoginResponse> {
+    return new Observable<LoginResponse>(observer => {
+      setTimeout(() => {
+        const users = this.getStoredUsers();
+        const user = users.find(u => u.role === role);
+        
+        if (!user) {
+          observer.error({ error: { message: 'No se encontró usuario con ese rol' } });
+          return;
+        }
+
+        const response: LoginResponse = {
+          user: user,
+          token: 'mock_token_' + Date.now(),
+          message: `¡Bienvenido ${role === 'head_of_household' ? 'Jefe del Hogar' : 'Miembro'}!`
+        };
+
+        this.setCurrentUser(response.user, response.token);
+        observer.next(response);
+        observer.complete();
+      }, 500);
+    });
   }
 
   logout(): void {
@@ -76,17 +149,75 @@ export class AuthService {
   }
 
   getFamilyMembers(): Observable<User[]> {
-    // Consultar el microservicio de usuarios
-    return this.http.get<any>(`${this.API_URL}/users`).pipe(
-      tap(response => {
-        console.log('Family members from microservice:', response);
-      }),
-      // Extraer los datos del response del microservicio
-      map(response => response.data || response)
-    );
+    if (this.USE_MOCK) {
+      // Obtener usuarios del almacenamiento local (modo mock)
+      return of(this.getStoredUsers());
+    } else {
+      // Consultar el microservicio de usuarios
+      return this.http.get<any>(`${this.API_URL}/users`).pipe(
+        tap(response => {
+          console.log('Family members from microservice:', response);
+        }),
+        // Extraer los datos del response del microservicio
+        map(response => response.data || response)
+      );
+    }
   }
 
-  
+  // Método para obtener miembros de la familia
+  private getStoredUsers(): User[] {
+    const stored = localStorage.getItem('smart_home_users');
+    if (stored) {
+      return JSON.parse(stored);
+    }
+    
+    // Usuarios por defecto para testing
+    const defaultUsers: User[] = [
+      {
+        id: 1,
+        username: 'admin',
+        email: 'admin@smarthome.com',
+        firstName: 'Admin',
+        lastName: 'Usuario',
+        role: 'head_of_household',
+        createdAt: new Date('2024-01-01'),
+        updatedAt: new Date('2024-01-01')
+      },
+      {
+        id: 2,
+        username: 'member',
+        email: 'member@smarthome.com',
+        firstName: 'Member',
+        lastName: 'Usuario',
+        role: 'family_member',
+        createdAt: new Date('2024-01-02'),
+        updatedAt: new Date('2024-01-02')
+      },
+      {
+        id: 3,
+        username: 'cesar_garay',
+        email: 'cesar.garay@smarthome.com',
+        firstName: 'César',
+        lastName: 'Garay',
+        role: 'family_member',
+        createdAt: new Date('2024-01-03'),
+        updatedAt: new Date('2024-01-03')
+      },
+      {
+        id: 4,
+        username: 'zahir_rodriguez',
+        email: 'zahir.rodriguez@smarthome.com',
+        firstName: 'Zahir',
+        lastName: 'Rodríguez',
+        role: 'family_member',
+        createdAt: new Date('2024-01-04'),
+        updatedAt: new Date('2024-01-04')
+      }
+    ];
+    
+    localStorage.setItem('smart_home_users', JSON.stringify(defaultUsers));
+    return defaultUsers;
+  }
 
   private setCurrentUser(user: User, token: string): void {
     if (typeof window !== 'undefined' && typeof localStorage !== 'undefined') {

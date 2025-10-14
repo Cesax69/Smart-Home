@@ -2,19 +2,18 @@ export interface Task {
   id: number;
   title: string;
   description: string;
-  status: 'pending' | 'in_progress' | 'completed' | 'archived';
+  category: 'limpieza' | 'cocina' | 'lavanderia' | 'jardin' | 'mantenimiento' | 'organizacion' | 'mascotas' | 'compras' | 'otros';
+  status: 'pending' | 'in_progress' | 'completed' | 'pendiente' | 'en_proceso' | 'completada';
   priority: 'low' | 'medium' | 'high';
   assignedTo: number; // User ID
+  assignedUserId?: number; // Para compatibilidad con backend
   assignedUserIds?: number[]; // Todos los asignados
   assignedBy: number; // User ID
   dueDate?: Date;
-  startDate?: Date;
-  estimatedTime?: number; // minutos
-  isRecurring?: boolean;
-  recurrenceInterval?: string;
   createdAt: Date;
   updatedAt: Date;
   completedAt?: Date;
+  estimatedTime?: number; // Tiempo estimado en minutos
   reward?: string; // Recompensa por completar la tarea
   fileUrl?: string;
   files?: TaskFile[];
@@ -41,16 +40,11 @@ export interface CreateTaskRequest {
 export interface UpdateTaskRequest {
   title?: string;
   description?: string;
-  status?: 'pending' | 'in_progress' | 'completed' | 'archived';
+  status?: 'pending' | 'in_progress' | 'completed' | 'pendiente' | 'en_proceso' | 'completada';
   priority?: 'low' | 'medium' | 'high';
   assignedTo?: number;
   assignedUserIds?: number[];
-  startDate?: Date;
   dueDate?: Date;
-  estimatedTime?: number;
-  reward?: string;
-  isRecurring?: boolean;
-  recurrenceInterval?: string;
   progress?: number; // Progreso de la tarea (0-100)
 }
 
@@ -77,6 +71,4 @@ export interface TaskFile {
   isImage?: boolean | null;
   thumbnailPath?: string | null;
   createdAt?: Date | string;
-  folderId?: string | null;
-  folderName?: string | null;
 }

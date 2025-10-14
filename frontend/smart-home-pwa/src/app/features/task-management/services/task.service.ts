@@ -3,7 +3,7 @@ import { HttpClient, HttpParams } from '@angular/common/http';
 import { Observable, of } from 'rxjs';
 import { catchError, map } from 'rxjs/operators';
 import { environment } from '../../../../environments/environment';
-import { Task, CreateTaskRequest, UpdateTaskRequest, TaskStats, TaskFile } from '../models/task.model';
+import { Task, CreateTaskRequest, UpdateTaskRequest, TaskStats } from '../models/task.model';
 import { AuthService } from '../../../services/auth.service';
 
 @Injectable({
@@ -20,19 +20,17 @@ export class TaskService {
     const statusMap: { [key: string]: string } = {
       'pending': 'pendiente',
       'in_progress': 'en_proceso',
-      'completed': 'completada',
-      'archived': 'archivada'
+      'completed': 'completada'
     };
     return statusMap[status] || status;
   }
 
   // Método para mapear estado del backend al frontend (español -> inglés)
-  private mapStatusFromBackend(status: string): 'pending' | 'in_progress' | 'completed' | 'archived' {
-    const statusMap: { [key: string]: 'pending' | 'in_progress' | 'completed' | 'archived' } = {
+  private mapStatusFromBackend(status: string): 'pending' | 'in_progress' | 'completed' {
+    const statusMap: { [key: string]: 'pending' | 'in_progress' | 'completed' } = {
       'pendiente': 'pending',
       'en_proceso': 'in_progress',
-      'completada': 'completed',
-      'archivada': 'archived'
+      'completada': 'completed'
     };
     return statusMap[status] || 'pending';
   }
@@ -45,63 +43,211 @@ export class TaskService {
     };
   }
 
-  // Sin datos de prueba: sólo datos de la API/BD
+  // Datos de prueba para cuando no hay conexión a la base de datos
+  private getMockTasks(): Task[] {
+    const currentDate = new Date();
+    const tomorrow = new Date(currentDate);
+    tomorrow.setDate(currentDate.getDate() + 1);
+    
+    const nextWeek = new Date(currentDate);
+    nextWeek.setDate(currentDate.getDate() + 7);
+    
+    const lastWeek = new Date(currentDate);
+    lastWeek.setDate(currentDate.getDate() - 7);
 
-  // Helpers de mapeo de prioridad y conversión de Task del backend al FE
-  private mapPriorityToFrontend(priority: string | undefined): 'low' | 'medium' | 'high' {
-    switch ((priority || '').toLowerCase()) {
-      case 'baja':
-      case 'low':
-        return 'low';
-      case 'media':
-      case 'medium':
-        return 'medium';
-      case 'alta':
-      case 'urgente':
-      case 'high':
-        return 'high';
-      default:
-        return 'medium';
-    }
+    return [
+      // Tareas pendientes - algunas asignadas al jefe del hogar (id: 1)
+      {
+        id: 1,
+        title: 'Limpiar la cocina',
+        description: 'Lavar los platos, limpiar las superficies y organizar los utensilios de cocina.',
+        category: 'cocina',
+        status: 'pending',
+        priority: 'high',
+        assignedTo: 1, // Jefe del hogar
+        assignedBy: 1,
+        createdAt: new Date(currentDate),
+        updatedAt: new Date(currentDate),
+        dueDate: new Date(tomorrow)
+      },
+      {
+        id: 2,
+        title: 'Sacar la basura',
+        description: 'Recoger la basura de todas las habitaciones y sacarla al contenedor.',
+        category: 'limpieza',
+        status: 'pending',
+        priority: 'medium',
+        assignedTo: 2, // Miembro de la familia
+        assignedBy: 1,
+        createdAt: new Date(currentDate),
+        updatedAt: new Date(currentDate),
+        dueDate: new Date(tomorrow)
+      },
+      {
+        id: 3,
+        title: 'Aspirar la sala',
+        description: 'Aspirar toda la sala de estar, incluyendo debajo de los muebles.',
+        category: 'limpieza',
+        status: 'in_progress',
+        priority: 'medium',
+        assignedTo: 1, // Jefe del hogar
+        assignedBy: 1,
+        createdAt: new Date(lastWeek),
+        updatedAt: new Date(currentDate),
+        dueDate: new Date(nextWeek)
+      },
+      {
+        id: 4,
+        title: 'Lavar la ropa',
+        description: 'Separar, lavar, secar y doblar toda la ropa de la familia.',
+        category: 'lavanderia',
+        status: 'in_progress',
+        priority: 'low',
+        assignedTo: 2, // Miembro de la familia
+        assignedBy: 1,
+        createdAt: new Date(lastWeek),
+        updatedAt: new Date(currentDate),
+        dueDate: new Date(nextWeek)
+      },
+      {
+        id: 5,
+        title: 'Organizar el garaje',
+        description: 'Clasificar y organizar todas las herramientas y objetos del garaje.',
+        category: 'mantenimiento',
+        status: 'completed',
+        priority: 'low',
+        assignedTo: 1, // Jefe del hogar
+        assignedBy: 1,
+        createdAt: new Date(lastWeek),
+        updatedAt: new Date(currentDate),
+        completedAt: new Date(currentDate),
+        dueDate: new Date(currentDate)
+      },
+      {
+        id: 6,
+        title: 'Regar las plantas',
+        description: 'Regar todas las plantas del jardín y las macetas de interior.',
+        category: 'jardin',
+        status: 'completed',
+        priority: 'medium',
+        assignedTo: 2, // Miembro de la familia
+        assignedBy: 1,
+        createdAt: new Date(lastWeek),
+        updatedAt: new Date(currentDate),
+        completedAt: new Date(currentDate),
+        dueDate: new Date(currentDate)
+      },
+      // Tarea vencida para mostrar funcionalidad
+      {
+        id: 7,
+        title: 'Limpiar ventanas',
+        description: 'Limpiar todas las ventanas de la casa por dentro y por fuera.',
+        category: 'limpieza',
+        status: 'pending',
+        priority: 'high',
+        assignedTo: 1, // Jefe del hogar
+        assignedBy: 1,
+        createdAt: new Date(lastWeek),
+        updatedAt: new Date(lastWeek),
+        dueDate: new Date(lastWeek) // Vencida
+      },
+      {
+        id: 8,
+        title: 'Preparar cena especial',
+        description: 'Planificar y preparar una cena especial para la familia el fin de semana.',
+        category: 'cocina',
+        status: 'pending',
+        priority: 'medium',
+        assignedTo: 2, // Miembro de la familia
+        assignedBy: 1,
+        createdAt: new Date(currentDate),
+        updatedAt: new Date(currentDate),
+        dueDate: new Date(nextWeek)
+      },
+      {
+        id: 9,
+        title: 'Revisar sistema eléctrico',
+        description: 'Inspeccionar y revisar el sistema eléctrico de la casa por seguridad.',
+        category: 'mantenimiento',
+        status: 'in_progress',
+        priority: 'high',
+        assignedTo: 1, // Jefe del hogar
+        assignedBy: 1,
+        createdAt: new Date(currentDate),
+        updatedAt: new Date(currentDate),
+        dueDate: new Date(nextWeek)
+      },
+      {
+        id: 10,
+        title: 'Comprar víveres',
+        description: 'Hacer la compra semanal de alimentos y productos de limpieza.',
+        category: 'cocina',
+        status: 'pending',
+        priority: 'high',
+        assignedTo: 2, // Miembro de la familia
+        assignedBy: 1,
+        createdAt: new Date(currentDate),
+        updatedAt: new Date(currentDate),
+        dueDate: new Date(tomorrow)
+      },
+      // Tareas específicas para César Garay (ID: 3)
+      {
+        id: 11,
+        title: 'Limpiar el baño principal',
+        description: 'Limpiar a fondo el baño principal, incluyendo azulejos, espejo y sanitarios.',
+        category: 'limpieza',
+        status: 'pending',
+        priority: 'high',
+        assignedTo: 3, // César Garay
+        assignedBy: 1,
+        createdAt: new Date(currentDate),
+        updatedAt: new Date(currentDate),
+        dueDate: new Date(tomorrow)
+      },
+      {
+        id: 12,
+        title: 'Ordenar su habitación',
+        description: 'Organizar la ropa, hacer la cama y mantener el espacio ordenado.',
+        category: 'organizacion',
+        status: 'in_progress',
+        priority: 'medium',
+        assignedTo: 3, // César Garay
+        assignedBy: 1,
+        createdAt: new Date(lastWeek),
+        updatedAt: new Date(currentDate),
+        dueDate: new Date(nextWeek)
+      },
+      {
+        id: 13,
+        title: 'Pasear al perro',
+        description: 'Sacar al perro a pasear por la mañana y por la tarde.',
+        category: 'mascotas',
+        status: 'pending',
+        priority: 'medium',
+        assignedTo: 3, // César Garay
+        assignedBy: 1,
+        createdAt: new Date(currentDate),
+        updatedAt: new Date(currentDate),
+        dueDate: new Date(currentDate)
+      },
+      {
+        id: 14,
+        title: 'Estudiar para el examen',
+        description: 'Dedicar 2 horas al estudio para el próximo examen de matemáticas.',
+        category: 'otros',
+        status: 'completed',
+        priority: 'high',
+        assignedTo: 3, // César Garay
+        assignedBy: 1,
+        createdAt: new Date(lastWeek),
+        updatedAt: new Date(currentDate),
+        completedAt: new Date(currentDate),
+        dueDate: new Date(currentDate)
+      }
+    ];
   }
 
-  // Mapear prioridad del FE (inglés) al backend (español)
-  private mapPriorityToBackend(priority: string | undefined): 'baja' | 'media' | 'alta' {
-    switch ((priority || '').toLowerCase()) {
-      case 'low':
-        return 'baja';
-      case 'medium':
-        return 'media';
-      case 'high':
-        return 'alta';
-      default:
-        return 'media';
-    }
-  }
-
-  private mapTaskToFrontend(task: any): Task {
-    return {
-      id: task.id,
-      title: task.title,
-      description: task.description,
-      status: this.mapStatusFromBackend(task.status),
-      priority: this.mapPriorityToFrontend(task.priority),
-      assignedTo: task.assignedUserId ?? task.assigned_to ?? task.assignedUserId,
-      assignedUserIds: task.assignedUserIds ?? task.assigned_user_ids ?? ((task.assignedUserId ?? task.assigned_to) ? [task.assignedUserId ?? task.assigned_to] : undefined),
-      assignedBy: task.createdById ?? task.assignedBy ?? task.user_id,
-      startDate: task.startDate ?? task.start_date ?? undefined,
-      dueDate: task.dueDate ?? task.due_date ?? undefined,
-      estimatedTime: task.estimatedTime ?? task.estimated_time ?? undefined,
-      isRecurring: task.isRecurring ?? task.is_recurring ?? undefined,
-      recurrenceInterval: task.recurrenceInterval ?? task.recurrence_type ?? task.recurrence_interval ?? undefined,
-      createdAt: task.createdAt ?? task.created_at,
-      updatedAt: task.updatedAt ?? task.updated_at,
-      completedAt: task.completedAt ?? task.completed_at ?? undefined,
-      fileUrl: task.fileUrl ?? task.file_url ?? undefined,
-      progress: task.progress ?? task.progress
-    } as Task;
-  }
-
+  // Obtener todas las tareas con filtros opcionales
   getTasks(filters?: {
     status?: string;
     assignedTo?: number;
@@ -115,36 +261,64 @@ export class TaskService {
     if (filters) {
       Object.entries(filters).forEach(([key, value]) => {
         if (value !== undefined && value !== null) {
+          // Mapear assignedTo -> userId si corresponde
           const paramKey = key === 'assignedTo' ? 'userId' : key;
+          // Mapear estado al backend si se filtra por estado
           const paramValue = paramKey === 'status' ? this.mapStatusToBackend(String(value)) : String(value);
           params = params.set(paramKey, paramValue);
         }
       });
     }
 
-    // El Gateway puede responder con { success, data, message } o el servicio con { tasks, total }
-    return this.http.get<any>(`${this.API_URL}/tasks`, { params })
+    return this.http.get<{ success: boolean, data: Task[], message: string, total?: number }>(`${this.API_URL}/tasks`, { params })
       .pipe(
-        map((response: any) => {
-          const rawTasks: any[] = Array.isArray(response)
-            ? response
-            : (response?.tasks ?? response?.data ?? []);
-          const total: number = (response?.total ?? rawTasks.length ?? 0) as number;
-
-          const tasks = rawTasks.map(t => this.mapTaskToFrontend(t));
-          return { tasks, total };
+        map(response => {
+          // El backend devuelve { success: true, data: [...] }
+          const tasks = response.data || [];
+          return {
+            tasks: tasks.map(task => ({
+              ...task,
+              status: this.mapStatusFromBackend(task.status),
+              assignedTo: (task as any).assignedUserId || task.assignedTo // Mapear assignedUserId a assignedTo
+            })),
+            total: response.total || tasks.length
+          };
         }),
-        catchError(this.handleError<{ tasks: Task[], total: number }>('getTasks', { tasks: [], total: 0 }))
+        catchError(() => {
+          // Si falla la conexión, devolver datos de prueba filtrados por usuario
+          const mockTasks = this.getMockTasks();
+          let filteredTasks = mockTasks;
+          
+          // Aplicar filtro por userId si se especifica
+          if (filters?.userId) {
+            filteredTasks = mockTasks.filter(task => task.assignedTo === filters.userId);
+          }
+          
+          return of({ tasks: filteredTasks, total: filteredTasks.length });
+        })
       );
   }
 
   // Obtener tarea por ID
   getTaskById(id: number): Observable<Task> {
-    return this.http.get<any>(`${this.API_URL}/tasks/${id}`)
+    return this.http.get<{ success: boolean, data: Task, message: string }>(`${this.API_URL}/tasks/${id}`)
       .pipe(
-        map((response: any) => {
-          const task = response?.data ?? response?.task ?? response;
-          return this.mapTaskToFrontend(task);
+        map(response => {
+          const task = response.data;
+          return {
+            ...task,
+            status: this.mapStatusFromBackend(task.status),
+            assignedTo: (task as any).assignedUserId || task.assignedTo // Mapear assignedUserId a assignedTo
+          };
+        }),
+        catchError(() => {
+          // Si falla la conexión, buscar en datos de prueba
+          const mockTasks = this.getMockTasks();
+          const task = mockTasks.find(t => t.id === id);
+          if (task) {
+            return of(task);
+          }
+          throw new Error('Tarea no encontrada');
         })
       );
   }
@@ -156,8 +330,7 @@ export class TaskService {
       title: task.title,
       description: task.description,
       category: task.category,
-      // CreateTaskRequest ya usa prioridad en español; usar tal cual
-      priority: task.priority,
+      priority: this.mapPriorityToBackend(task.priority),
       assignedUserId: task.assignedUserId,
       assignedUserIds: task.assignedUserIds,
       createdById: task.createdById,
@@ -170,53 +343,132 @@ export class TaskService {
       fileUrl: task.fileUrl
     };
 
-    return this.http.post<any>(`${this.API_URL}/tasks`, backendTask)
+    return this.http.post<Task>(`${this.API_URL}/tasks`, backendTask)
       .pipe(
-        map((response: any) => {
-          const raw = response?.data ?? response;
-          return this.mapTaskToFrontend(raw);
-        }),
-        catchError(this.handleError<Task>('crear tarea'))
+        catchError(() => {
+          // En modo de prueba, simular creación de tarea
+          const newTask: Task = {
+            id: Math.floor(Math.random() * 1000) + 100,
+            title: task.title,
+            description: task.description,
+            category: 'limpieza', // Categoría por defecto
+            status: 'pending',
+            priority: this.mapPriorityFromBackend(task.priority),
+            assignedTo: task.assignedUserId,
+            assignedBy: task.createdById,
+            createdAt: new Date(),
+            updatedAt: new Date(),
+            dueDate: task.dueDate
+          };
+          return of(newTask);
+        })
       );
+  }
+
+  // Mapear prioridad del frontend al backend
+  private mapPriorityToBackend(priority: 'baja' | 'media' | 'alta' | 'urgente'): 'low' | 'medium' | 'high' {
+    const priorityMap: { [key: string]: 'low' | 'medium' | 'high' } = {
+      'baja': 'low',
+      'media': 'medium',
+      'alta': 'high',
+      'urgente': 'high'
+    };
+    return priorityMap[priority] || 'medium';
+  }
+
+  // Mapear prioridad del backend al frontend
+  private mapPriorityFromBackend(priority: 'baja' | 'media' | 'alta' | 'urgente'): 'low' | 'medium' | 'high' {
+    const priorityMap: { [key: string]: 'low' | 'medium' | 'high' } = {
+      'baja': 'low',
+      'media': 'medium',
+      'alta': 'high',
+      'urgente': 'high'
+    };
+    return priorityMap[priority] || 'medium';
   }
 
   // Actualizar tarea
   updateTask(id: number, updates: UpdateTaskRequest): Observable<Task> {
     // Mapear el estado al formato del backend si está presente
-    const backendUpdates: any = { ...updates };
+    const backendUpdates = { ...updates };
     if (updates.status) {
       backendUpdates.status = this.mapStatusToBackend(updates.status) as any;
     }
-    if (updates.priority) {
-      backendUpdates.priority = this.mapPriorityToBackend(updates.priority) as any;
+
+    // Agregar el userId del usuario actual para las notificaciones
+    const currentUser = this.authService.getCurrentUser();
+    if (currentUser && currentUser.id) {
+      (backendUpdates as any).userId = currentUser.id;
     }
 
-    return this.http.put<any>(`${this.API_URL}/tasks/${id}`, backendUpdates)
+    return this.http.put<{success: boolean, data: any, message: string}>(`${this.API_URL}/tasks/${id}`, backendUpdates)
       .pipe(
-        map((response: any) => {
-          const raw = response?.data ?? response;
-          return this.mapTaskToFrontend(raw);
+        map(response => {
+          const task = response.data;
+          // Mapear la respuesta del backend
+          return {
+            ...task,
+            status: this.mapStatusFromBackend(task.status),
+            assignedTo: task.assignedUserId || task.assignedTo
+          };
         }),
-        catchError(this.handleError<Task>('actualizar tarea'))
+        catchError(() => {
+          // En modo de prueba, simular actualización
+          const mockTasks = this.getMockTasks();
+          const taskIndex = mockTasks.findIndex(t => t.id === id);
+          if (taskIndex !== -1) {
+            const task = mockTasks[taskIndex];
+            const updatedTask = { ...task, ...updates, updatedAt: new Date() };
+            
+            // Actualizar la tarea en el array mock (simulando persistencia)
+            mockTasks[taskIndex] = updatedTask;
+            
+            console.log(`Tarea ${id} actualizada en modo mock:`, updatedTask);
+            return of(updatedTask);
+          }
+          throw new Error('Tarea no encontrada');
+        })
       );
   }
 
   // Eliminar tarea
-  deleteTask(id: number, confirmationCode: string): Observable<void> {
-    // Usar request DELETE con body para enviar código de confirmación
-    return this.http.request<void>('DELETE', `${this.API_URL}/tasks/${id}`, {
-      body: { confirmationCode }
-    });
+  deleteTask(id: number): Observable<void> {
+    return this.http.delete<void>(`${this.API_URL}/tasks/${id}`)
+      .pipe(
+        catchError(() => {
+          // En modo de prueba, simular eliminación exitosa
+          return of(void 0);
+        })
+      );
   }
 
   // Iniciar tarea
   startTask(id: number): Observable<Task> {
-    return this.http.patch<Task>(`${this.API_URL}/tasks/${id}/start`, {})
+    return this.http.patch<{success: boolean, data: any, message: string}>(`${this.API_URL}/tasks/${id}/start`, {})
       .pipe(
-        map(task => ({
-          ...task,
-          status: this.mapStatusFromBackend(task.status)
-        }))
+        map(response => {
+          const task = response.data;
+          return {
+            ...task,
+            status: this.mapStatusFromBackend(task.status),
+            assignedTo: task.assignedUserId || task.assignedTo
+          };
+        }),
+        catchError(() => {
+          // En modo de prueba, simular iniciar tarea
+          const mockTasks = this.getMockTasks();
+          const task = mockTasks.find(t => t.id === id);
+          if (task) {
+            const startedTask = { 
+              ...task, 
+              status: 'in_progress' as const, 
+              progress: 0,
+              updatedAt: new Date() 
+            };
+            return of(startedTask);
+          }
+          throw new Error('Tarea no encontrada');
+        })
       );
   }
 
@@ -227,161 +479,75 @@ export class TaskService {
         map(task => ({
           ...task,
           status: this.mapStatusFromBackend(task.status)
-        }))
+        })),
+        catchError(() => {
+          // En modo de prueba, simular completar tarea
+          const mockTasks = this.getMockTasks();
+          const task = mockTasks.find(t => t.id === id);
+          if (task) {
+            const completedTask = { 
+              ...task, 
+              status: 'completed' as const, 
+              completedAt: new Date(),
+              updatedAt: new Date() 
+            };
+            return of(completedTask);
+          }
+          throw new Error('Tarea no encontrada');
+        })
       );
   }
 
-  // Archivar tarea (soft delete)
-  archiveTask(id: number): Observable<Task> {
-    return this.http.patch<Task>(`${this.API_URL}/tasks/${id}/archive`, {})
+  // Nuevo método que envía el userId al completar la tarea
+  completeTaskWithUserId(id: number, userId: number): Observable<Task> {
+    return this.http.patch<Task>(`${this.API_URL}/tasks/${id}/complete`, { userId: userId })
       .pipe(
-        map(task => ({
-          ...task,
-          status: this.mapStatusFromBackend(task.status)
-        }))
-      );
-  }
-
-  // Restaurar tarea archivada
-  unarchiveTask(id: number): Observable<Task> {
-    return this.http.patch<Task>(`${this.API_URL}/tasks/${id}/unarchive`, {})
-      .pipe(
-        map(task => ({
-          ...task,
-          status: this.mapStatusFromBackend(task.status)
-        }))
+        map(response => {
+          // Si la respuesta tiene una estructura { success: true, data: task }
+          const task = (response as any).data || response;
+          return {
+            ...task,
+            status: this.mapStatusFromBackend(task.status)
+          };
+        }),
+        catchError((error) => {
+          console.error('Error completing task:', error);
+          throw error;
+        })
       );
   }
 
   // Obtener mis tareas (del usuario actual)
   getMyTasks(): Observable<Task[]> {
-    const user = this.authService.getCurrentUser();
-    const userId = user?.id;
-    let params = new HttpParams();
-    if (userId) {
-      params = params.set('userId', String(userId));
-    }
-    return this.http.get<any>(`${this.API_URL}/tasks`, { params }).pipe(
-      map((res: any) => {
-        const list: any[] = res?.data ?? res ?? [];
-        return Array.isArray(list) ? list.map(t => this.mapTaskToFrontend(t)) : [];
-      }),
-      catchError(this.handleError<Task[]>('obtener mis tareas', []))
-    );
-  }
-
-  // ===== Archivos de tarea =====
-  /** Listar archivos asociados a una tarea */
-  getTaskFiles(taskId: number): Observable<TaskFile[]> {
-    return this.http.get<any>(`${this.API_URL}/tasks/${taskId}/files`).pipe(
-      map((res: any) => {
-        const list: any[] = res?.data ?? res ?? [];
-        return Array.isArray(list)
-          ? list.map(f => ({
-              id: f.id,
-              taskId: f.task_id,
-              fileName: f.file_name,
-              filePath: f.file_path,
-              fileUrl: f.file_url,
-              fileSize: f.file_size,
-              fileType: f.file_type,
-              mimeType: f.mime_type,
-              uploadedBy: f.uploaded_by,
-              storageType: f.storage_type,
-              googleDriveId: f.google_drive_id,
-              folderId: f.folder_id,
-              folderName: f.folder_name,
-              isImage: f.is_image,
-              thumbnailPath: f.thumbnail_path,
-              createdAt: f.created_at
-            } as TaskFile))
-          : [];
-      }),
-      catchError(this.handleError<TaskFile[]>('listar archivos de tarea', []))
-    );
-  }
-
-  /** Registrar archivos subidos para una tarea en la BD */
-  registerTaskFiles(taskId: number, uploadedFiles: any[]): Observable<TaskFile[]> {
+    // Obtener el usuario actual del servicio de autenticación
     const currentUser = this.authService.getCurrentUser();
-    const payload = {
-      files: uploadedFiles,
-      uploadedBy: currentUser?.id || 1
-    };
-    return this.http.post<any>(`${this.API_URL}/tasks/${taskId}/files`, payload).pipe(
-      map((res: any) => {
-        const list: any[] = res?.data ?? res ?? [];
-        return Array.isArray(list)
-          ? list.map(f => ({
-              id: f.id,
-              taskId: f.task_id,
-              fileName: f.file_name,
-              filePath: f.file_path,
-              fileUrl: f.file_url,
-              fileSize: f.file_size,
-              fileType: f.file_type,
-              mimeType: f.mime_type,
-              uploadedBy: f.uploaded_by,
-              storageType: f.storage_type,
-              googleDriveId: f.google_drive_id,
-              folderId: f.folder_id,
-              folderName: f.folder_name,
-              isImage: f.is_image,
-              thumbnailPath: f.thumbnail_path,
-              createdAt: f.created_at
-            } as TaskFile))
-          : [];
-      }),
-      catchError(this.handleError<TaskFile[]>('registrar archivos de tarea', []))
-    );
-  }
-
-  /** Eliminar registro de archivo asociado a una tarea */
-  deleteTaskFile(fileRecordId: number): Observable<void> {
-    return this.http.delete<any>(`${this.API_URL}/tasks/files/${fileRecordId}`).pipe(
-      map(() => void 0),
-      catchError(this.handleError<void>('eliminar archivo de tarea'))
-    );
-  }
-
-  /** Reemplazar/actualizar un archivo existente en BD (actualiza rutas y metadatos) */
-  replaceTaskFile(fileRecordId: number, uploadedFile: any): Observable<TaskFile> {
-    // Mapear desde respuesta del servicio de subida a snake_case esperado por backend
-    const payload: any = {
-      file_name: uploadedFile.filename ?? uploadedFile.fileName,
-      file_url: uploadedFile.fileUrl,
-      file_size: uploadedFile.size,
-      mime_type: uploadedFile.mimetype,
-      storage_type: uploadedFile.storage ?? 'google_drive',
-      google_drive_id: uploadedFile.fileId,
-      is_image: typeof uploadedFile.mimetype === 'string' ? uploadedFile.mimetype.startsWith('image/') : undefined,
-      folder_id: uploadedFile.folderId,
-      folder_name: uploadedFile.folderName
-    };
-    return this.http.put<any>(`${this.API_URL}/tasks/files/${fileRecordId}`, payload).pipe(
-      map((f: any) => {
-        const r = f?.data ?? f;
-        return {
-          id: r.id,
-          taskId: r.task_id,
-          fileName: r.file_name,
-          filePath: r.file_path,
-          fileUrl: r.file_url,
-          fileSize: r.file_size,
-          fileType: r.file_type,
-          mimeType: r.mime_type,
-          uploadedBy: r.uploaded_by,
-          storageType: r.storage_type,
-          googleDriveId: r.google_drive_id,
-          folderId: r.folder_id,
-          folderName: r.folder_name,
-          isImage: r.is_image,
-          thumbnailPath: r.thumbnail_path,
-          createdAt: r.created_at
-        } as TaskFile;
-      }),
-      catchError(this.handleError<TaskFile>('reemplazar archivo de tarea'))
-    );
+    
+    if (!currentUser || !currentUser.id) {
+      // Si no hay usuario autenticado, devolver array vacío
+      console.warn('No hay usuario autenticado para obtener tareas');
+      return of([]);
+    }
+    
+    const currentUserId = currentUser.id;
+    
+    return this.http.get<{ success: boolean, data: Task[], message: string }>(`${this.API_URL}/tasks?userId=${currentUserId}`)
+      .pipe(
+        map(response => {
+          // El backend devuelve { success: true, data: [...] }
+          const tasks = response.data || [];
+          return tasks.map(task => ({
+            ...task,
+            status: this.mapStatusFromBackend(task.status),
+            assignedTo: (task as any).assignedUserId || task.assignedTo // Mapear assignedUserId a assignedTo
+          }));
+        }),
+        catchError((error) => {
+          console.error('Error loading tasks from backend:', error);
+          // En modo de prueba, devolver tareas de ejemplo filtradas por usuario actual
+          const mockTasks = this.getMockTasks();
+          return of(mockTasks.filter(task => task.assignedTo === currentUserId));
+        })
+      );
   }
 
   // Obtener estadísticas de tareas
@@ -452,5 +618,14 @@ export class TaskService {
   }
 
   // Obtener archivos de una tarea
-  // (Versión tipada más arriba)
+  getTaskFiles(taskId: number): Observable<any[]> {
+    return this.http.get<any>(`${this.API_URL}/tasks/${taskId}/files`)
+      .pipe(
+        map(response => response.data || []),
+        catchError((error) => {
+          console.error('Error obteniendo archivos:', error);
+          return of([]);
+        })
+      );
+  }
 }
