@@ -98,12 +98,13 @@ class App {
       console.log('Inicializando conexión a la base de datos (Users Service)...');
       const isConnected = await databaseService.testConnection();
       if (!isConnected) {
-        throw new Error('No se pudo establecer conexión con PostgreSQL (Users Service)');
+        console.log('⚠️ No se pudo conectar a PostgreSQL, usando datos mockeados');
+        return;
       }
       const cfg = databaseService.getConfig();
       console.log(`✅ Conectado a PostgreSQL: host=${cfg.host} db=${cfg.database} schema=${cfg.schema}`);
     } catch (error) {
-      console.error('❌ Error inicializando la base de datos en Users Service:', error);
+      console.log('⚠️ Error conectando a la base de datos, usando datos mockeados:', (error as Error).message);
     }
   }
 

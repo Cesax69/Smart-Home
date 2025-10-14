@@ -10,10 +10,12 @@ import { MatSelectModule } from '@angular/material/select';
 import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatInputModule } from '@angular/material/input';
 import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
+import { MatProgressBarModule } from '@angular/material/progress-bar';
 import { MatMenuModule } from '@angular/material/menu';
 import { MatDialogModule, MatDialog } from '@angular/material/dialog';
 import { MatSnackBar, MatSnackBarModule } from '@angular/material/snack-bar';
 import { MatDividerModule } from '@angular/material/divider';
+import { MatTooltipModule } from '@angular/material/tooltip';
 
 // Imports actualizados para la nueva estructura
 import { TaskService } from '../../../services/task.service';
@@ -38,10 +40,12 @@ import { TaskEditComponent } from '../task-edit/task-edit.component';
     MatFormFieldModule,
     MatInputModule,
     MatProgressSpinnerModule,
+    MatProgressBarModule,
     MatMenuModule,
     MatDialogModule,
     MatSnackBarModule,
-    MatDividerModule
+    MatDividerModule,
+    MatTooltipModule
   ],
   templateUrl: './task-list.component.html',
   styleUrl: './task-list.component.scss'
@@ -70,24 +74,15 @@ export class TaskListComponent implements OnInit {
   private snackBar = inject(MatSnackBar);
 
   ngOnInit(): void {
-    // Auto-login para pruebas si no hay usuario
-    if (!this.authService.getCurrentUser()) {
-      // Para pruebas, alternar entre jefe del hogar y miembro de la familia
-      const loginRole = Math.random() > 0.5 ? 'head_of_household' : 'family_member';
-      this.authService.loginByRole(loginRole).subscribe({
-        next: (user) => {
-          this.currentUser.set(user);
-          this.loadTasks();
-          this.loadFamilyMembers();
-        },
-        error: (error) => {
-          console.error('Error en auto-login:', error);
-        }
-      });
-    } else {
-      this.currentUser.set(this.authService.getCurrentUser());
+    // Verificar si hay usuario autenticado
+    const currentUser = this.authService.getCurrentUser();
+    if (currentUser) {
+      this.currentUser.set(currentUser);
       this.loadTasks();
       this.loadFamilyMembers();
+    } else {
+      console.warn('No hay usuario autenticado en task-list');
+      this.isLoading.set(false);
     }
   }
 
@@ -110,7 +105,20 @@ export class TaskListComponent implements OnInit {
 
   loadTasks(): void {
     this.isLoading.set(true);
-    this.taskService.getTasks().subscribe({
+    
+    // Obtener el usuario actual
+    const currentUser = this.authService.getCurrentUser();
+    
+    if (!currentUser || !currentUser.id) {
+      console.warn('No hay usuario autenticado para cargar tareas');
+      this.tasks.set([]);
+      this.applyFilters();
+      this.isLoading.set(false);
+      return;
+    }
+    
+    // Filtrar tareas por el usuario actual
+    this.taskService.getTasks({ userId: currentUser.id }).subscribe({
       next: (response: any) => {
         this.tasks.set(response.tasks);
         this.applyFilters();
@@ -298,8 +306,15 @@ export class TaskListComponent implements OnInit {
 
     dialogRef.afterClosed().subscribe(result => {
       if (result) {
-        this.taskService.completeTask(task.id).subscribe({
-          next: (updatedTask: any) => {
+        const currentUser = this.currentUser();
+        if (!currentUser || !currentUser.id) {
+          this.snackBar.open('Error: Usuario no autenticado', 'Cerrar', { duration: 3000 });
+          return;
+        }
+
+        this.taskService.completeTaskWithUserId(task.id, currentUser.id).subscribe({
+          next: (updatedTask: Task) => {
+            console.log('Task completed successfully:', updatedTask);
             const tasks = this.tasks();
             const index = tasks.findIndex(t => t.id === task.id);
             if (index !== -1) {
@@ -452,5 +467,44 @@ export class TaskListComponent implements OnInit {
     };
     
     input.click();
+  }
+
+  // Método para actualizar el progreso de una tarea
+  updateProgress(task: Task, increment: number): void {
+    const currentProgress = task.progress ?? 0; // Usar 0 si progress es undefined
+    const newProgress = Math.max(0, Math.min(100, currentProgress + increment));
+    
+    const updatedTask = { ...task, progress: newProgress };
+    
+    // Si el progreso llega a 100%, marcar como completada
+    if (newProgress === 100) {
+      updatedTask.status = 'completed';
+      updatedTask.completedAt = new Date();
+    }
+
+    // Actualizar inmediatamente la tarea en el signal local
+    const currentTasks = this.tasks();
+    const updatedTasks = currentTasks.map(t => 
+      t.id === task.id ? { ...t, progress: newProgress, status: updatedTask.status, completedAt: updatedTask.completedAt } : t
+    );
+    this.tasks.set(updatedTasks);
+    this.applyFilters(); // Aplicar filtros para actualizar filteredTasks
+
+    this.taskService.updateTask(task.id, updatedTask).subscribe({
+      next: () => {
+        this.snackBar.open(`Progreso actualizado a ${newProgress}%`, 'Cerrar', {
+          duration: 2000
+        });
+        // No necesitamos recargar todas las tareas ya que actualizamos localmente
+      },
+      error: (error) => {
+        console.error('Error updating progress:', error);
+        this.snackBar.open('Error al actualizar el progreso', 'Cerrar', {
+          duration: 3000
+        });
+        // En caso de error, recargar para sincronizar
+        this.loadTasks();
+      }
+    });
   }
 }

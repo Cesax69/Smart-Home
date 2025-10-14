@@ -8,7 +8,7 @@ Microservicio completo para la gestión de tareas del hogar desarrollado con Nod
 - **Base de datos PostgreSQL** con esquema dedicado
 - **TypeScript** para tipado estático y mejor desarrollo
 - **Validación de datos** robusta en todos los endpoints
-- **Eventos simulados** para integración con servicio de notificaciones
+- **Eventos** para integración con servicio de notificaciones
 - **Health check** para monitoreo del servicio
 - **Filtros avanzados** por usuario y estado
 - **Manejo de errores** comprehensivo

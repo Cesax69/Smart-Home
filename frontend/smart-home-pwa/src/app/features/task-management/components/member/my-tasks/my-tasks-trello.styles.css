@@ -1,0 +1,491 @@
+/* Estilos modernos para el tablero estilo Trello */
+
+.trello-board {
+  min-height: 100vh;
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  padding: 20px;
+  font-family: 'Roboto', sans-serif;
+}
+
+/* Header del tablero */
+.board-header {
+  background: rgba(255, 255, 255, 0.95);
+  border-radius: 16px;
+  padding: 24px;
+  margin-bottom: 24px;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
+  backdrop-filter: blur(10px);
+}
+
+.header-content {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 20px;
+}
+
+.board-title {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin: 0;
+  font-size: 2rem;
+  font-weight: 700;
+  color: #2d3748;
+  text-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+}
+
+.title-icon {
+  font-size: 2.5rem !important;
+  color: #667eea;
+}
+
+.board-stats {
+  display: flex;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+
+.stat-card {
+  background: linear-gradient(135deg, #f7fafc 0%, #edf2f7 100%);
+  border-radius: 12px;
+  padding: 16px 20px;
+  text-align: center;
+  min-width: 100px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+
+.stat-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.1);
+}
+
+.stat-card.pending {
+  border-left: 4px solid #ed8936;
+}
+
+.stat-card.in-progress {
+  border-left: 4px solid #3182ce;
+}
+
+.stat-card.completed {
+  border-left: 4px solid #38a169;
+}
+
+.stat-number {
+  display: block;
+  font-size: 2rem;
+  font-weight: 700;
+  color: #2d3748;
+}
+
+.stat-label {
+  font-size: 0.875rem;
+  color: #718096;
+  font-weight: 500;
+}
+
+.refresh-btn {
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%) !important;
+  box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4);
+}
+
+/* Sección de filtros */
+.filters-section {
+  background: rgba(255, 255, 255, 0.95);
+  border-radius: 16px;
+  padding: 20px;
+  margin-bottom: 24px;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.08);
+  backdrop-filter: blur(10px);
+}
+
+.search-container {
+  display: flex;
+  gap: 16px;
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+.search-field {
+  flex: 2;
+  min-width: 250px;
+}
+
+.filter-field {
+  flex: 1;
+  min-width: 150px;
+}
+
+.clear-filters-btn {
+  white-space: nowrap;
+  border-color: #e2e8f0 !important;
+  color: #718096 !important;
+}
+
+.clear-filters-btn:hover {
+  background-color: #f7fafc !important;
+  border-color: #cbd5e0 !important;
+}
+
+/* Tablero Kanban */
+.kanban-board {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(350px, 1fr));
+  gap: 24px;
+  align-items: start;
+}
+
+.kanban-column {
+  background: rgba(255, 255, 255, 0.95);
+  border-radius: 16px;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
+  backdrop-filter: blur(10px);
+  overflow: hidden;
+  min-height: 500px;
+}
+
+.pending-column {
+  border-top: 4px solid #ed8936;
+}
+
+.in-progress-column {
+  border-top: 4px solid #3182ce;
+}
+
+.completed-column {
+  border-top: 4px solid #38a169;
+}
+
+.column-header {
+  padding: 20px;
+  background: linear-gradient(135deg, #f7fafc 0%, #edf2f7 100%);
+  border-bottom: 1px solid #e2e8f0;
+}
+
+.column-title {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  font-size: 1.25rem;
+  font-weight: 600;
+  color: #2d3748;
+}
+
+.column-icon {
+  font-size: 1.5rem !important;
+}
+
+.task-count {
+  background: #667eea;
+  color: white;
+  border-radius: 50%;
+  width: 28px;
+  height: 28px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.875rem;
+  font-weight: 600;
+  margin-left: auto;
+}
+
+.column-content {
+  padding: 16px;
+  min-height: 400px;
+  max-height: 70vh;
+  overflow-y: auto;
+}
+
+/* Tarjetas de tareas */
+.task-card {
+  background: white;
+  border-radius: 12px;
+  padding: 16px;
+  margin-bottom: 12px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+  cursor: pointer;
+  transition: all 0.3s ease;
+  border-left: 4px solid transparent;
+  position: relative;
+  overflow: hidden;
+}
+
+.task-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.15);
+}
+
+.task-card.working {
+  border-left-color: #3182ce;
+  background: linear-gradient(135deg, #ffffff 0%, #f0f8ff 100%);
+}
+
+.task-card.completed {
+  border-left-color: #38a169;
+  background: linear-gradient(135deg, #ffffff 0%, #f0fff4 100%);
+  opacity: 0.9;
+}
+
+.task-card.overdue {
+  border-left-color: #e53e3e;
+  background: linear-gradient(135deg, #ffffff 0%, #fff5f5 100%);
+}
+
+.task-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 12px;
+}
+
+.task-priority {
+  font-size: 1.2rem;
+}
+
+.task-category {
+  font-size: 1.5rem;
+}
+
+.working-indicator .pulse {
+  animation: pulse 2s infinite;
+  color: #3182ce;
+}
+
+.completed-indicator .success {
+  color: #38a169;
+}
+
+@keyframes pulse {
+  0% { opacity: 1; }
+  50% { opacity: 0.5; }
+  100% { opacity: 1; }
+}
+
+.task-title {
+  font-size: 1.1rem;
+  font-weight: 600;
+  color: #2d3748;
+  margin: 0 0 8px 0;
+  line-height: 1.4;
+}
+
+.task-description {
+  font-size: 0.875rem;
+  color: #718096;
+  line-height: 1.5;
+  margin: 0 0 12px 0;
+}
+
+.progress-section {
+  margin: 12px 0;
+}
+
+.progress-label {
+  font-size: 0.75rem;
+  color: #4a5568;
+  margin-bottom: 4px;
+  font-weight: 500;
+}
+
+.progress-controls {
+  display: flex;
+  justify-content: center;
+  gap: 8px;
+  margin-top: 8px;
+}
+
+.progress-controls button {
+  width: 32px;
+  height: 32px;
+  min-width: 32px;
+}
+
+.progress-controls button mat-icon {
+  font-size: 18px;
+  width: 18px;
+  height: 18px;
+}
+
+.task-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-top: 12px;
+}
+
+.due-date, .completed-date {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 0.75rem;
+  color: #718096;
+  font-weight: 500;
+}
+
+.due-date.overdue {
+  color: #e53e3e;
+  font-weight: 600;
+}
+
+.due-date mat-icon, .completed-date mat-icon {
+  font-size: 1rem !important;
+  width: 1rem !important;
+  height: 1rem !important;
+}
+
+.task-actions {
+  display: flex;
+  gap: 4px;
+}
+
+.task-actions button {
+  width: 32px !important;
+  height: 32px !important;
+  line-height: 32px !important;
+}
+
+.task-actions mat-icon {
+  font-size: 1.2rem !important;
+}
+
+/* Estados vacíos */
+.empty-column {
+  text-align: center;
+  padding: 40px 20px;
+  color: #a0aec0;
+}
+
+.empty-icon {
+  font-size: 3rem !important;
+  margin-bottom: 12px;
+  opacity: 0.6;
+}
+
+.empty-column p {
+  margin: 0;
+  font-size: 0.875rem;
+  font-style: italic;
+}
+
+/* Loading overlay */
+.loading-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(255, 255, 255, 0.9);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+  backdrop-filter: blur(5px);
+}
+
+.loading-overlay p {
+  margin-top: 16px;
+  color: #4a5568;
+  font-weight: 500;
+}
+
+/* Drag & Drop */
+.cdk-drag-preview {
+  box-sizing: border-box;
+  border-radius: 12px;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.2);
+  transform: rotate(5deg);
+}
+
+.cdk-drag-placeholder {
+  opacity: 0.3;
+  border: 2px dashed #cbd5e0;
+  background: transparent;
+}
+
+.cdk-drag-animating {
+  transition: transform 250ms cubic-bezier(0, 0, 0.2, 1);
+}
+
+.cdk-drop-list-dragging .task-card:not(.cdk-drag-placeholder) {
+  transition: transform 250ms cubic-bezier(0, 0, 0.2, 1);
+}
+
+/* Responsive */
+@media (max-width: 768px) {
+  .trello-board {
+    padding: 12px;
+  }
+  
+  .board-header {
+    padding: 16px;
+  }
+  
+  .header-content {
+    flex-direction: column;
+    text-align: center;
+  }
+  
+  .board-stats {
+    justify-content: center;
+  }
+  
+  .search-container {
+    flex-direction: column;
+  }
+  
+  .search-field, .filter-field {
+    width: 100%;
+    min-width: unset;
+  }
+  
+  .kanban-board {
+    grid-template-columns: 1fr;
+    gap: 16px;
+  }
+  
+  .kanban-column {
+    min-height: 300px;
+  }
+  
+  .column-content {
+    max-height: 50vh;
+  }
+}
+
+/* Animaciones adicionales */
+@keyframes slideInUp {
+  from {
+    opacity: 0;
+    transform: translateY(30px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.task-card {
+  animation: slideInUp 0.3s ease-out;
+}
+
+/* Mejoras de accesibilidad */
+.task-card:focus {
+  outline: 2px solid #667eea;
+  outline-offset: 2px;
+}
+
+button:focus {
+  outline: 2px solid #667eea;
+  outline-offset: 2px;
+}
+
+/* Tooltips personalizados */
+.mat-tooltip {
+  background: #2d3748 !important;
+  color: white !important;
+  font-size: 0.75rem !important;
+}

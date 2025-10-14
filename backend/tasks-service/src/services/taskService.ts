@@ -25,6 +25,8 @@ export class TaskService {
         return 'mascotas';
       case 'compras':
         return 'compras';
+      case 'educacion':
+        return 'otros'; // Mapear educacion a otros
       default:
         return 'otros';
     }
@@ -65,9 +67,11 @@ export class TaskService {
   /**
    * Publica un evento real al servicio de notificaciones
    */
-  private async publishEvent(eventType: string, taskData: Task) {
+  private async publishEvent(eventType: string, taskData: Task, userId?: number) {
     try {
-      console.log(`EVENTO PUBLICADO: ${eventType}, UsuarioID: ${taskData.assignedUserId}, TareaID: ${taskData.id}, Título: ${taskData.title}`);
+      // Usar el userId proporcionado o el assignedUserId como fallback
+      const notificationUserId = userId || taskData.assignedUserId;
+      console.log(`EVENTO PUBLICADO: ${eventType}, UsuarioID: ${notificationUserId}, TareaID: ${taskData.id}, Título: ${taskData.title}`);
       
       // Mapear tipos de eventos a tipos de notificación
       let notificationType: string;
@@ -87,7 +91,7 @@ export class TaskService {
 
       // Preparar datos para el webhook de notificaciones
       const notificationPayload = {
-        userId: taskData.assignedUserId,
+        userId: notificationUserId,
         type: notificationType,
         priority: taskData.priority === 'urgente' ? 'alta' : taskData.priority === 'alta' ? 'media' : 'baja',
         taskData: {
@@ -105,7 +109,7 @@ export class TaskService {
       };
 
       // Enviar notificación al notifications-service
-      const notificationServiceUrl = process.env.NOTIFICATIONS_SERVICE_URL || 'http://localhost:3004';
+      const notificationServiceUrl = process.env.NOTIFICATIONS_SERVICE_URL || 'http://localhost:3003';
       const response = await fetch(`${notificationServiceUrl}/notify/family`, {
         method: 'POST',
         headers: {
@@ -130,7 +134,11 @@ export class TaskService {
    * Convierte un registro de base de datos a objeto Task
    */
   private mapDatabaseTaskToTask(dbTask: DatabaseTask): Task {
-    return {
+    // LOGS DE DEPURACIÓN USANDO console.log para mayor visibilidad
+    console.log('=== MAPEO PROGRESS ===');
+    console.log('dbTask.progress:', dbTask.progress, 'Type:', typeof dbTask.progress);
+    
+    const mappedTask = {
       id: dbTask.id,
       title: dbTask.title,
       description: dbTask.description,
@@ -151,8 +159,12 @@ export class TaskService {
       completedAt: dbTask.completed_at,
       createdAt: dbTask.created_at,
       updatedAt: dbTask.updated_at,
-      progress: dbTask.progress || 0
+      progress: dbTask.progress !== null && dbTask.progress !== undefined ? dbTask.progress : 0
     };
+    
+    console.log('mappedTask.progress:', mappedTask.progress);
+    console.log('=== FIN MAPEO ===');
+    return mappedTask;
   }
 
   /**
@@ -222,7 +234,7 @@ export class TaskService {
         const insertTaskQuery = `
           INSERT INTO public.tasks (user_id, title, description, status, priority, category, due_date)
           VALUES ($1, $2, $3, $4, $5, $6, $7)
-          RETURNING id, user_id AS created_by_id, title, description, category, priority, status, due_date, completed_at, created_at, updated_at
+          RETURNING id, user_id AS created_by_id, title, description, category, priority, status, due_date, completed_at, created_at, updated_at, progress
         `;
         const insertTaskParams = [
           taskData.createdById,
@@ -263,7 +275,8 @@ export class TaskService {
           file_url: taskData.fileUrl,
           completed_at: t.completed_at,
           created_at: t.created_at,
-          updated_at: t.updated_at
+          updated_at: t.updated_at,
+          progress: t.progress || 0
         } as any;
 
         const newTask = this.mapDatabaseTaskToTask(dbTask);
@@ -298,6 +311,7 @@ export class TaskService {
             t.completed_at,
             t.created_at,
             t.updated_at,
+            t.progress,
             (
               SELECT ta.user_id 
               FROM public.task_assignments ta 
@@ -370,6 +384,7 @@ export class TaskService {
             t.completed_at,
             t.created_at,
             t.updated_at,
+            t.progress,
             (
               SELECT ta.user_id 
               FROM public.task_assignments ta 
@@ -430,6 +445,7 @@ export class TaskService {
             t.completed_at,
             t.created_at,
             t.updated_at,
+            t.progress,
             (
               SELECT ta.user_id 
               FROM public.task_assignments ta 
@@ -545,6 +561,7 @@ export class TaskService {
             t.completed_at,
             t.created_at,
             t.updated_at,
+            t.progress,
             (
               SELECT ta.user_id 
               FROM public.task_assignments ta 
@@ -569,7 +586,20 @@ export class TaskService {
         `;
         const { rows } = await client.query(query, [id]);
         if (!rows.length) return null;
-        return this.mapDatabaseTaskToTask(rows[0] as DatabaseTask);
+        
+        // LOGS DE DEPURACIÓN USANDO console.log para mayor visibilidad
+        console.log('=== DEPURACIÓN PROGRESS ===');
+        console.log('Task ID:', id);
+        console.log('Raw progress from DB:', rows[0].progress);
+        console.log('Progress type:', typeof rows[0].progress);
+        console.log('Raw row data:', JSON.stringify(rows[0], null, 2));
+        
+        const mappedTask = this.mapDatabaseTaskToTask(rows[0] as DatabaseTask);
+        
+        console.log('Mapped task progress:', mappedTask.progress);
+        console.log('=== FIN DEPURACIÓN ===');
+        
+        return mappedTask;
       } finally {
         client.release();
       }
@@ -620,6 +650,15 @@ export class TaskService {
         const updateQuery = `UPDATE public.tasks SET ${fields.join(', ')} WHERE id = $${idx} RETURNING id, user_id AS created_by_id, title, description, category, priority, status, due_date, completed_at, created_at, updated_at, progress`;
         params.push(id);
 
+        // LOGS DE DEPURACIÓN PARA EL PROGRESO
+        console.log('=== DEPURACIÓN UPDATE TASK ===');
+        console.log('Task ID:', id);
+        console.log('Update data received:', JSON.stringify(updateData, null, 2));
+        console.log('Fields to update:', fields);
+        console.log('Parameters:', params);
+        console.log('Update query:', updateQuery);
+        console.log('=== FIN DEPURACIÓN UPDATE ===');
+
         const { rows } = await client.query(updateQuery, params);
         if (!rows.length) return null;
 
@@ -660,11 +699,15 @@ export class TaskService {
           completed_at: rows[0].completed_at,
           created_at: rows[0].created_at,
           updated_at: rows[0].updated_at,
-          progress: rows[0].progress || updateData.progress || 0
+          progress: rows[0].progress !== null && rows[0].progress !== undefined ? rows[0].progress : 0
         } as any;
 
         const updatedTask = this.mapDatabaseTaskToTask(dbTask);
-        await this.publishEvent('TareaActualizada', updatedTask);
+        
+        // Pasar el userId del request body para las notificaciones
+        const notificationUserId = (updateData as any).userId;
+        await this.publishEvent('TareaActualizada', updatedTask, notificationUserId);
+        
         return updatedTask;
       } finally {
         client.release();
@@ -685,7 +728,7 @@ export class TaskService {
       }
       const client = await databaseService.getConnection();
       try {
-        const { rows } = await client.query(`SELECT id, user_id AS created_by_id, title, description, category, priority, status, due_date, completed_at, created_at, updated_at FROM public.tasks WHERE id = $1`, [id]);
+        const { rows } = await client.query(`SELECT id, user_id AS created_by_id, title, description, category, priority, status, due_date, completed_at, created_at, updated_at, progress FROM public.tasks WHERE id = $1`, [id]);
         if (!rows.length) return false;
         const dbTaskBefore: DatabaseTask = rows[0] as any;
         await client.query(`DELETE FROM public.tasks WHERE id = $1`, [id]);
@@ -728,9 +771,8 @@ export class TaskService {
             tf.is_image, 
             tf.thumbnail_path, 
             tf.created_at,
-            COALESCE(u.first_name || ' ' || u.last_name, 'Usuario') as uploaded_by_name
+            'Usuario' as uploaded_by_name
           FROM public.task_files tf
-          LEFT JOIN users_db.users u ON tf.uploaded_by = u.id
           WHERE tf.task_id = $1
           ORDER BY tf.created_at DESC
         `, [taskId]);
@@ -1053,6 +1095,7 @@ export class TaskService {
             t.completed_at,
             t.created_at,
             t.updated_at,
+            t.progress,
             (
               SELECT ta.user_id 
               FROM public.task_assignments ta 

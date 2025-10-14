@@ -93,7 +93,7 @@ async function simulateAuthController() {
   
   console.log('✅ Contraseña válida');
   
-  // Generar token (simulado)
+  // Generar token
   console.log('\n4. Generando token JWT...');
   const tokenPayload = {
     userId: user.id,

@@ -5,6 +5,7 @@
 export type NotificationType = 
   | 'tarea_asignada'
   | 'tarea_completada'
+  | 'tarea_actualizada'
   | 'recordatorio_tarea'
   | 'tarea_vencida'
   | 'felicitacion'
@@ -39,6 +40,8 @@ export interface TaskNotificationData {
   assignedMemberName?: string;
   assignedTo?: string; // Compatibilidad con tasks-service
   createdByName?: string;
+  completedByName?: string; // Nombre del miembro que completó la tarea
+  completedByUserName?: string; // Alias para compatibilidad
   dueDate?: Date | string;
   priority?: string;
   reward?: string;
@@ -61,6 +64,7 @@ export interface NotificationResponse {
   notificationType: NotificationType;
   messageLength: number;
   deliveryMethod: 'whatsapp' | 'sms' | 'email';
+  householdHeads?: FamilyMember[];
 }
 
 export interface NotificationTemplate {

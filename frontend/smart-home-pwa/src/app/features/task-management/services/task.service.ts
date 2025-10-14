@@ -61,6 +61,7 @@ export class TaskService {
         id: 1,
         title: 'Limpiar la cocina',
         description: 'Lavar los platos, limpiar las superficies y organizar los utensilios de cocina.',
+        category: 'cocina',
         status: 'pending',
         priority: 'high',
         assignedTo: 1, // Jefe del hogar
@@ -73,6 +74,7 @@ export class TaskService {
         id: 2,
         title: 'Sacar la basura',
         description: 'Recoger la basura de todas las habitaciones y sacarla al contenedor.',
+        category: 'limpieza',
         status: 'pending',
         priority: 'medium',
         assignedTo: 2, // Miembro de la familia
@@ -85,6 +87,7 @@ export class TaskService {
         id: 3,
         title: 'Aspirar la sala',
         description: 'Aspirar toda la sala de estar, incluyendo debajo de los muebles.',
+        category: 'limpieza',
         status: 'in_progress',
         priority: 'medium',
         assignedTo: 1, // Jefe del hogar
@@ -97,6 +100,7 @@ export class TaskService {
         id: 4,
         title: 'Lavar la ropa',
         description: 'Separar, lavar, secar y doblar toda la ropa de la familia.',
+        category: 'lavanderia',
         status: 'in_progress',
         priority: 'low',
         assignedTo: 2, // Miembro de la familia
@@ -109,6 +113,7 @@ export class TaskService {
         id: 5,
         title: 'Organizar el garaje',
         description: 'Clasificar y organizar todas las herramientas y objetos del garaje.',
+        category: 'mantenimiento',
         status: 'completed',
         priority: 'low',
         assignedTo: 1, // Jefe del hogar
@@ -122,6 +127,7 @@ export class TaskService {
         id: 6,
         title: 'Regar las plantas',
         description: 'Regar todas las plantas del jardín y las macetas de interior.',
+        category: 'jardin',
         status: 'completed',
         priority: 'medium',
         assignedTo: 2, // Miembro de la familia
@@ -136,6 +142,7 @@ export class TaskService {
         id: 7,
         title: 'Limpiar ventanas',
         description: 'Limpiar todas las ventanas de la casa por dentro y por fuera.',
+        category: 'limpieza',
         status: 'pending',
         priority: 'high',
         assignedTo: 1, // Jefe del hogar
@@ -148,6 +155,7 @@ export class TaskService {
         id: 8,
         title: 'Preparar cena especial',
         description: 'Planificar y preparar una cena especial para la familia el fin de semana.',
+        category: 'cocina',
         status: 'pending',
         priority: 'medium',
         assignedTo: 2, // Miembro de la familia
@@ -160,6 +168,7 @@ export class TaskService {
         id: 9,
         title: 'Revisar sistema eléctrico',
         description: 'Inspeccionar y revisar el sistema eléctrico de la casa por seguridad.',
+        category: 'mantenimiento',
         status: 'in_progress',
         priority: 'high',
         assignedTo: 1, // Jefe del hogar
@@ -172,6 +181,7 @@ export class TaskService {
         id: 10,
         title: 'Comprar víveres',
         description: 'Hacer la compra semanal de alimentos y productos de limpieza.',
+        category: 'cocina',
         status: 'pending',
         priority: 'high',
         assignedTo: 2, // Miembro de la familia
@@ -179,6 +189,60 @@ export class TaskService {
         createdAt: new Date(currentDate),
         updatedAt: new Date(currentDate),
         dueDate: new Date(tomorrow)
+      },
+      // Tareas específicas para César Garay (ID: 3)
+      {
+        id: 11,
+        title: 'Limpiar el baño principal',
+        description: 'Limpiar a fondo el baño principal, incluyendo azulejos, espejo y sanitarios.',
+        category: 'limpieza',
+        status: 'pending',
+        priority: 'high',
+        assignedTo: 3, // César Garay
+        assignedBy: 1,
+        createdAt: new Date(currentDate),
+        updatedAt: new Date(currentDate),
+        dueDate: new Date(tomorrow)
+      },
+      {
+        id: 12,
+        title: 'Ordenar su habitación',
+        description: 'Organizar la ropa, hacer la cama y mantener el espacio ordenado.',
+        category: 'organizacion',
+        status: 'in_progress',
+        priority: 'medium',
+        assignedTo: 3, // César Garay
+        assignedBy: 1,
+        createdAt: new Date(lastWeek),
+        updatedAt: new Date(currentDate),
+        dueDate: new Date(nextWeek)
+      },
+      {
+        id: 13,
+        title: 'Pasear al perro',
+        description: 'Sacar al perro a pasear por la mañana y por la tarde.',
+        category: 'mascotas',
+        status: 'pending',
+        priority: 'medium',
+        assignedTo: 3, // César Garay
+        assignedBy: 1,
+        createdAt: new Date(currentDate),
+        updatedAt: new Date(currentDate),
+        dueDate: new Date(currentDate)
+      },
+      {
+        id: 14,
+        title: 'Estudiar para el examen',
+        description: 'Dedicar 2 horas al estudio para el próximo examen de matemáticas.',
+        category: 'otros',
+        status: 'completed',
+        priority: 'high',
+        assignedTo: 3, // César Garay
+        assignedBy: 1,
+        createdAt: new Date(lastWeek),
+        updatedAt: new Date(currentDate),
+        completedAt: new Date(currentDate),
+        dueDate: new Date(currentDate)
       }
     ];
   }
@@ -206,31 +270,47 @@ export class TaskService {
       });
     }
 
-    return this.http.get<{ tasks: Task[], total: number }>(`${this.API_URL}/tasks`, { params })
+    return this.http.get<{ success: boolean, data: Task[], message: string, total?: number }>(`${this.API_URL}/tasks`, { params })
       .pipe(
-        map(response => ({
-          tasks: response.tasks.map(task => ({
-            ...task,
-            status: this.mapStatusFromBackend(task.status)
-          })),
-          total: response.total
-        })),
+        map(response => {
+          // El backend devuelve { success: true, data: [...] }
+          const tasks = response.data || [];
+          return {
+            tasks: tasks.map(task => ({
+              ...task,
+              status: this.mapStatusFromBackend(task.status),
+              assignedTo: (task as any).assignedUserId || task.assignedTo // Mapear assignedUserId a assignedTo
+            })),
+            total: response.total || tasks.length
+          };
+        }),
         catchError(() => {
-          // Si falla la conexión, devolver datos de prueba
+          // Si falla la conexión, devolver datos de prueba filtrados por usuario
           const mockTasks = this.getMockTasks();
-          return of({ tasks: mockTasks, total: mockTasks.length });
+          let filteredTasks = mockTasks;
+          
+          // Aplicar filtro por userId si se especifica
+          if (filters?.userId) {
+            filteredTasks = mockTasks.filter(task => task.assignedTo === filters.userId);
+          }
+          
+          return of({ tasks: filteredTasks, total: filteredTasks.length });
         })
       );
   }
 
   // Obtener tarea por ID
   getTaskById(id: number): Observable<Task> {
-    return this.http.get<Task>(`${this.API_URL}/tasks/${id}`)
+    return this.http.get<{ success: boolean, data: Task, message: string }>(`${this.API_URL}/tasks/${id}`)
       .pipe(
-        map(task => ({
-          ...task,
-          status: this.mapStatusFromBackend(task.status)
-        })),
+        map(response => {
+          const task = response.data;
+          return {
+            ...task,
+            status: this.mapStatusFromBackend(task.status),
+            assignedTo: (task as any).assignedUserId || task.assignedTo // Mapear assignedUserId a assignedTo
+          };
+        }),
         catchError(() => {
           // Si falla la conexión, buscar en datos de prueba
           const mockTasks = this.getMockTasks();
@@ -271,6 +351,7 @@ export class TaskService {
             id: Math.floor(Math.random() * 1000) + 100,
             title: task.title,
             description: task.description,
+            category: 'limpieza', // Categoría por defecto
             status: 'pending',
             priority: this.mapPriorityFromBackend(task.priority),
             assignedTo: task.assignedUserId,
@@ -314,14 +395,35 @@ export class TaskService {
       backendUpdates.status = this.mapStatusToBackend(updates.status) as any;
     }
 
-    return this.http.put<Task>(`${this.API_URL}/tasks/${id}`, backendUpdates)
+    // Agregar el userId del usuario actual para las notificaciones
+    const currentUser = this.authService.getCurrentUser();
+    if (currentUser && currentUser.id) {
+      (backendUpdates as any).userId = currentUser.id;
+    }
+
+    return this.http.put<{success: boolean, data: any, message: string}>(`${this.API_URL}/tasks/${id}`, backendUpdates)
       .pipe(
+        map(response => {
+          const task = response.data;
+          // Mapear la respuesta del backend
+          return {
+            ...task,
+            status: this.mapStatusFromBackend(task.status),
+            assignedTo: task.assignedUserId || task.assignedTo
+          };
+        }),
         catchError(() => {
           // En modo de prueba, simular actualización
           const mockTasks = this.getMockTasks();
-          const task = mockTasks.find(t => t.id === id);
-          if (task) {
+          const taskIndex = mockTasks.findIndex(t => t.id === id);
+          if (taskIndex !== -1) {
+            const task = mockTasks[taskIndex];
             const updatedTask = { ...task, ...updates, updatedAt: new Date() };
+            
+            // Actualizar la tarea en el array mock (simulando persistencia)
+            mockTasks[taskIndex] = updatedTask;
+            
+            console.log(`Tarea ${id} actualizada en modo mock:`, updatedTask);
             return of(updatedTask);
           }
           throw new Error('Tarea no encontrada');
@@ -342,12 +444,16 @@ export class TaskService {
 
   // Iniciar tarea
   startTask(id: number): Observable<Task> {
-    return this.http.patch<Task>(`${this.API_URL}/tasks/${id}/start`, {})
+    return this.http.patch<{success: boolean, data: any, message: string}>(`${this.API_URL}/tasks/${id}/start`, {})
       .pipe(
-        map(task => ({
-          ...task,
-          status: this.mapStatusFromBackend(task.status)
-        })),
+        map(response => {
+          const task = response.data;
+          return {
+            ...task,
+            status: this.mapStatusFromBackend(task.status),
+            assignedTo: task.assignedUserId || task.assignedTo
+          };
+        }),
         catchError(() => {
           // En modo de prueba, simular iniciar tarea
           const mockTasks = this.getMockTasks();
@@ -392,20 +498,54 @@ export class TaskService {
       );
   }
 
+  // Nuevo método que envía el userId al completar la tarea
+  completeTaskWithUserId(id: number, userId: number): Observable<Task> {
+    return this.http.patch<Task>(`${this.API_URL}/tasks/${id}/complete`, { userId: userId })
+      .pipe(
+        map(response => {
+          // Si la respuesta tiene una estructura { success: true, data: task }
+          const task = (response as any).data || response;
+          return {
+            ...task,
+            status: this.mapStatusFromBackend(task.status)
+          };
+        }),
+        catchError((error) => {
+          console.error('Error completing task:', error);
+          throw error;
+        })
+      );
+  }
+
   // Obtener mis tareas (del usuario actual)
   getMyTasks(): Observable<Task[]> {
-    // Usar el endpoint con filtro de usuario
-    const currentUserId = 1; // TODO: Obtener del servicio de autenticación
-    return this.http.get<{ tasks: Task[], total: number }>(`${this.API_URL}/tasks?userId=${currentUserId}`)
+    // Obtener el usuario actual del servicio de autenticación
+    const currentUser = this.authService.getCurrentUser();
+    
+    if (!currentUser || !currentUser.id) {
+      // Si no hay usuario autenticado, devolver array vacío
+      console.warn('No hay usuario autenticado para obtener tareas');
+      return of([]);
+    }
+    
+    const currentUserId = currentUser.id;
+    
+    return this.http.get<{ success: boolean, data: Task[], message: string }>(`${this.API_URL}/tasks?userId=${currentUserId}`)
       .pipe(
-        map(response => response.tasks.map(task => ({
-          ...task,
-          status: this.mapStatusFromBackend(task.status)
-        }))),
-        catchError(() => {
-          // En modo de prueba, devolver tareas de ejemplo
+        map(response => {
+          // El backend devuelve { success: true, data: [...] }
+          const tasks = response.data || [];
+          return tasks.map(task => ({
+            ...task,
+            status: this.mapStatusFromBackend(task.status),
+            assignedTo: (task as any).assignedUserId || task.assignedTo // Mapear assignedUserId a assignedTo
+          }));
+        }),
+        catchError((error) => {
+          console.error('Error loading tasks from backend:', error);
+          // En modo de prueba, devolver tareas de ejemplo filtradas por usuario actual
           const mockTasks = this.getMockTasks();
-          return of(mockTasks.filter(task => task.assignedTo === 1)); // Simular usuario actual
+          return of(mockTasks.filter(task => task.assignedTo === currentUserId));
         })
       );
   }

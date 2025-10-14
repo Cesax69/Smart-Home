@@ -113,10 +113,34 @@
                       color="accent"
                       class="quick-button"
                       [disabled]="isLoading()"
+                      (click)="quickLoginUser('zahir_rodriguez', 'member')">
+                <mat-icon>person</mat-icon>
+                <div class="button-text">
+                  <span class="role-title">Zahir Rodriguez</span>
+                  <span class="role-subtitle">zahir_rodriguez / member</span>
+                </div>
+              </button>
+
+              <button mat-stroked-button 
+                      color="accent"
+                      class="quick-button"
+                      [disabled]="isLoading()"
+                      (click)="quickLoginUser('cesar_garay', 'member')">
+                <mat-icon>person</mat-icon>
+                <div class="button-text">
+                  <span class="role-title">Cesar Garay</span>
+                  <span class="role-subtitle">cesar_garay / member</span>
+                </div>
+              </button>
+
+              <button mat-stroked-button 
+                      color="accent"
+                      class="quick-button"
+                      [disabled]="isLoading()"
                       (click)="quickLogin('member')">
                 <mat-icon>person</mat-icon>
                 <div class="button-text">
-                  <span class="role-title">Miembro</span>
+                  <span class="role-title">Miembro (Mock)</span>
                   <span class="role-subtitle">member / member</span>
                 </div>
               </button>

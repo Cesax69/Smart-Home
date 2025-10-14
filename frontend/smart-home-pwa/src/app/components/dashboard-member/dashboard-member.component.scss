@@ -46,6 +46,12 @@
   }
 }
 
+.header-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
 .user-menu-btn {
   color: white;
   

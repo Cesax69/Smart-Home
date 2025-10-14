@@ -1,46 +1,112 @@
-<mat-toolbar color="primary" class="app-navbar">
-      <button mat-button class="brand" (click)="goHome()">
-        <mat-icon>home</mat-icon>
-        <span>Smart Home</span>
+<mat-toolbar color="primary" class="professional-navbar">
+  <!-- Brand Section -->
+  <div class="brand-container" (click)="goHome()">
+    <div class="brand-logo">
+      <mat-icon class="home-icon">smart_home</mat-icon>
+    </div>
+    <div class="brand-info">
+      <span class="brand-name">SmartHome</span>
+      <span class="brand-subtitle">Control Inteligente</span>
+    </div>
+  </div>
+
+  <span class="toolbar-spacer"></span>
+
+  <!-- Navigation Buttons -->
+  <div class="nav-buttons">
+    <button mat-raised-button class="nav-button primary-nav" (click)="goToDashboard()">
+      <mat-icon>dashboard</mat-icon>
+      <span>Dashboard</span>
+    </button>
+    <button mat-raised-button class="nav-button secondary-nav" (click)="navigate('/tasks/list')">
+      <mat-icon>assignment</mat-icon>
+      <span>Tareas</span>
+    </button>
+    <button mat-raised-button class="nav-button tertiary-nav" (click)="navigate('/tasks/my-tasks')">
+      <mat-icon>person_pin</mat-icon>
+      <span>Mis Tareas</span>
+    </button>
+  </div>
+
+  <span class="toolbar-spacer"></span>
+
+  <!-- User Section -->
+  <div class="user-section" *ngIf="currentUser() as user">
+    <!-- Notification Button for Household Head -->
+    <div class="notification-wrapper" *ngIf="user.role === 'head_of_household'">
+      <button mat-icon-button 
+              class="notification-btn" 
+              (click)="navigate('/notifications')" 
+              [matTooltip]="'Notificaciones (' + getConnectionStatus() + ')'"
+              matTooltipPosition="below">
+        <mat-icon class="notification-icon">notifications</mat-icon>
+        <span class="notification-badge" *ngIf="hasUnreadNotifications()">
+          {{ unreadCount() }}
+        </span>
+        <span class="connection-indicator" [class.connected]="isConnected()"></span>
       </button>
+    </div>
 
-      <span class="spacer"></span>
-
-      <nav class="nav-links">
-        <button mat-button (click)="goToDashboard()">
-          <mat-icon>dashboard</mat-icon>
-          <span>Dashboard</span>
-        </button>
-        <button mat-button (click)="navigate('/tasks/list')">
-          <mat-icon>assignment</mat-icon>
-          <span>Tareas</span>
-        </button>
-        <button mat-button (click)="navigate('/tasks/my-tasks')">
-          <mat-icon>person</mat-icon>
-          <span>Mis Tareas</span>
-        </button>
-      </nav>
-
-      <span class="spacer"></span>
-
-      <div class="user-area" *ngIf="currentUser() as user">
+    <!-- User Profile -->
+    <div class="user-profile-section">
+      <div class="user-info">
         <span class="user-name">{{ user.firstName || user.username }}</span>
-        <button mat-icon-button [matMenuTriggerFor]="userMenu">
-          <mat-icon>account_circle</mat-icon>
-        </button>
-        <mat-menu #userMenu="matMenu">
-          <button mat-menu-item (click)="goToDashboard()">
-            <mat-icon>home</mat-icon>
-            <span>Inicio</span>
-          </button>
-          <button mat-menu-item (click)="navigate('/tasks/list')">
-            <mat-icon>assignment</mat-icon>
-            <span>Tareas</span>
-          </button>
-          <button mat-menu-item (click)="logout()">
-            <mat-icon>logout</mat-icon>
-            <span>Cerrar Sesión</span>
-          </button>
-        </mat-menu>
+        <span class="user-role">
+          {{ user.role === 'head_of_household' ? 'Jefe del Hogar' : 'Miembro' }}
+        </span>
       </div>
-    </mat-toolbar>
+      <button mat-icon-button 
+              class="user-menu-trigger" 
+              [matMenuTriggerFor]="userMenu">
+        <mat-icon>account_circle</mat-icon>
+      </button>
+    </div>
+
+    <!-- User Menu -->
+    <mat-menu #userMenu="matMenu" class="professional-user-menu" xPosition="before">
+      <div class="menu-header-section">
+        <mat-icon class="menu-user-avatar">account_circle</mat-icon>
+        <div class="menu-user-details">
+          <div class="menu-user-name">{{ user.firstName }} {{ user.lastName }}</div>
+          <div class="menu-user-role">
+            {{ user.role === 'head_of_household' ? 'Jefe del Hogar' : 'Miembro del Hogar' }}
+          </div>
+        </div>
+      </div>
+      
+      <mat-divider></mat-divider>
+      
+      <button mat-menu-item (click)="goToDashboard()">
+        <mat-icon>dashboard</mat-icon>
+        <span>Dashboard</span>
+      </button>
+      
+      <button mat-menu-item (click)="navigate('/tasks/list')">
+        <mat-icon>assignment</mat-icon>
+        <span>Tareas</span>
+      </button>
+      
+      <button mat-menu-item (click)="navigate('/tasks/my-tasks')">
+        <mat-icon>person_pin</mat-icon>
+        <span>Mis Tareas</span>
+      </button>
+      
+      <button mat-menu-item (click)="navigate('/notifications')" *ngIf="user.role === 'head_of_household'">
+        <mat-icon>notifications</mat-icon>
+        <span>Notificaciones</span>
+      </button>
+      
+      <button mat-menu-item (click)="navigate('/profile')">
+        <mat-icon>person</mat-icon>
+        <span>Mi Perfil</span>
+      </button>
+      
+      <mat-divider></mat-divider>
+      
+      <button mat-menu-item (click)="logout()" class="logout-menu-item">
+        <mat-icon>logout</mat-icon>
+        <span>Cerrar Sesión</span>
+      </button>
+    </mat-menu>
+  </div>
+</mat-toolbar>

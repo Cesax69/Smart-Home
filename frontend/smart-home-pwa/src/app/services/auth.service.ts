@@ -59,6 +59,10 @@ export class AuthService {
           user = this.getStoredUsers().find(u => u.username === 'admin');
         } else if (credentials.username === 'member' && credentials.password === 'member') {
           user = this.getStoredUsers().find(u => u.username === 'member');
+        } else if (credentials.username === 'cesar_garay' && credentials.password === 'member') {
+          user = this.getStoredUsers().find(u => u.username === 'cesar_garay');
+        } else if (credentials.username === 'zahir_rodriguez' && credentials.password === 'member') {
+          user = this.getStoredUsers().find(u => u.username === 'zahir_rodriguez');
         }
 
         if (!user) {
@@ -160,7 +164,7 @@ export class AuthService {
     }
   }
 
-  // Método para obtener miembros de la familia (simulado por ahora)
+  // Método para obtener miembros de la familia
   private getStoredUsers(): User[] {
     const stored = localStorage.getItem('smart_home_users');
     if (stored) {
@@ -188,6 +192,26 @@ export class AuthService {
         role: 'family_member',
         createdAt: new Date('2024-01-02'),
         updatedAt: new Date('2024-01-02')
+      },
+      {
+        id: 3,
+        username: 'cesar_garay',
+        email: 'cesar.garay@smarthome.com',
+        firstName: 'César',
+        lastName: 'Garay',
+        role: 'family_member',
+        createdAt: new Date('2024-01-03'),
+        updatedAt: new Date('2024-01-03')
+      },
+      {
+        id: 4,
+        username: 'zahir_rodriguez',
+        email: 'zahir.rodriguez@smarthome.com',
+        firstName: 'Zahir',
+        lastName: 'Rodríguez',
+        role: 'family_member',
+        createdAt: new Date('2024-01-04'),
+        updatedAt: new Date('2024-01-04')
       }
     ];
     

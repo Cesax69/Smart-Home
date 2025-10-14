@@ -2,9 +2,11 @@ export interface Task {
   id: number;
   title: string;
   description: string;
-  status: 'pending' | 'in_progress' | 'completed';
+  category: 'limpieza' | 'cocina' | 'lavanderia' | 'jardin' | 'mantenimiento' | 'organizacion' | 'mascotas' | 'compras' | 'otros';
+  status: 'pending' | 'in_progress' | 'completed' | 'pendiente' | 'en_proceso' | 'completada';
   priority: 'low' | 'medium' | 'high';
   assignedTo: number; // User ID
+  assignedUserId?: number; // Para compatibilidad con backend
   assignedUserIds?: number[]; // Todos los asignados
   assignedBy: number; // User ID
   dueDate?: Date;
@@ -38,7 +40,7 @@ export interface CreateTaskRequest {
 export interface UpdateTaskRequest {
   title?: string;
   description?: string;
-  status?: 'pending' | 'in_progress' | 'completed';
+  status?: 'pending' | 'in_progress' | 'completed' | 'pendiente' | 'en_proceso' | 'completada';
   priority?: 'low' | 'medium' | 'high';
   assignedTo?: number;
   assignedUserIds?: number[];

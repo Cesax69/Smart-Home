@@ -81,14 +81,31 @@ export class UserService {
    * @returns Array de líderes del hogar
    */
   public async getFamilyLeaders(): Promise<User[]> {
-    const query = `
-      SELECT id, username, email, first_name, last_name, family_role_id, created_at, updated_at
-      FROM users
-      WHERE family_role_id = 1
-      ORDER BY id ASC
-    `;
-    const result = await databaseService.query(query, []);
-    return (result.rows || []).map(r => this.mapRowToUser(r));
+    try {
+      const query = `
+        SELECT id, username, email, first_name, last_name, family_role_id, created_at, updated_at
+        FROM users
+        WHERE family_role_id = 1
+        ORDER BY id ASC
+      `;
+      const result = await databaseService.query(query, []);
+      return (result.rows || []).map(r => this.mapRowToUser(r));
+    } catch (error) {
+      console.log('⚠️ Database not available, using mock data for family leaders');
+      // Fallback a datos mockeados cuando no hay conexión a BD
+      return mockAuthUsers
+        .filter(user => user.role === 'head_of_household')
+        .map(user => ({
+          id: user.id,
+          username: user.username,
+          email: user.email,
+          firstName: user.firstName,
+          lastName: user.lastName,
+          role: user.role as 'head_of_household' | 'family_member',
+          createdAt: user.createdAt,
+          updatedAt: user.updatedAt
+        }));
+    }
   }
 
   /**

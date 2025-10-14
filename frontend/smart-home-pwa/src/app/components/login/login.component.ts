@@ -73,6 +73,16 @@ export class LoginComponent {
     this.performLogin();
   }
 
+  quickLoginUser(username: string, password: string): void {
+    const credentials = {
+      username: username,
+      password: password
+    };
+    
+    this.loginForm.patchValue(credentials);
+    this.performLogin();
+  }
+
   private performLogin(): void {
     this.isLoading.set(true);
     this.errorMessage.set('');

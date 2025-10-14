@@ -27,8 +27,8 @@ class App {
   private initializeMiddlewares(): void {
     // CORS - Permitir solicitudes desde cualquier origen
     this.app.use(cors({
-      origin: '*',
-      methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+      origin: ['http://localhost:4200', 'http://localhost:3000', '*'],
+      methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
       allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With'],
       credentials: true
     }));
