@@ -1,0 +1,205 @@
+<div class="task-actions-dialog">
+  <div mat-dialog-title class="dialog-header">
+    <mat-icon>assignment</mat-icon>
+    <h2>{{ data.task.title }}</h2>
+    <button mat-icon-button mat-dialog-close>
+      <mat-icon>close</mat-icon>
+    </button>
+  </div>
+
+  <div mat-dialog-content class="dialog-content">
+    <mat-tab-group>
+      <!-- Tab de Comentarios -->
+      <mat-tab label="Comentarios">
+        <div class="tab-content comments-tab">
+          <!-- Lista de comentarios existentes -->
+          <div class="comments-container" *ngIf="comments().length > 0; else noComments">
+            <div class="comments-header">
+              <mat-icon class="comments-icon">forum</mat-icon>
+              <h3>Conversación ({{ comments().length }})</h3>
+            </div>
+            
+            <div class="comments-timeline">
+              <div *ngFor="let comment of comments(); trackBy: trackByCommentId" 
+                   class="comment-bubble"
+                   [class.own-comment]="isOwnComment(comment)">
+                <div class="comment-avatar">
+                  <mat-icon>account_circle</mat-icon>
+                </div>
+                <div class="comment-content">
+                  <div class="comment-header">
+                    <span class="comment-author">{{ comment.createdByName || 'Usuario' }}</span>
+                    <span class="comment-timestamp">{{ comment.createdAt ? formatRelativeTime(comment.createdAt) : '' }}</span>
+                  </div>
+                  <div class="comment-message">{{ comment.comment }}</div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <ng-template #noComments>
+            <div class="empty-comments">
+              <mat-icon class="empty-icon">chat_bubble_outline</mat-icon>
+              <h3>Sin comentarios aún</h3>
+              <p>Sé el primero en comentar sobre esta tarea</p>
+            </div>
+          </ng-template>
+
+          <!-- Formulario para nuevo comentario -->
+          <div class="comment-input-section">
+            <form [formGroup]="commentForm" (ngSubmit)="addComment()" class="comment-form">
+              <div class="input-container">
+                <div class="user-avatar">
+                  <mat-icon>account_circle</mat-icon>
+                </div>
+                <mat-form-field appearance="outline" class="comment-input">
+                  <mat-label>Escribe un comentario...</mat-label>
+                  <textarea 
+                    matInput 
+                    formControlName="comment" 
+                    rows="2" 
+                    placeholder="Comparte tu progreso, dudas o actualizaciones..."
+                    (keydown)="onEnterKey($event)">
+                  </textarea>
+                  <mat-error *ngIf="commentForm.get('comment')?.hasError('required')">
+                    El comentario es requerido
+                  </mat-error>
+                  <mat-error *ngIf="commentForm.get('comment')?.hasError('minlength')">
+                    Mínimo 3 caracteres
+                  </mat-error>
+                </mat-form-field>
+              </div>
+              
+              <div class="form-actions">
+                <button 
+                  mat-button 
+                  type="button"
+                  (click)="commentForm.reset()"
+                  [disabled]="isAddingComment()">
+                  Cancelar
+                </button>
+                <button 
+                  mat-raised-button 
+                  color="primary" 
+                  type="submit" 
+                  [disabled]="commentForm.invalid || isAddingComment()"
+                  class="send-btn">
+                  <mat-icon *ngIf="!isAddingComment()">send</mat-icon>
+                  <mat-spinner *ngIf="isAddingComment()" diameter="16"></mat-spinner>
+                  {{ isAddingComment() ? 'Enviando...' : 'Enviar' }}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      </mat-tab>
+
+      <!-- Tab de Archivos -->
+      <mat-tab label="Archivos">
+        <div class="tab-content">
+          <!-- Lista de archivos existentes -->
+          <div class="files-section" *ngIf="files().length > 0; else noFiles">
+            <div class="files-header">
+              <mat-icon class="files-icon">attach_file</mat-icon>
+              <h3>Archivos adjuntos ({{ files().length }})</h3>
+            </div>
+            
+            <div class="files-list">
+              <div *ngFor="let file of files()" class="file-item">
+                <mat-icon class="file-icon">{{ getFileIcon(mime(file)) }}</mat-icon>
+                <div class="file-info">
+                  <div class="file-name">{{ displayFileName(file) }}</div>
+                  <div class="file-details">
+                    <span class="file-size">{{ formatFileSize(getFileSize(file)) }}</span>
+                    <span class="file-date">{{ formatDate(getCreatedAt(file)) }}</span>
+                    <span class="file-uploader">por {{ getUploadedByName(file) || 'Usuario' }}</span>
+                    <span class="file-type">{{ mime(file) }}</span>
+                  </div>
+                </div>
+                <div class="file-actions">
+                  <button mat-icon-button 
+                          (click)="previewFile(file)" 
+                          [matTooltip]="canPreviewFile(mime(file)) ? 'Vista previa' : 'Descargar'"
+                          color="primary">
+                    <mat-icon>{{ canPreviewFile(mime(file)) ? 'visibility' : 'download' }}</mat-icon>
+                  </button>
+                  <button mat-icon-button 
+                          (click)="downloadFile(file)" 
+                          matTooltip="Descargar"
+                          color="accent">
+                    <mat-icon>file_download</mat-icon>
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <ng-template #noFiles>
+            <div class="empty-files">
+              <mat-icon class="empty-icon">folder_open</mat-icon>
+              <h3>No hay archivos adjuntos</h3>
+              <p>Sube archivos para compartir con el equipo</p>
+            </div>
+          </ng-template>
+
+          <!-- Formulario para subir archivo -->
+          <div class="file-upload-section">
+            <div class="upload-header">
+              <mat-icon>cloud_upload</mat-icon>
+              <h3>Subir nuevo archivo</h3>
+            </div>
+            
+            <div class="file-upload-form">
+              <div class="file-input-container">
+                <input 
+                  #fileInput 
+                  type="file" 
+                  (change)="onFileSelected($event)" 
+                  accept="*/*"
+                  style="display: none;">
+                
+                <button 
+                  mat-stroked-button 
+                  (click)="fileInput.click()" 
+                  [disabled]="isUploading()"
+                  class="file-select-btn">
+                  <mat-icon>attach_file</mat-icon>
+                  Seleccionar archivo
+                </button>
+              </div>
+
+              <div *ngIf="selectedFile()" class="selected-file">
+                <div class="selected-file-info">
+                  <mat-icon>{{ getFileIcon(selectedFile()!.type) }}</mat-icon>
+                  <div class="file-details">
+                    <div class="file-name">{{ selectedFile()!.name }}</div>
+                    <div class="file-size">{{ formatFileSize(selectedFile()!.size) }}</div>
+                  </div>
+                  <button mat-icon-button (click)="selectedFile.set(null)" color="warn">
+                    <mat-icon>close</mat-icon>
+                  </button>
+                </div>
+              </div>
+
+              <button 
+                mat-raised-button 
+                color="accent" 
+                (click)="uploadFile()" 
+                [disabled]="!selectedFile() || isUploading()"
+                class="upload-btn"
+                *ngIf="selectedFile()">
+                <mat-icon *ngIf="!isUploading()">cloud_upload</mat-icon>
+                <mat-spinner *ngIf="isUploading()" diameter="20"></mat-spinner>
+                {{ isUploading() ? 'Subiendo...' : 'Subir Archivo' }}
+              </button>
+            </div>
+          </div>
+        </div>
+      </mat-tab>
+    </mat-tab-group>
+  </div>
+
+  <div mat-dialog-actions class="dialog-actions">
+    <button mat-button mat-dialog-close>Cerrar</button>
+  </div>
+</div>
