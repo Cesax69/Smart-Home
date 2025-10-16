@@ -25,16 +25,18 @@ interface User {
 }
 
 export class NotificationService {
-  private readonly NOTIFICATION_SERVICE_URL = process.env.NOTIFICATION_SERVICE_URL || 'http://localhost:3004';
-  private readonly USERS_SERVICE_URL = process.env.USERS_SERVICE_URL || 'http://localhost:3001';
-  private readonly TASKS_SERVICE_URL = process.env.TASKS_SERVICE_URL || 'http://localhost:3002';
+  // Siempre preferimos enrutar a través del API Gateway
+  private readonly API_GATEWAY_URL = process.env.API_GATEWAY_URL || 'http://api-gateway:3000';
+  private readonly NOTIFICATIONS_BASE_URL = `${this.API_GATEWAY_URL}/api/notifications`;
+  private readonly USERS_BASE_URL = `${this.API_GATEWAY_URL}/api/users`;
+  private readonly TASKS_BASE_URL = `${this.API_GATEWAY_URL}/api/tasks`;
 
   /**
    * Obtiene información de un usuario por ID
    */
   private async getUserById(userId: number): Promise<User | null> {
     try {
-      const response = await axios.get(`${this.USERS_SERVICE_URL}/api/users/${userId}`);
+      const response = await axios.get(`${this.USERS_BASE_URL}/${userId}`);
       return response.data.data;
     } catch (error) {
       console.error('Error fetching user by ID:', error);
@@ -47,7 +49,7 @@ export class NotificationService {
    */
   private async getHouseholdHeads(): Promise<User[]> {
     try {
-      const response = await axios.get(`${this.USERS_SERVICE_URL}/api/users/leaders`);
+      const response = await axios.get(`${this.USERS_BASE_URL}/leaders`);
       return response.data.data || [];
     } catch (error) {
       console.error('Error fetching household heads:', error);
@@ -106,7 +108,7 @@ export class NotificationService {
       for (const head of householdHeads) {
         const notification: NotificationEvent = {
           type: 'task_completed',
-          channels: ['app', 'whatsapp'],
+          channels: ['app'],
           data: {
             userId: head.id.toString(),
             familyId: 'family_1',
@@ -150,7 +152,7 @@ export class NotificationService {
       for (const userId of assignedUserIds) {
         const notification: NotificationEvent = {
           type: 'task_assigned',
-          channels: ['app', 'whatsapp'],
+          channels: ['app'],
           data: {
             userId: userId.toString(),
             familyId: 'family_1',
@@ -185,7 +187,7 @@ export class NotificationService {
       for (const userId of userIds) {
         const notification: NotificationEvent = {
           type: 'task_reminder',
-          channels: ['app', 'whatsapp'],
+          channels: ['app'],
           data: {
             userId: userId.toString(),
             familyId: 'family_1',
@@ -216,34 +218,10 @@ export class NotificationService {
    */
   private async sendNotification(event: NotificationEvent): Promise<void> {
     try {
-      // Transform the event to match the expected format for /notify/family
-      const notificationPayload = {
-        userId: parseInt(event.data.userId),
-        type: event.type === 'task_completed' ? 'tarea_completada' : 
-              event.type === 'task_assigned' ? 'tarea_asignada' : 
-              event.type === 'task_reminder' ? 'recordatorio_tarea' : 'recordatorio_general',
-        priority: event.priority === 'high' ? 'alta' : 'media',
-        taskData: {
-          taskId: event.data.taskId,
-          taskTitle: event.data.taskTitle,
-          category: event.data.metadata?.category,
-          priority: event.data.metadata?.priority,
-          completedAt: event.data.metadata?.completedAt,
-          completedByUserId: event.data.metadata?.completedByUserId,
-          completedByUserName: event.data.metadata?.completedByUserName,
-          originalAssignee: event.data.metadata?.originalAssignee,
-          commentsCount: event.data.metadata?.commentsCount,
-          filesCount: event.data.metadata?.filesCount,
-          comments: event.data.metadata?.comments,
-          files: event.data.metadata?.files
-        },
-        message: event.data.message
-      };
-
-      await axios.post(`${this.NOTIFICATION_SERVICE_URL}/notify/family`, notificationPayload);
-      console.log('Notification sent successfully');
+      await axios.post(`${this.NOTIFICATIONS_BASE_URL}/notify/queue`, event);
+      console.log('Notification queued successfully');
     } catch (error) {
-      console.error('Error sending notification:', error);
+      console.error('Error queuing notification:', error);
     }
   }
 
@@ -261,7 +239,7 @@ export class NotificationService {
    */
   private async getTaskComments(taskId: number): Promise<any[]> {
     try {
-      const response = await axios.get(`${this.TASKS_SERVICE_URL}/tasks/${taskId}/comments`);
+      const response = await axios.get(`${this.TASKS_BASE_URL}/${taskId}/comments`);
       return response.data?.data || [];
     } catch (error) {
       console.error('Error fetching task comments:', error);
@@ -274,7 +252,7 @@ export class NotificationService {
    */
   private async getTaskFiles(taskId: number): Promise<any[]> {
     try {
-      const response = await axios.get(`${this.TASKS_SERVICE_URL}/tasks/${taskId}/files`);
+      const response = await axios.get(`${this.TASKS_BASE_URL}/${taskId}/files`);
       return response.data?.data || [];
     } catch (error) {
       console.error('Error fetching task files:', error);
@@ -287,7 +265,7 @@ export class NotificationService {
    */
   async testConnection(): Promise<boolean> {
     try {
-      const response = await axios.get(`${this.NOTIFICATION_SERVICE_URL}/health`, {
+      const response = await axios.get(`${this.NOTIFICATIONS_BASE_URL}/health`, {
         timeout: 3000
       });
       return response.status === 200;

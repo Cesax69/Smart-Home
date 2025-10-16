@@ -1,29 +1,14 @@
 import multer from 'multer';
-import path from 'path';
 import { Request } from 'express';
 
-// Configuración de almacenamiento
-const storage = multer.diskStorage({
-  destination: (req: Request, file: Express.Multer.File, cb: Function) => {
-    // Usar siempre directorio temporal. El servicio sube a Google Drive.
-    const uploadDir = 'temp/';
-    cb(null, uploadDir);
-  },
-  filename: (req: Request, file: Express.Multer.File, cb: Function) => {
-    // Generar nombre único con timestamp y extensión original
-    const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
-    const extension = path.extname(file.originalname);
-    const baseName = path.basename(file.originalname, extension);
-    cb(null, `${baseName}-${uniqueSuffix}${extension}`);
-  }
-});
+// Almacenamiento en memoria: elimina completamente el uso de disco local
+const storage = multer.memoryStorage();
 
-// Filtro de archivos (opcional - permite todos los tipos por defecto)
+// Filtro de archivos (permitidos por tipo MIME)
 const fileFilter = (req: Request, file: Express.Multer.File, cb: Function) => {
-  // Tipos de archivo permitidos (puedes personalizar según necesidades)
   const allowedTypes = [
     'image/jpeg',
-    'image/png', 
+    'image/png',
     'image/gif',
     'image/webp',
     'application/pdf',
@@ -39,13 +24,13 @@ const fileFilter = (req: Request, file: Express.Multer.File, cb: Function) => {
   }
 };
 
-// Configuración de multer
+// Configuración de multer (límites tomados desde env si están disponibles)
 export const upload = multer({
   storage: storage,
   fileFilter: fileFilter,
   limits: {
-    fileSize: 10 * 1024 * 1024, // 10MB máximo
-    files: 10 // Permitir hasta 10 archivos por request
+    fileSize: parseInt(process.env.MAX_FILE_SIZE || '10485760'), // 10MB por defecto
+    files: 10
   }
 });
 
@@ -56,7 +41,7 @@ export const handleMulterError = (error: any, req: Request, res: any, next: Func
       case 'LIMIT_FILE_SIZE':
         return res.status(400).json({
           success: false,
-          message: 'El archivo es demasiado grande. Tamaño máximo: 10MB'
+          message: 'El archivo es demasiado grande. Tamaño máximo permitido'
         });
       case 'LIMIT_FILE_COUNT':
         return res.status(400).json({
@@ -75,8 +60,8 @@ export const handleMulterError = (error: any, req: Request, res: any, next: Func
         });
     }
   }
-  
-  if (error.message.includes('Tipo de archivo no permitido')) {
+
+  if (error?.message?.includes('Tipo de archivo no permitido')) {
     return res.status(400).json({
       success: false,
       message: error.message

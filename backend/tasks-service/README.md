@@ -74,7 +74,8 @@ npm run dev
 npm start
 ```
 
-El servicio estará disponible en: `http://localhost:3002`
+El servicio estará disponible (interno) en: `http://localhost:3002`
+Acceso recomendado vía API Gateway: `http://localhost:3000/api/tasks`
 
 ## 🚢 Ejecución con Docker (recomendado)
 
@@ -99,6 +100,7 @@ El esquema completo de tablas (tareas, asignaciones, archivos, subtareas) está 
 
 ### Health Check
 - **GET** `/api/health` - Verificar estado del servicio
+  - Nota: este endpoint de salud se expone en la URL interna del servicio (`http://localhost:3002/api/health`). Para estado general del sistema usa `http://localhost:3000/status` del API Gateway.
 
 ### Gestión de Tareas
 
@@ -142,7 +144,7 @@ El esquema completo de tablas (tareas, asignaciones, archivos, subtareas) está 
 
 ### Crear una nueva tarea
 ```bash
-curl -X POST http://localhost:3002/api/tasks \
+curl -X POST http://localhost:3000/api/tasks \
   -H "Content-Type: application/json" \
   -d '{
     "description": "Aspirar la sala",
@@ -153,22 +155,22 @@ curl -X POST http://localhost:3002/api/tasks \
 
 ### Obtener todas las tareas
 ```bash
-curl http://localhost:3002/api/tasks
+curl http://localhost:3000/api/tasks
 ```
 
 ### Filtrar tareas por usuario
 ```bash
-curl http://localhost:3002/api/tasks?userId=1
+curl http://localhost:3000/api/tasks?userId=1
 ```
 
 ### Filtrar tareas por estado
 ```bash
-curl http://localhost:3002/api/tasks?status=pendiente
+curl http://localhost:3000/api/tasks?status=pendiente
 ```
 
 ### Actualizar una tarea
 ```bash
-curl -X PUT http://localhost:3002/api/tasks/1 \
+curl -X PUT http://localhost:3000/api/tasks/1 \
   -H "Content-Type: application/json" \
   -d '{
     "status": "completada"
@@ -177,7 +179,7 @@ curl -X PUT http://localhost:3002/api/tasks/1 \
 
 ### Eliminar una tarea
 ```bash
-curl -X DELETE http://localhost:3002/api/tasks/1
+curl -X DELETE http://localhost:3000/api/tasks/1
 ```
 
 ## 🔧 Scripts Disponibles

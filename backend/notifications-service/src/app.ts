@@ -13,7 +13,7 @@ dotenv.config();
 
 /**
  * Aplicación Express para Notifications Service
- * Microservicio para notificaciones por WhatsApp
+ * Microservicio para notificaciones en tiempo real
  */
 class App {
   public app: express.Application;
@@ -204,35 +204,67 @@ class App {
     try {
       console.log('🔄 Setting up real-time notification subscriptions...');
       console.log('🔍 Redis service available:', !!this.redisService);
-      console.log('🔍 subscribePattern method available:', typeof this.redisService.subscribePattern);
-      
-      // Subscribe to user-specific notifications using pattern matching
-      await this.redisService.subscribePattern('user:*:notifications', (channel: string, notification: any) => {
-        console.log(`📨 Received user notification from channel ${channel}:`, notification);
-        
-        // Extract userId from channel name (user:123:notifications -> 123)
-        const userId = channel.split(':')[1];
-        const roomName = `user_${userId}`;
-        
-        // Send notification to specific user room
-        this.io.to(roomName).emit('new_notification', notification);
-        console.log(`✅ Notification sent to room ${roomName}`);
+      // Suscripción simplificada: canal global 'notification:new'
+      await this.redisService.subscribe('notification:new', (notification: any) => {
+        try {
+          console.log(`📨 Received notification from channel notification:new:`, notification);
+
+          // Destinatarios: usar lista recipients. Si no existe, usar userId.
+          const recipients: string[] = Array.isArray(notification?.data?.recipients)
+            ? notification.data.recipients
+            : (notification?.data?.userId ? [notification.data.userId] : []);
+
+          // Incluir jefe del hogar si está presente y no duplicado
+          if (notification?.data?.bossUserId) {
+            const bossId = notification.data.bossUserId;
+            if (!recipients.includes(bossId)) {
+              recipients.push(bossId);
+            }
+          }
+
+          // Preparar payload amigable para frontend
+          const title = this.getNotificationTitle(notification?.type);
+          const payload = {
+            id: notification?.id,
+            type: notification?.type,
+            title,
+            message: notification?.message || notification?.data?.message,
+            data: notification?.data,
+            timestamp: new Date().toISOString(),
+            read: false
+          };
+
+          // Emitir a cada sala de usuario
+          for (const recipientId of recipients) {
+            const roomName = `user_${recipientId}`;
+            this.io.to(roomName).emit('new_notification', payload);
+            console.log(`✅ Notification sent to room ${roomName}`);
+          }
+        } catch (error) {
+          console.error('❌ Error delivering real-time notification:', error);
+        }
       });
-      
-      // Subscribe to family-wide notifications
-      await this.redisService.subscribePattern('family:*:notifications', (channel: string, notification: any) => {
-        console.log(`📨 Received family notification from channel ${channel}:`, notification);
-        
-        // Send notification to all connected clients
-        this.io.emit('family_notification', notification);
-        console.log('✅ Family notification sent to all clients');
-      });
-      
-      console.log('✅ Real-time notification subscriptions setup complete');
+
+      console.log('✅ Real-time notification subscriptions setup complete (notification:new)');
     } catch (error: any) {
       console.error('❌ Error setting up real-time notification subscriptions:', error);
       console.error('❌ Error details:', error.message);
       console.error('❌ Error stack:', error.stack);
+    }
+  }
+
+  private getNotificationTitle(type: string): string {
+    switch (type) {
+      case 'task_completed':
+        return '✅ Tarea Completada';
+      case 'task_assigned':
+        return '📋 Nueva Tarea Asignada';
+      case 'task_reminder':
+        return '⏰ Recordatorio de Tarea';
+      case 'system_alert':
+        return '🚨 Alerta del Sistema';
+      default:
+        return '📢 Notificación';
     }
   }
 
@@ -299,7 +331,7 @@ class App {
         message: `Endpoint no encontrado: ${req.method} ${req.originalUrl}`,
         availableEndpoints: {
           info: "GET /",
-          webhook: "POST /notify",
+          queue: "POST /notify/queue",
           health: "GET /health"
         },
         timestamp: new Date().toISOString()
@@ -325,21 +357,18 @@ class App {
   public listen(): void {
     this.server.listen(this.port, () => {
       console.log('\n🚀 ================================');
-      console.log('👨‍👩‍👧‍👦 FAMILY NOTIFICATIONS SERVICE');
+      console.log('🔔 NOTIFICATIONS SERVICE');
       console.log('🚀 ================================');
       console.log(`✅ Servidor iniciado en puerto ${this.port}`);
       console.log(`🌐 URL: http://localhost:${this.port}`);
       console.log(`🔌 Socket.IO habilitado para notificaciones en tiempo real`);
       console.log(`📋 Endpoints disponibles:`);
       console.log(`   📄 GET  / - Información del servicio`);
-      console.log(`   👨‍👩‍👧‍👦 POST /notify/family - Notificaciones familiares`);
-      console.log(`   📨 POST /notify - Webhook legacy`);
-      console.log(`   📊 GET  /stats - Estadísticas familiares`);
-      console.log(`   👥 GET  /family - Miembros de la familia`);
+      console.log(`   📨 POST /notify/queue - Añadir notificación a la cola`);
       console.log(`   ❤️  GET  /health - Health check`);
       console.log(`   🔴 GET  /redis/health - Redis health check`);
       console.log(`   📊 GET  /queue/stats - Queue statistics`);
-      console.log(`🎯 Listo para enviar notificaciones familiares personalizadas`);
+      console.log(`🎯 Listo para enviar notificaciones`);
       console.log(`🔄 Sistema de colas Redis activado`);
       console.log('🚀 ================================\n');
     });

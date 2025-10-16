@@ -15,14 +15,7 @@ CREATE TABLE IF NOT EXISTS family_roles (
 );
 
 -- Tabla de sub-roles (para diferenciar miembros de la familia)
-CREATE TABLE IF NOT EXISTS family_sub_roles (
-    id SERIAL PRIMARY KEY,
-    role_id INTEGER REFERENCES family_roles(id) ON DELETE CASCADE,
-    sub_role_name VARCHAR(50) NOT NULL,
-    description TEXT,
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    UNIQUE(role_id, sub_role_name)
-);
+-- (Eliminado) Sub-roles ya no se utilizan; solo se conserva family_roles
 
 -- Tabla de usuarios mejorada
 CREATE TABLE IF NOT EXISTS users (
@@ -35,7 +28,6 @@ CREATE TABLE IF NOT EXISTS users (
     phone VARCHAR(20),
     is_active BOOLEAN DEFAULT true,
     family_role_id INTEGER REFERENCES family_roles(id),
-    family_sub_role_id INTEGER REFERENCES family_sub_roles(id),
     birth_date DATE,
     avatar_url VARCHAR(500),
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
@@ -43,24 +35,10 @@ CREATE TABLE IF NOT EXISTS users (
 );
 
 -- Tabla de sesiones de usuario
-CREATE TABLE IF NOT EXISTS user_sessions (
-    id SERIAL PRIMARY KEY,
-    user_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
-    session_token VARCHAR(255) UNIQUE NOT NULL,
-    expires_at TIMESTAMP NOT NULL,
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-);
+-- (Eliminado) Tabla user_sessions no se utiliza en el nuevo esquema
 
 -- Tabla de configuraciones de usuario
-CREATE TABLE IF NOT EXISTS user_preferences (
-    id SERIAL PRIMARY KEY,
-    user_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
-    theme VARCHAR(20) DEFAULT 'light',
-    language VARCHAR(10) DEFAULT 'es',
-    notifications_enabled BOOLEAN DEFAULT true,
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-);
+-- (Eliminado) Tabla user_preferences no se utiliza en el nuevo esquema
 
 -- ========================================
 -- ÍNDICES PARA OPTIMIZACIÓN
@@ -69,8 +47,7 @@ CREATE TABLE IF NOT EXISTS user_preferences (
 -- Índices para usuarios
 CREATE INDEX IF NOT EXISTS idx_users_email ON users(email);
 CREATE INDEX IF NOT EXISTS idx_users_username ON users(username);
-CREATE INDEX IF NOT EXISTS idx_user_sessions_token ON user_sessions(session_token);
-CREATE INDEX IF NOT EXISTS idx_user_sessions_user_id ON user_sessions(user_id);
+-- (Eliminado) Índices de user_sessions
 
 -- ========================================
 -- DATOS DE EJEMPLO - USUARIOS
@@ -84,51 +61,31 @@ VALUES
 ON CONFLICT (role_name) DO NOTHING;
 
 -- Insertar sub-roles para miembros
-INSERT INTO family_sub_roles (role_id, sub_role_name, description) 
-VALUES 
-    (2, 'Mamá', 'Madre de familia'),
-    (2, 'Papá', 'Padre de familia'),
-    (2, 'Hijo', 'Hijo varón de la familia'),
-    (2, 'Hija', 'Hija mujer de la familia')
-ON CONFLICT (role_id, sub_role_name) DO NOTHING;
+-- (Eliminado) Sub-roles
 
 -- Insertar usuarios iniciales (familia)
-INSERT INTO users (username, email, password_hash, first_name, last_name, family_role_id, family_sub_role_id, birth_date) 
+INSERT INTO users (username, email, password_hash, first_name, last_name, family_role_id, birth_date) 
 VALUES 
     -- Papá (jefe del hogar)
-    ('papa', 'papa@smarthome.com', '$2b$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi', 'Carlos', 'Gómez', 1, (SELECT id FROM family_sub_roles WHERE role_id = 2 AND sub_role_name = 'Papá' LIMIT 1), '1980-05-12'),
+    ('papa', 'papa@smarthome.com', '$2b$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi', 'Carlos', 'Gómez', 1, '1980-05-12'),
     -- Mamá (miembro)
-    ('mama', 'mama@smarthome.com', '$2b$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi', 'María', 'Gómez', 2, (SELECT id FROM family_sub_roles WHERE role_id = 2 AND sub_role_name = 'Mamá' LIMIT 1), '1982-08-22'),
+    ('mama', 'mama@smarthome.com', '$2b$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi', 'María', 'Gómez', 2, '1982-08-22'),
     -- Hijo (miembro)
-    ('hijo1', 'hijo1@smarthome.com', '$2b$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi', 'Luis', 'Gómez', 2, (SELECT id FROM family_sub_roles WHERE role_id = 2 AND sub_role_name = 'Hijo' LIMIT 1), '2010-03-15'),
+    ('hijo1', 'hijo1@smarthome.com', '$2b$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi', 'Luis', 'Gómez', 2, '2010-03-15'),
     -- Hija (miembro)
-    ('hija1', 'hija1@smarthome.com', '$2b$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi', 'Sofía', 'Gómez', 2, (SELECT id FROM family_sub_roles WHERE role_id = 2 AND sub_role_name = 'Hija' LIMIT 1), '2012-07-19'),
+    ('hija1', 'hija1@smarthome.com', '$2b$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi', 'Sofía', 'Gómez', 2, '2012-07-19'),
     -- Hijo (miembro)
-    ('hijo2', 'hijo2@smarthome.com', '$2b$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi', 'Pedro', 'Gómez', 2, (SELECT id FROM family_sub_roles WHERE role_id = 2 AND sub_role_name = 'Hijo' LIMIT 1), '2014-11-02')
+    ('hijo2', 'hijo2@smarthome.com', '$2b$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi', 'Pedro', 'Gómez', 2, '2014-11-02')
 ON CONFLICT (email) DO NOTHING;
 
 -- Insertar familia solicitada: papá (jefe), mamá y 3 hijos
-INSERT INTO users (username, email, password_hash, first_name, last_name, family_role_id, family_sub_role_id, birth_date)
-VALUES 
-    -- Papá (jefe del hogar)
-    ('papa', 'papa@smarthome.com', '$2b$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi', 'Carlos', 'Gómez', 1, (SELECT id FROM family_sub_roles WHERE role_id = 2 AND sub_role_name = 'Papá' LIMIT 1), '1980-05-12'),
-    -- Mamá (miembro)
-    ('mama', 'mama@smarthome.com', '$2b$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi', 'María', 'Gómez', 2, (SELECT id FROM family_sub_roles WHERE role_id = 2 AND sub_role_name = 'Mamá' LIMIT 1), '1982-08-22'),
-    -- Hijo (miembro)
-    ('hijo1', 'hijo1@smarthome.com', '$2b$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi', 'Luis', 'Gómez', 2, (SELECT id FROM family_sub_roles WHERE role_id = 2 AND sub_role_name = 'Hijo' LIMIT 1), '2010-03-15'),
-    -- Hija (miembro)
-    ('hija1', 'hija1@smarthome.com', '$2b$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi', 'Sofía', 'Gómez', 2, (SELECT id FROM family_sub_roles WHERE role_id = 2 AND sub_role_name = 'Hija' LIMIT 1), '2012-07-19'),
-    -- Hijo (miembro)
-    ('hijo2', 'hijo2@smarthome.com', '$2b$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi', 'Pedro', 'Gómez', 2, (SELECT id FROM family_sub_roles WHERE role_id = 2 AND sub_role_name = 'Hijo' LIMIT 1), '2014-11-02')
-ON CONFLICT (email) DO NOTHING;
+-- (Eliminado) Bloque duplicado de inserción de usuarios
 
 -- Preferencias de usuario para la familia
-INSERT INTO user_preferences (user_id, theme, language)
-SELECT id, 'light', 'es' FROM users WHERE username IN ('papa','mama','hijo1','hija1','hijo2');
+-- (Eliminado) Preferencias de usuario
 
 -- Preferencias para nuevos usuarios de la familia
-INSERT INTO user_preferences (user_id, theme, language)
-SELECT id, 'light', 'es' FROM users WHERE username IN ('papa','mama','hijo1','hija1','hijo2');
+-- (Eliminado) Preferencias de usuario
 
 -- Mensaje de confirmación
 DO $$

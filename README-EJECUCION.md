@@ -4,6 +4,7 @@
 
 - **Node.js** 18+ instalado
 - **PostgreSQL** instalado y ejecutándose
+- **Redis** instalado y ejecutándose
 - **PowerShell** (Windows)
 
 ## 🚀 Ejecución Rápida (3 pasos)
@@ -48,6 +49,9 @@ Usuarios iniciales creados automáticamente en `users_db`:
 Verificación rápida:
 ```powershell
 node backend/users-service/scripts/verify-users.js
+  curl http://localhost:3004/health
+  curl http://localhost:3004/redis/health
+  curl http://localhost:3004/queue/stats
 ```
 
 ## 🌐 URLs de los Servicios
@@ -60,6 +64,8 @@ node backend/users-service/scripts/verify-users.js
 | **File Upload Service** | 3005 | http://localhost:3005 |
 | **Notifications Service** | 3004 | http://localhost:3004 |
 
+> Consumo recomendado de APIs: usa el **API Gateway** (`http://localhost:3000`) con rutas `/api/users`, `/api/tasks`, `/api/files`, `/api/notifications` y `/api/auth`.
+
 ## 🗄️ Configuración de Base de Datos
 
 ### Credenciales
@@ -69,6 +75,17 @@ node backend/users-service/scripts/verify-users.js
 - **Esquema por defecto:** `public`
 
 Los esquemas por microservicio han sido unificados bajo `public`. Los scripts `backend/setup-users-database.sql` y `backend/setup-tasks-database.sql` crean las tablas necesarias.
+
+### Redis
+- **Host:** `REDIS_HOST` (por defecto `smart-home-redis` con Docker, `localhost` local)
+- **Puerto:** `REDIS_PORT` (por defecto `6379`)
+- **Contraseña:** `REDIS_PASSWORD`
+- **Base:** `REDIS_DB` (por defecto `0`)
+
+Notas de notificaciones (Redis):
+- Cola única: `queue:notifications`
+- Registro temporal: `notification:{id}` (TTL 7 días)
+- Canal Pub/Sub global: `notification:new`
 
 ## 🔧 Comandos Individuales
 
@@ -107,7 +124,8 @@ npm run dev
 Smart-Home/
 ├── 📄 start-all-services.ps1      # Script principal de ejecución
 ├── 📄 install-dependencies.ps1    # Script de instalación de dependencias
-├── 📄 setup-database.sql          # Script de configuración de BD
+├── 📄 backend/setup-users-database.sql    # Script de BD de usuarios
+├── 📄 backend/setup-tasks-database.sql    # Script de BD de tareas
 ├── 📄 README-EJECUCION.md         # Esta guía
 ├── api-gateway/.env               # Configuración API Gateway
 ├── users-service/.env             # Configuración Users Service
@@ -131,6 +149,48 @@ taskkill /PID <PID> /F
 1. Verificar que PostgreSQL esté ejecutándose
 2. Verificar credenciales en archivos `.env`
 3. Verificar que las bases de datos `users_db` y `tasks_db` existan
+
+### Redis no conecta
+```powershell
+# Verificar Redis local
+Test-NetConnection localhost -Port 6379
+```
+1. Verificar que Redis está ejecutándose
+2. Confirmar variables `REDIS_HOST`, `REDIS_PORT`, `REDIS_PASSWORD`, `REDIS_DB` en `notifications-service/.env`
+
+## ✅ Pruebas de Cola y WebSocket (Notificaciones)
+
+### Encolar una notificación (vía API Gateway)
+```bash
+curl -X POST http://localhost:3000/api/notifications/notify/queue \
+  -H "Content-Type: application/json" \
+  -d '{
+    "type": "task_completed",
+    "channels": ["app"],
+    "data": {
+      "userId": "1",
+      "taskId": "42",
+      "taskTitle": "Sacar la basura",
+      "message": "Juan ha completado la tarea"
+    }
+  }'
+```
+
+### Escuchar en tiempo real (Socket.IO)
+- Conexión: `ws://localhost:3004`
+- Unirse a sala: emitir `join_user_room` con `{ userId }`
+- Evento de entrega: `new_notification`
+
+Ejemplo cliente (Node):
+```js
+// Instalar: npm i socket.io-client
+import { io } from 'socket.io-client';
+const socket = io('http://localhost:3004', { transports: ['websocket'] });
+socket.on('connect', () => {
+  socket.emit('join_user_room', { userId: '1' });
+});
+socket.on('new_notification', (n) => console.log('Notificación:', n));
+```
 
 ### Dependencias faltantes
 ```powershell

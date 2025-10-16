@@ -1,6 +1,5 @@
 import { google } from 'googleapis';
 import { Readable } from 'stream';
-import path from 'path';
 
 export interface GoogleDriveConfig {
   clientId: string;

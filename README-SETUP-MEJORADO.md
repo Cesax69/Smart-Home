@@ -24,6 +24,10 @@ Smart-Home/
 
 ### 🔄 Arquitectura Simplificada
 - **PostgreSQL**: Almacena usuarios, roles y tareas familiares
+- **Redis**: Notificaciones con cola única, Pub/Sub global y persistencia ligera (sin SQL)
+  - Cola única: `queue:notifications`
+  - Registro temporal: `notification:{id}` (TTL 7 días)
+  - Canal Pub/Sub global: `notification:new`
 - **Almacenamiento de Archivos**: Integración con Google Drive vía file-upload-service
 - **PWA Angular**: Interfaz moderna con funcionalidad offline
 - **Roles Familiares**: Jefe de hogar y miembros de familia con permisos diferenciados
@@ -46,7 +50,7 @@ Los siguientes usuarios se crean automáticamente en `users_db` al iniciar con D
 Notas de datos iniciales:
 - `users_db`: se precargan los 5 usuarios de la familia.
 - `tasks_db`: solo esquema de tablas, sin datos de ejemplo.
-- `notifications_schema`: tablas y funciones listas; las configuraciones de usuario se crean dinámicamente.
+- `notifications-service`: usa Redis como backend único; las configuraciones de usuario se crean dinámicamente.
 
 ## 🧹 Arranque limpio con Docker Compose
 
@@ -57,7 +61,7 @@ docker compose down -v
 docker compose up -d --build
 ```
 
-Esto elimina contenedores y volúmenes previos y reconstruye todo con los scripts SQL actualizados.
+Esto elimina contenedores y volúmenes previos y reconstruye todo. Las notificaciones usan Redis (sin SQL).
 
 ### 🔎 Verificar usuarios cargados
 ```powershell
@@ -96,7 +100,7 @@ cd frontend/smart-home-pwa && npm start
 | **Users Service** | http://localhost:3001 | Gestión de usuarios y roles |
 | **Tasks Service** | http://localhost:3002 | Gestión de tareas familiares |
 | **File Upload** | http://localhost:3005 | Subida y organización de archivos |
-| **Notifications** | http://localhost:3003 | Sistema de notificaciones |
+| **Notifications** | http://localhost:3004 | Sistema de notificaciones |
 
 ## 🗄️ Configuración de Base de Datos
 
@@ -116,7 +120,11 @@ cd frontend/smart-home-pwa && npm start
 - ✅ Estadísticas de almacenamiento
 
 ### 🚀 Notificaciones
-- Implementación actual basada en endpoints del `notifications-service` (sin Redis).
+- Implementación basada en Redis con arquitectura simplificada:
+  - Encolar vía `POST /api/notifications/notify/queue` (API Gateway)
+  - Entrega en tiempo real con Socket.IO (`ws://localhost:3004`)
+  - Evento de entrega: `new_notification`
+  - Frontend gestiona estado de leído/no leído (endpoints de lectura deprecados)
 
 ### 🛡️ Seguridad
 - ✅ Validación de tipos de archivo

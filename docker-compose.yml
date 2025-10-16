@@ -150,10 +150,6 @@ services:
       - NODE_ENV=production
       - MAX_FILE_SIZE=10485760
       - ALLOWED_EXTENSIONS=jpg,jpeg,png,gif,pdf,doc,docx,txt
-    volumes:
-      - file_uploads:/app/uploads
-      - file_temp:/app/temp
-      - file_quarantine:/app/quarantine
     networks:
       - smart-home-network
     restart: unless-stopped
@@ -184,12 +180,6 @@ volumes:
   postgres_users_data:
     driver: local
   postgres_tasks_data:
-    driver: local
-  file_uploads:
-    driver: local
-  file_temp:
-    driver: local
-  file_quarantine:
     driver: local
   redis_data:
     driver: local

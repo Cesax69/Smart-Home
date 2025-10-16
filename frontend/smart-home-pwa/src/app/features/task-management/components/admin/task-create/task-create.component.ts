@@ -14,7 +14,6 @@ import { MatExpansionModule } from '@angular/material/expansion';
 import { MatAccordion } from '@angular/material/expansion';
 import { MatChipsModule } from '@angular/material/chips';
 import { MatProgressBarModule } from '@angular/material/progress-bar';
-// MatSnackBar removido: usamos AlertCenter
 import { MatDialogRef } from '@angular/material/dialog';
 import { MatTooltipModule } from '@angular/material/tooltip';
 import { MatButtonToggleModule } from '@angular/material/button-toggle';

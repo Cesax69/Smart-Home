@@ -29,14 +29,7 @@ CREATE TABLE IF NOT EXISTS tasks (
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
--- Tabla de subtareas
-CREATE TABLE IF NOT EXISTS subtasks (
-    id SERIAL PRIMARY KEY,
-    task_id INTEGER REFERENCES tasks(id) ON DELETE CASCADE,
-    title VARCHAR(200) NOT NULL,
-    is_completed BOOLEAN DEFAULT false,
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-);
+-- (Eliminado) Tabla de subtareas
 
 -- Tabla de asignaciones de tareas (para múltiples usuarios por tarea)
 CREATE TABLE IF NOT EXISTS task_assignments (
@@ -94,7 +87,6 @@ CREATE INDEX IF NOT EXISTS idx_tasks_due_date ON tasks(due_date);
 CREATE INDEX IF NOT EXISTS idx_tasks_created_at ON tasks(created_at);
 CREATE INDEX IF NOT EXISTS idx_tasks_recurring ON tasks(is_recurring);
 CREATE INDEX IF NOT EXISTS idx_tasks_parent ON tasks(parent_task_id);
-CREATE INDEX IF NOT EXISTS idx_subtasks_task_id ON subtasks(task_id);
 CREATE INDEX IF NOT EXISTS idx_task_assignments_task_id ON task_assignments(task_id);
 CREATE INDEX IF NOT EXISTS idx_task_assignments_user_id ON task_assignments(user_id);
 CREATE INDEX IF NOT EXISTS idx_task_files_task_id ON task_files(task_id);
@@ -120,6 +112,5 @@ BEGIN
     RAISE NOTICE '  - Tareas recurrentes con períodos configurables';
     RAISE NOTICE '  - Asignación múltiple de usuarios por tarea';
     RAISE NOTICE '  - Gestión de archivos con integración Google Drive';
-    RAISE NOTICE '  - Sistema de subtareas para mejor organización';
     RAISE NOTICE 'Datos iniciales: ninguno';
 END $$;

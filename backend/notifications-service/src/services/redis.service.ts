@@ -5,7 +5,6 @@ export interface QueueJob {
   id: string;
   type: string;
   data: any;
-  priority: 'high' | 'low';
   createdAt: Date;
   attempts?: number;
   maxAttempts?: number;
@@ -26,23 +25,17 @@ export class RedisService {
   async addToQueue(queueName: string, job: QueueJob): Promise<void> {
     try {
       const jobData = JSON.stringify(job);
-      
-      if (job.priority === 'high') {
-        await this.redis.lpush(`queue:${queueName}:high`, jobData);
-      } else {
-        await this.redis.lpush(`queue:${queueName}:low`, jobData);
-      }
-      
-      console.log(`✅ Job added to ${queueName} queue with ${job.priority} priority:`, job.id);
+      await this.redis.lpush(`queue:${queueName}`, jobData);
+      console.log(`✅ Job added to ${queueName} queue:`, job.id);
     } catch (error) {
       console.error(`❌ Error adding job to queue ${queueName}:`, error);
       throw error;
     }
   }
 
-  async processQueue(queueName: string, priority: 'high' | 'low' = 'high'): Promise<QueueJob | null> {
+  async processQueue(queueName: string): Promise<QueueJob | null> {
     try {
-      const result = await this.redis.brpop(`queue:${queueName}:${priority}`, 1);
+      const result = await this.redis.brpop(`queue:${queueName}`, 1);
       
       if (result && result[1]) {
         const job: QueueJob = JSON.parse(result[1]);
@@ -57,9 +50,9 @@ export class RedisService {
     }
   }
 
-  async getQueueLength(queueName: string, priority: 'high' | 'low' = 'high'): Promise<number> {
+  async getQueueLength(queueName: string): Promise<number> {
     try {
-      return await this.redis.llen(`queue:${queueName}:${priority}`);
+      return await this.redis.llen(`queue:${queueName}`);
     } catch (error) {
       console.error(`❌ Error getting queue length for ${queueName}:`, error);
       return 0;
@@ -201,6 +194,93 @@ export class RedisService {
           error: (error as Error).message,
         timestamp: new Date().toISOString()
       };
+    }
+  }
+
+  // ===============================
+  // Sorted Set Helpers (ZSET)
+  // ===============================
+  async addToSortedSet(key: string, score: number, member: string): Promise<void> {
+    try {
+      await this.redis.zadd(key, score, member);
+      console.log(`✅ ZADD to ${key}: ${member} @ ${score}`);
+    } catch (error) {
+      console.error(`❌ Error adding to sorted set ${key}:`, error);
+      throw error;
+    }
+  }
+
+  async getSortedSetRange(key: string, start: number, stop: number, reverse: boolean = true): Promise<string[]> {
+    try {
+      const members = reverse
+        ? await this.redis.zrevrange(key, start, stop)
+        : await this.redis.zrange(key, start, stop);
+      return members || [];
+    } catch (error) {
+      console.error(`❌ Error getting range from sorted set ${key}:`, error);
+      throw error;
+    }
+  }
+
+  async removeFromSortedSet(key: string, member: string): Promise<void> {
+    try {
+      await this.redis.zrem(key, member);
+      console.log(`✅ ZREM from ${key}: ${member}`);
+    } catch (error) {
+      console.error(`❌ Error removing from sorted set ${key}:`, error);
+      throw error;
+    }
+  }
+
+  async getSortedSetCount(key: string): Promise<number> {
+    try {
+      return await this.redis.zcard(key);
+    } catch (error) {
+      console.error(`❌ Error getting sorted set count for ${key}:`, error);
+      return 0;
+    }
+  }
+
+  // ===============================
+  // List Helpers
+  // ===============================
+  async addToList(key: string, value: any): Promise<void> {
+    try {
+      const payload = JSON.stringify(value);
+      await this.redis.lpush(key, payload);
+      console.log(`✅ LPUSH to ${key}`);
+    } catch (error) {
+      console.error(`❌ Error adding to list ${key}:`, error);
+      throw error;
+    }
+  }
+
+  async getListRange(key: string, start: number, stop: number): Promise<any[]> {
+    try {
+      const items = await this.redis.lrange(key, start, stop);
+      return (items || []).map((item) => {
+        try { return JSON.parse(item); } catch { return item; }
+      });
+    } catch (error) {
+      console.error(`❌ Error getting list range for ${key}:`, error);
+      throw error;
+    }
+  }
+
+  // ===============================
+  // Bulk Cache Helpers
+  // ===============================
+  async getMultipleCache(keys: string[]): Promise<any[]> {
+    try {
+      if (!keys || keys.length === 0) return [];
+      const values = await this.redis.mget(...keys);
+      return (values || []).map((val) => {
+        if (!val) return null;
+        try { return JSON.parse(val); } catch { return val; }
+      });
+    } catch (error) {
+      console.error('❌ Error getting multiple cache keys:', error);
+      throw error;
     }
   }
 }

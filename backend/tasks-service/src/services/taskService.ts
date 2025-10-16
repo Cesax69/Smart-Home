@@ -77,57 +77,65 @@ export class TaskService {
       const notificationUserId = userId || taskData.assignedUserId;
       console.log(`EVENTO PUBLICADO: ${eventType}, UsuarioID: ${notificationUserId}, TareaID: ${taskData.id}, Título: ${taskData.title}`);
       
-      // Mapear tipos de eventos a tipos de notificación
-      let notificationType: string;
-      switch (eventType) {
-        case 'TareaCreada':
-          notificationType = 'tarea_asignada';
-          break;
-        case 'TareaActualizada':
-          notificationType = taskData.status === 'completada' ? 'tarea_completada' : 'tarea_actualizada';
-          break;
-        case 'TareaEliminada':
-          notificationType = 'tarea_eliminada';
-          break;
-        default:
-          notificationType = 'general';
+      // Construir el evento para la cola del notifications-service vía API Gateway
+      const gatewayUrl = process.env.API_GATEWAY_URL || 'http://api-gateway:3000';
+
+      // Solo notificamos creación y completado; otras actualizaciones no generan notificación directa
+      let queueEvent: any | null = null;
+      if (eventType === 'TareaCreada' && notificationUserId) {
+        queueEvent = {
+          type: 'task_assigned',
+          channels: ['app'],
+          data: {
+            userId: String(notificationUserId),
+            familyId: 'family_1',
+            taskId: taskData.id ? String(taskData.id) : undefined,
+            taskTitle: taskData.title,
+            message: `Se te ha asignado una nueva tarea: "${taskData.title}"`,
+            metadata: {
+              category: taskData.category,
+              priority: taskData.priority,
+              dueDate: taskData.dueDate,
+              createdBy: taskData.createdById,
+              description: taskData.description
+            }
+          },
+          priority: taskData.priority === 'alta' ? 'high' : 'low'
+        };
+      } else if (eventType === 'TareaActualizada' && taskData.status === 'completada') {
+        queueEvent = {
+          type: 'task_completed',
+          channels: ['app'],
+          data: {
+            userId: String(notificationUserId ?? taskData.assignedUserId ?? ''),
+            familyId: 'family_1',
+            taskId: taskData.id ? String(taskData.id) : undefined,
+            taskTitle: taskData.title,
+            message: `La tarea "${taskData.title}" ha sido marcada como completada. ¡Buen trabajo!`,
+            metadata: {
+              category: taskData.category,
+              priority: taskData.priority,
+              completedAt: new Date().toISOString(),
+              originalAssignee: taskData.assignedUserId
+            }
+          },
+          priority: taskData.priority === 'alta' ? 'high' : 'low'
+        };
       }
 
-      // Preparar datos para el webhook de notificaciones
-      const notificationPayload = {
-        userId: notificationUserId,
-        type: notificationType,
-        priority: taskData.priority === 'urgente' ? 'alta' : taskData.priority === 'alta' ? 'media' : 'baja',
-        taskData: {
-          id: taskData.id,
-          title: taskData.title,
-          description: taskData.description,
-          category: taskData.category,
-          priority: taskData.priority,
-          status: taskData.status,
-          assignedUserName: taskData.assignedUserName,
-          createdByName: taskData.createdByName,
-          dueDate: taskData.dueDate,
-          reward: taskData.reward
+      if (queueEvent) {
+        const response = await fetch(`${gatewayUrl}/api/notifications/notify/queue`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(queueEvent)
+        });
+
+        if (response.ok) {
+          console.log('✅ Notificación encolada vía API Gateway');
+        } else {
+          console.error(`❌ Error al encolar notificación: ${response.status} ${response.statusText}`);
         }
-      };
-
-      // Enviar notificación al notifications-service
-      const notificationServiceUrl = process.env.NOTIFICATIONS_SERVICE_URL || 'http://localhost:3003';
-      const response = await fetch(`${notificationServiceUrl}/notify/family`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(notificationPayload)
-      });
-
-      if (response.ok) {
-         const result = await response.json() as { message?: string };
-         console.log(`✅ Notificación enviada exitosamente:`, result.message || 'Sin mensaje');
-       } else {
-         console.error(`❌ Error al enviar notificación: ${response.status} ${response.statusText}`);
-       }
+      }
     } catch (error) {
       console.error('❌ Error al publicar evento de notificación:', error);
       // No lanzamos el error para que no afecte la operación principal de la tarea
