@@ -19,8 +19,6 @@ RUN npm run build
 # Limpiar devDependencies después del build
 RUN npm prune --production
 
-# Crear directorios para archivos
-RUN mkdir -p /app/uploads /app/temp /app/quarantine
 
 # Crear usuario no-root para seguridad
 RUN addgroup -g 1001 -S nodejs
@@ -33,8 +31,6 @@ USER fileuploadservice
 # Exponer puerto
 EXPOSE 3005
 
-# Volumen para persistencia de archivos
-VOLUME ["/app/uploads", "/app/temp", "/app/quarantine"]
 
 # Comando de inicio
 CMD ["npm", "start"]

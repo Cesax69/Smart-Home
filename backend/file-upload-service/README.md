@@ -5,10 +5,10 @@ Microservicio especializado para la carga y gestión de archivos en el ecosistem
 ## 🚀 Características
 
 - **Carga de archivos** con validación de tipos y tamaños
-- **Servicio de archivos estáticos** para acceso público
-- **API REST simple** con un único endpoint especializado
+- **API REST** orientada a subida y consulta
+- **Almacenamiento en Google Drive** (sin uso de disco local)
 - **Validación robusta** de archivos y manejo de errores
-- **URLs públicas** para acceso directo a archivos
+- **Enlaces públicos** de Google Drive (`fileUrl`, `webViewLink`, `downloadLink`)
 
 ## 📁 Estructura del Proyecto
 
@@ -23,7 +23,7 @@ file-upload-service/
 │   │   ├── uploadRoutes.ts        # Rutas de upload
 │   │   └── index.ts               # Rutas principales
 │   └── app.ts                     # Servidor principal
-├── uploads/                       # Carpeta de archivos subidos
+├── (sin carpeta uploads)          # Todo se sube directamente a Google Drive
 ├── package.json
 ├── tsconfig.json
 └── README.md
@@ -47,7 +47,7 @@ npm start
 
 ## 🚀 Ejecución
 
-El servicio se ejecuta en el puerto **3005** por defecto.
+El servicio se ejecuta en el puerto **3005** por defecto (interno). Para clientes y otros microservicios, consume siempre vía **API Gateway** en `http://localhost:3000/api/files`.
 
 ```bash
 # Desarrollo con recarga automática
@@ -85,9 +85,12 @@ Content-Type: multipart/form-data
 Campo: file (archivo)
 ```
 
-**Ejemplo con curl:**
+**Ejemplo con curl (API Gateway recomendado):**
 ```bash
-curl -X POST -F "file=@imagen.jpg" http://localhost:3005/upload
+curl -X POST \
+  -F "file=@imagen.jpg" \
+  -F "file=@otra-imagen.png" \
+  http://localhost:3000/api/files/upload
 ```
 
 **Respuesta exitosa:**
@@ -106,19 +109,24 @@ curl -X POST -F "file=@imagen.jpg" http://localhost:3005/upload
 }
 ```
 
-### 📁 Acceder a Archivos
+### 📁 Explorar Archivos en Drive
 ```http
 GET /drive/files
 ```
 
-**Ejemplo:**
+**Ejemplo (Gateway):**
 ```
-http://localhost:3005/drive/files
+http://localhost:3000/api/files/drive/files
 ```
 
 ### ❤️ Health Check
 ```http
 GET /health
+```
+
+**Ejemplo (Gateway):**
+```
+curl http://localhost:3000/api/files/health
 ```
 
 **Respuesta:**
@@ -153,16 +161,24 @@ GET /
 PORT=3005
 NODE_ENV=development
 
-# Configuración de Archivos
-UPLOAD_DIR=uploads
+# Configuración de archivos (Memoria + Google Drive)
 MAX_FILE_SIZE=10485760
 ALLOWED_FILE_TYPES=image/jpeg,image/png,image/gif,image/webp,application/pdf,text/plain
 
-# Configuración de URLs
-BASE_URL=http://localhost:3005
-
 # Configuración de Logs
 LOG_LEVEL=info
+
+# Configuración de Google Drive
+GOOGLE_DRIVE_CLIENT_ID=your_google_client_id_here
+GOOGLE_DRIVE_CLIENT_SECRET=your_google_client_secret_here
+# Puedes usar callback vía API Gateway o directo:
+# GOOGLE_DRIVE_REDIRECT_URI=http://localhost:3000/api/files/auth/google/callback
+GOOGLE_DRIVE_REDIRECT_URI=http://localhost:3005/auth/google/callback
+GOOGLE_DRIVE_REFRESH_TOKEN=your_refresh_token_here
+GOOGLE_DRIVE_FOLDER_ID=your_folder_id_here
+
+# Configuración de almacenamiento
+STORAGE_TYPE=google_drive
 ```
 
 ### Límites y Restricciones
@@ -171,7 +187,7 @@ LOG_LEVEL=info
 - **Tipos permitidos:**
   - Imágenes: JPEG, PNG, GIF, WebP
   - Documentos: PDF, TXT, DOC, DOCX
-- **Archivos por request:** 1
+- **Archivos por request:** hasta 20
 - **Campo de formulario:** `file`
 
 ## 🛡️ Validación y Seguridad
@@ -182,13 +198,13 @@ LOG_LEVEL=info
 - Headers de seguridad configurados
 - Manejo robusto de errores
 
-## 🔄 Flujo de Funcionamiento
+## 🔄 Flujo de Funcionamiento (Drive-only)
 
-1. **Cliente envía archivo** via POST /upload
-2. **Multer procesa** el archivo y lo valida
-3. **Archivo se guarda** en /uploads con nombre único
-4. **Servicio retorna** URL pública del archivo
-5. **Archivo es accesible** via GET /files/:filename
+1. **Cliente envía archivo(s)** vía `POST /upload` (multipart/form-data)
+2. **Multer (memoryStorage)** procesa y valida los archivos en memoria
+3. **El servicio sube** cada archivo a Google Drive
+4. **Se retorna** información y enlaces públicos (`fileUrl`, `webViewLink`, `downloadLink`)
+5. **Opcional**: se organizan en carpetas por título de tarea (`taskTitle`), carpeta específica (`folderId`) o subcarpeta (`subfolder`)
 
 ## 🚨 Manejo de Errores
 
@@ -239,16 +255,14 @@ Puerto: 3005
 
 ## 🚢 Ejecución con Docker (recomendado)
 
-Para arrancar en estado limpio (sin archivos previos en volúmenes):
+Estado actual (Drive-only): este servicio no usa volúmenes ni directorios locales; todo el guardado se realiza en Google Drive.
+
+Para ejecutar el servicio:
 
 ```powershell
-docker compose down -v
-docker compose up -d --build
+docker compose up -d --build file-upload-service
 ```
 
-Volúmenes gestionados por Docker Compose:
-- `file_uploads` → almacenamiento persistente de archivos subidos
-- `file_temp` → archivos temporales
-- `file_quarantine` → cuarentena de archivos
-
-Al ejecutar `down -v`, se eliminan estos volúmenes y el servicio comienza sin archivos residuales.
+Notas:
+- No uses `down -v` para limpiar volúmenes (no se crean volúmenes locales).
+- Las rutas locales tipo `/files/:filename` ya no están disponibles; usa los enlaces de Google Drive devueltos por los endpoints.

@@ -191,7 +191,7 @@ export class UserService {
    */
   public async findById(id: number): Promise<any | undefined> {
     const query = `
-      SELECT id, username, email, password_hash, first_name, last_name, family_role_id, family_sub_role_id, created_at, updated_at
+      SELECT id, username, email, password_hash, first_name, last_name, family_role_id, created_at, updated_at
       FROM users
       WHERE id = $1
     `;
@@ -220,7 +220,7 @@ export class UserService {
    */
   public async findByUsernameOrEmail(username: string, email?: string): Promise<any | undefined> {
     const query = `
-      SELECT id, username, email, password_hash, first_name, last_name, family_role_id, family_sub_role_id, created_at, updated_at
+      SELECT id, username, email, password_hash, first_name, last_name, family_role_id, created_at, updated_at
       FROM users
       WHERE username = $1 OR email = $2
       LIMIT 1

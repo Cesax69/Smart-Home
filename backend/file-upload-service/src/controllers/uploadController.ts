@@ -1,7 +1,6 @@
 import { Request, Response } from 'express';
 import path from 'path';
 import { GoogleDriveService } from '../services/googleDriveService';
-import fs from 'fs';
 
 export class UploadController {
   private static googleDriveService: GoogleDriveService | null = null;
@@ -142,7 +141,7 @@ export class UploadController {
 
       for (const file of files) {
         try {
-          const fileBuffer = fs.readFileSync(file.path);
+          const fileBuffer = file.buffer;
 
           const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
           const extension = path.extname(file.originalname);
@@ -155,9 +154,6 @@ export class UploadController {
             file.mimetype,
             targetFolderId
           );
-
-          // Eliminar archivo temporal
-          fs.unlinkSync(file.path);
 
           console.log(`📁 Archivo subido a Google Drive: ${file.originalname} -> ${uniqueFileName}`);
 
@@ -181,10 +177,6 @@ export class UploadController {
             originalName: file.originalname,
             error: err instanceof Error ? err.message : 'Error desconocido'
           });
-          // Intentar limpiar temporal si existe
-          if (fs.existsSync(file.path)) {
-            try { fs.unlinkSync(file.path); } catch {}
-          }
         }
       }
 
@@ -235,8 +227,8 @@ export class UploadController {
       // Inicializar servicio de Google Drive
       const driveService = UploadController.initializeGoogleDrive();
 
-      // Leer el archivo desde el sistema temporal
-      const fileBuffer = fs.readFileSync(file.path);
+      // Leer el archivo desde memoria (Multer memoryStorage)
+      const fileBuffer = file.buffer;
 
       // Generar nombre único para el archivo
       const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
@@ -250,9 +242,6 @@ export class UploadController {
         uniqueFileName,
         file.mimetype
       );
-
-      // Eliminar archivo temporal
-      fs.unlinkSync(file.path);
 
       // Log de la operación
       console.log(`📁 Archivo subido exitosamente a Google Drive: ${file.originalname} -> ${uniqueFileName}`);
@@ -278,11 +267,6 @@ export class UploadController {
       });
 
     } catch (error) {
-      // Limpiar archivo temporal en caso de error
-      if (fs.existsSync(file.path)) {
-        fs.unlinkSync(file.path);
-      }
-      
       console.error('❌ Error subiendo a Google Drive:', error);
       const errorMessage = error instanceof Error ? error.message : 'Error desconocido';
       res.status(500).json({

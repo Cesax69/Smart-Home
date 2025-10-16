@@ -52,14 +52,17 @@ npm start
 
 ### Base URL
 ```
-http://localhost:3001
+http://localhost:3000/api/users
 ```
+
+Nota: la URL interna del servicio para desarrollo es `http://localhost:3001`.
 
 ### Endpoints Disponibles
 
 #### 1. Health Check
-- **GET** `/api/health`
-- **Descripción**: Verifica el estado del servicio
+- **GET** `/api/health` (interno del servicio)
+- **Descripción**: Verifica el estado del Users Service. Este endpoint está disponible en la URL interna del servicio.
+- **Nota**: Para verificar el estado general de los servicios vía API Gateway usa `GET http://localhost:3000/status`.
 - **Respuesta**:
 ```json
 {
@@ -112,14 +115,17 @@ http://localhost:3001
 Puedes probar los endpoints usando curl, Postman o cualquier cliente HTTP:
 
 ```bash
-# Health check
+# Health check del servicio (interno)
 curl http://localhost:3001/api/health
 
-# Obtener todos los usuarios
-curl http://localhost:3001/api/users
+# Estado general (Gateway)
+curl http://localhost:3000/status
 
-# Obtener usuario por ID
-curl http://localhost:3001/api/users/1
+# Obtener todos los usuarios (Gateway)
+curl http://localhost:3000/api/users
+
+# Obtener usuario por ID (Gateway)
+curl http://localhost:3000/api/users/1
 ```
 
 ## 🔧 Scripts Disponibles

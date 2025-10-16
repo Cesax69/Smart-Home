@@ -1,7 +1,7 @@
 {
   "name": "notifications-service",
   "version": "1.0.0",
-  "description": "Microservicio para notificaciones por WhatsApp",
+  "description": "Microservicio para notificaciones en tiempo real",
   "main": "dist/app.js",
   "scripts": {
     "start": "node dist/server.js",
@@ -11,7 +11,7 @@
   },
   "keywords": [
     "notifications",
-    "whatsapp",
+    "realtime",
     "webhook",
     "microservice",
     "smart-home"

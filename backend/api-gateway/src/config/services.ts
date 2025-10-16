@@ -49,9 +49,9 @@ export const SERVICES: Record<string, ServiceConfig> = {
   },
   NOTIFICATIONS: {
     name: 'Notifications Service',
-    url: process.env.NOTIFICATIONS_SERVICE_URL || 'http://localhost:3003',
+    url: process.env.NOTIFICATIONS_SERVICE_URL || 'http://localhost:3004',
     path: '/api/notifications',
-    description: 'Servicio de notificaciones por WhatsApp',
+    description: 'Servicio de notificaciones en tiempo real',
     healthEndpoint: '/health',
     stripApiPrefix: true
   }

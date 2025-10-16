@@ -1,5 +1,13 @@
 # 📁 File Upload Service - Integración con Google Drive
 
+> Estado actual: Drive-only
+>
+> Este servicio guarda archivos exclusivamente en Google Drive. Las referencias a almacenamiento local en este documento son obsoletas y se mantienen solo como historial. La implementación actual usa `multer.memoryStorage` y buffers (sin archivos temporales en disco).
+
+Resumen rápido:
+- Exclusivo Google Drive (sin escritura local)
+- Endpoints activos: `POST /upload`, `GET /health`, `GET /drive/*`
+
 Este microservicio ha sido actualizado para soportar almacenamiento en **Google Drive** además del almacenamiento local tradicional.
 
 ## 🚀 Características
