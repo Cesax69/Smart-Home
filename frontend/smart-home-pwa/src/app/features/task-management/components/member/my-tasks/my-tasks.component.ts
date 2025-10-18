@@ -561,6 +561,13 @@ export class MyTasksComponent implements OnInit {
         console.log('📈 Setting initial progress to 0%');
       }
 
+      // Si movemos a pendiente, reiniciar progreso y limpiar fecha de completado
+      if (newStatus === 'pending') {
+        updatedTask.progress = 0;
+        (updatedTask as any).completedAt = null;
+        console.log('↩️ Resetting progress to 0% and clearing completedAt for pending');
+      }
+
       console.log('📤 Sending update request:', updatedTask);
       this.taskService.updateTask(task.id, updatedTask).subscribe({
         next: (updatedTaskResponse: Task) => {

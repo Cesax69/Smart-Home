@@ -92,29 +92,12 @@ VALUES
     (2, 'Hija', 'Hija mujer de la familia')
 ON CONFLICT (role_id, sub_role_name) DO NOTHING;
 
--- Insertar usuarios de ejemplo con credenciales simplificadas
-INSERT INTO users (username, email, password_hash, first_name, last_name, family_role_id, family_sub_role_id, birth_date) 
-VALUES 
-    -- Usuario admin (jefe del hogar)
-    ('admin', 'admin@smarthome.com', '$2b$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi', 'Admin', 'Usuario', 1, NULL, '1985-01-01'),
-    
-    -- Usuario member (miembro del hogar)
-    ('member', 'member@smarthome.com', '$2b$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi', 'Member', 'Usuario', 2, 3, '1990-01-01')
-ON CONFLICT (email) DO NOTHING;
-
--- Preferencias de usuario
-INSERT INTO user_preferences (user_id, theme, language) 
-VALUES 
-    (1, 'light', 'es'), -- Admin
-    (2, 'light', 'es')  -- Member
-ON CONFLICT DO NOTHING;
+-- Sin usuarios de ejemplo pre-cargados
 
 -- Mensaje de confirmación
 DO $$
 BEGIN
-    RAISE NOTICE 'Base de datos de Usuarios Smart Home configurada exitosamente!';
-    RAISE NOTICE 'Sistema de roles familiares implementado:';
-    RAISE NOTICE '  - Jefe del hogar: admin/admin';
-    RAISE NOTICE '  - Miembro: member/member';
-    RAISE NOTICE 'Total de usuarios creados: 2';
+    RAISE NOTICE 'Base de datos de Usuarios Smart Home configurada exitosamente (sin datos de ejemplo).';
+    RAISE NOTICE 'Roles y sub-roles familiares de base creados si no existían.';
+    RAISE NOTICE 'No se insertaron usuarios ni preferencias por defecto.';
 END $$;

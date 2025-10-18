@@ -52,20 +52,24 @@ export class AuthService {
           return;
         }
 
-        // Validar credenciales específicas
-        let user: User | undefined;
+        const users = this.getStoredUsers();
+        const user = users.find(u => u.username === credentials.username);
         
-        if (credentials.username === 'admin' && credentials.password === 'admin') {
-          user = this.getStoredUsers().find(u => u.username === 'admin');
-        } else if (credentials.username === 'member' && credentials.password === 'member') {
-          user = this.getStoredUsers().find(u => u.username === 'member');
-        } else if (credentials.username === 'cesar_garay' && credentials.password === 'member') {
-          user = this.getStoredUsers().find(u => u.username === 'cesar_garay');
-        } else if (credentials.username === 'zahir_rodriguez' && credentials.password === 'member') {
-          user = this.getStoredUsers().find(u => u.username === 'zahir_rodriguez');
+        if (!user) {
+          observer.error({ error: { message: 'Credenciales inválidas' } });
+          return;
         }
 
-        if (!user) {
+        let valid = false;
+        if (credentials.username === 'admin') {
+          valid = credentials.password === 'admin';
+        } else if (credentials.username === 'member') {
+          valid = credentials.password === 'member' || credentials.password === 'password';
+        } else {
+          valid = credentials.password === 'password';
+        }
+
+        if (!valid) {
           observer.error({ error: { message: 'Credenciales inválidas' } });
           return;
         }
@@ -168,7 +172,47 @@ export class AuthService {
   private getStoredUsers(): User[] {
     const stored = localStorage.getItem('smart_home_users');
     if (stored) {
-      return JSON.parse(stored);
+      const users: User[] = JSON.parse(stored);
+      let mutated = false;
+
+      const ensureUser = (list: User[], user: User) => {
+        if (!list.find(u => u.username === user.username)) {
+          list.push(user);
+          return true;
+        }
+        return false;
+      };
+
+      const now = new Date();
+      const maxId = users.reduce((max, u) => typeof u.id === 'number' && u.id > max ? u.id : max, 0) || 0;
+      let nextId = maxId + 1;
+
+      mutated = ensureUser(users, {
+        id: users.find(u => u.username === 'hijo1')?.id ?? nextId++,
+        username: 'hijo1',
+        email: 'hijo1@smarthome.com',
+        firstName: 'Hijo',
+        lastName: 'Uno',
+        role: 'family_member',
+        createdAt: now,
+        updatedAt: now
+      }) || mutated;
+
+      mutated = ensureUser(users, {
+        id: users.find(u => u.username === 'hijo2')?.id ?? nextId++,
+        username: 'hijo2',
+        email: 'hijo2@smarthome.com',
+        firstName: 'Hijo',
+        lastName: 'Dos',
+        role: 'family_member',
+        createdAt: now,
+        updatedAt: now
+      }) || mutated;
+
+      if (mutated) {
+        localStorage.setItem('smart_home_users', JSON.stringify(users));
+      }
+      return users;
     }
     
     // Usuarios por defecto para testing
@@ -212,6 +256,26 @@ export class AuthService {
         role: 'family_member',
         createdAt: new Date('2024-01-04'),
         updatedAt: new Date('2024-01-04')
+      },
+      {
+        id: 5,
+        username: 'hijo1',
+        email: 'hijo1@smarthome.com',
+        firstName: 'Hijo',
+        lastName: 'Uno',
+        role: 'family_member',
+        createdAt: new Date('2024-01-05'),
+        updatedAt: new Date('2024-01-05')
+      },
+      {
+        id: 6,
+        username: 'hijo2',
+        email: 'hijo2@smarthome.com',
+        firstName: 'Hijo',
+        lastName: 'Dos',
+        role: 'family_member',
+        createdAt: new Date('2024-01-06'),
+        updatedAt: new Date('2024-01-06')
       }
     ];
     

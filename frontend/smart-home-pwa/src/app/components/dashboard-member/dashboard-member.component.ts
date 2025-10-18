@@ -27,28 +27,12 @@ import { NotificationBellComponent } from '../notification-bell/notification-bel
       <!-- Header con indicador de rol -->
       <div class="role-header">
         <div class="role-indicator member-role">
-          <mat-icon class="role-icon">👤</mat-icon>
-          <div class="role-info">
-            <h2>Miembro del Hogar</h2>
-            <p>{{ currentUser()?.firstName }} {{ currentUser()?.lastName }}</p>
-          </div>
+          <!-- Eliminado: icono de rol y texto de rol -->
         </div>
         <div class="header-actions">
           <app-notification-bell></app-notification-bell>
-          <button mat-icon-button [matMenuTriggerFor]="userMenu" class="user-menu-btn">
-            <mat-icon>account_circle</mat-icon>
-          </button>
+          <!-- Eliminado: botón de menú de usuario -->
         </div>
-        <mat-menu #userMenu="matMenu">
-          <button mat-menu-item (click)="navigateTo('/profile')">
-            <mat-icon>person</mat-icon>
-            <span>Mi Perfil</span>
-          </button>
-          <button mat-menu-item (click)="logout()">
-            <mat-icon>logout</mat-icon>
-            <span>Cerrar Sesión</span>
-          </button>
-        </mat-menu>
       </div>
 
       <!-- Main Content -->
@@ -225,7 +209,7 @@ export class DashboardMemberComponent implements OnInit {
   }
 
   navigateTo(route: string): void {
-    this.router.navigate([route]);
+    this.router.navigateByUrl(route);
   }
 
   logout(): void {

@@ -91,7 +91,8 @@ $services = @(
     @{ Name = "Users Service"; Path = "backend/users-service"; Port = 3001 },
     @{ Name = "Tasks Service"; Path = "backend/tasks-service"; Port = 3002 },
     @{ Name = "File Upload Service"; Path = "backend/file-upload-service"; Port = 3003 },
-    @{ Name = "Notifications Service"; Path = "backend/notifications-service"; Port = 3004 }
+    @{ Name = "Notifications Service"; Path = "backend/notifications-service"; Port = 3004 },
+    @{ Name = "AI Query Service"; Path = "backend/ai-query-service"; Port = 3006 }
 )
 
 Write-Host ""

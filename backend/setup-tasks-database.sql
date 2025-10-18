@@ -65,6 +65,22 @@ CREATE TABLE IF NOT EXISTS task_files (
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
+-- Tabla de comentarios de tareas
+CREATE TABLE IF NOT EXISTS task_comments (
+    id SERIAL PRIMARY KEY,
+    task_id INTEGER REFERENCES tasks(id) ON DELETE CASCADE,
+    comment TEXT NOT NULL,
+    created_by INTEGER NOT NULL,
+    created_by_name VARCHAR(100),
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+-- Índices para optimización de comentarios
+CREATE INDEX IF NOT EXISTS idx_task_comments_task_id ON task_comments(task_id);
+CREATE INDEX IF NOT EXISTS idx_task_comments_created_by ON task_comments(created_by);
+CREATE INDEX IF NOT EXISTS idx_task_comments_created_at ON task_comments(created_at);
+
 -- ========================================
 -- ÍNDICES PARA OPTIMIZACIÓN
 -- ========================================
@@ -81,6 +97,9 @@ CREATE INDEX IF NOT EXISTS idx_task_assignments_task_id ON task_assignments(task
 CREATE INDEX IF NOT EXISTS idx_task_assignments_user_id ON task_assignments(user_id);
 CREATE INDEX IF NOT EXISTS idx_task_files_task_id ON task_files(task_id);
 CREATE INDEX IF NOT EXISTS idx_task_files_storage_type ON task_files(storage_type);
+CREATE INDEX IF NOT EXISTS idx_task_comments_task_id ON task_comments(task_id);
+CREATE INDEX IF NOT EXISTS idx_task_comments_created_by ON task_comments(created_by);
+CREATE INDEX IF NOT EXISTS idx_task_comments_created_at ON task_comments(created_at);
 
 -- ========================================
 -- DATOS DE EJEMPLO - TAREAS

@@ -31,7 +31,7 @@ class App {
     // Initialize Socket.IO
     this.io = new SocketIOServer(this.server, {
       cors: {
-        origin: ['http://localhost:4200', 'http://localhost:3000', 'http://localhost:3001', 'http://localhost:3002'],
+        origin: ['http://localhost:4200', 'http://localhost:3000', 'http://localhost:3001', 'http://localhost:3002', 'http://localhost:4301', 'http://localhost:4302'],
         methods: ['GET', 'POST'],
         credentials: true
       }
@@ -63,7 +63,7 @@ class App {
   private initializeMiddlewares(): void {
     // CORS para permitir peticiones desde otros servicios
     this.app.use(cors({
-      origin: ['http://localhost:3000', 'http://localhost:3001', 'http://localhost:3002', 'http://localhost:3003', 'http://localhost:4200'],
+      origin: ['http://localhost:3000', 'http://localhost:3001', 'http://localhost:3002', 'http://localhost:3003', 'http://localhost:4200', 'http://localhost:4301', 'http://localhost:4302'],
       credentials: true
     }));
 

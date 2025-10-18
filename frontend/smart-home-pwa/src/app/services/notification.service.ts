@@ -3,11 +3,12 @@ import { isPlatformBrowser } from '@angular/common';
 import { BehaviorSubject, Observable } from 'rxjs';
 import { io, Socket } from 'socket.io-client';
 import { AuthService } from './auth.service';
+import { environment } from '../../environments/environment';
 import { User } from '../models/user.model';
 
 export interface Notification {
   id: string;
-  type: 'task_completed' | 'task_assigned' | 'task_reminder' | 'system_alert';
+  type: 'task_completed' | 'task_assigned' | 'task_reminder' | 'system_alert' | 'comment_added';
   title: string;
   message: string;
   timestamp: Date;
@@ -29,7 +30,8 @@ export class NotificationService {
   public unreadCount$ = this.unreadCountSubject.asObservable();
   public connectionStatus$ = this.connectionStatusSubject.asObservable();
 
-  private notificationsServiceUrl = 'http://localhost:3004';
+  private readonly API_BASE: string = environment.services.notifications || environment.apiUrl;
+  private readonly SOCKET_URL: string = (environment as any).notificationsSocketUrl || 'http://localhost:3004';
   private currentUserId: string | null = null; // This should come from auth service
 
   constructor(
@@ -102,9 +104,9 @@ export class NotificationService {
    */
   private connectToNotificationService(): void {
     try {
-      console.log('🔌 Attempting to connect to notifications service at:', this.notificationsServiceUrl);
+      console.log('🔌 Attempting to connect to notifications service at:', this.SOCKET_URL);
       
-      this.socket = io(this.notificationsServiceUrl, {
+      this.socket = io(this.SOCKET_URL, {
         transports: ['websocket', 'polling'],
         timeout: 10000,
         reconnection: true,
@@ -167,7 +169,7 @@ export class NotificationService {
       message: notificationData.message || notificationData.data?.message || '',
       timestamp: new Date(notificationData.timestamp || Date.now()),
       read: false,
-      userId: notificationData.data?.userId || this.currentUserId || 'guest',
+      userId: notificationData.userId || notificationData.data?.userId || this.currentUserId || 'guest',
       metadata: notificationData.metadata || notificationData.data?.metadata
     };
 
@@ -266,7 +268,7 @@ export class NotificationService {
     }
 
     try {
-      const response = await fetch(`${this.notificationsServiceUrl}/notifications/${this.currentUserId}?limit=${limit}&offset=${offset}`);
+      const response = await fetch(`${this.API_BASE}/notifications/${this.currentUserId}?limit=${limit}&offset=${offset}`);
       
       if (response.ok) {
         const result = await response.json();
@@ -305,7 +307,7 @@ export class NotificationService {
     if (!this.currentUserId) return;
 
     try {
-      const response = await fetch(`${this.notificationsServiceUrl}/notifications/${notificationId}/read`, {
+      const response = await fetch(`${this.API_BASE}/notifications/${notificationId}/read`, {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json'
@@ -328,7 +330,7 @@ export class NotificationService {
     if (!this.currentUserId) return;
 
     try {
-      const response = await fetch(`${this.notificationsServiceUrl}/notifications/user/${this.currentUserId}/read-all`, {
+      const response = await fetch(`${this.API_BASE}/notifications/user/${this.currentUserId}/read-all`, {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json'
@@ -351,7 +353,7 @@ export class NotificationService {
     if (!this.currentUserId) return;
 
     try {
-      const response = await fetch(`${this.notificationsServiceUrl}/notifications/${notificationId}`, {
+      const response = await fetch(`${this.API_BASE}/notifications/${notificationId}`, {
         method: 'DELETE',
         headers: {
           'Content-Type': 'application/json'
@@ -374,7 +376,7 @@ export class NotificationService {
     if (!this.currentUserId) return 0;
 
     try {
-      const response = await fetch(`${this.notificationsServiceUrl}/notifications/${this.currentUserId}/unread-count`);
+      const response = await fetch(`${this.API_BASE}/notifications/${this.currentUserId}/unread-count`);
       
       if (response.ok) {
         const result = await response.json();
@@ -429,7 +431,8 @@ export class NotificationService {
    * Show browser notification
    */
   private showBrowserNotification(notification: Notification): void {
-    if ('Notification' in window && Notification.permission === 'granted') {
+    if (!isPlatformBrowser(this.platformId)) return;
+    if (typeof Notification !== 'undefined' && Notification.permission === 'granted') {
       const browserNotification = new Notification(notification.title, {
         body: notification.message,
         icon: '/assets/icons/icon-192x192.png',
@@ -456,7 +459,8 @@ export class NotificationService {
    * Request notification permission
    */
   async requestNotificationPermission(): Promise<boolean> {
-    if ('Notification' in window) {
+    if (!isPlatformBrowser(this.platformId)) return false;
+    if (typeof Notification !== 'undefined') {
       const permission = await Notification.requestPermission();
       return permission === 'granted';
     }
@@ -467,7 +471,8 @@ export class NotificationService {
    * Check if notifications are supported and permitted
    */
   isNotificationSupported(): boolean {
-    return 'Notification' in window && Notification.permission === 'granted';
+    if (!isPlatformBrowser(this.platformId)) return false;
+    return typeof Notification !== 'undefined' && Notification.permission === 'granted';
   }
 
   /**
@@ -549,6 +554,62 @@ export class NotificationService {
       this.socket = null;
     }
     this.connectionStatusSubject.next(false);
+  }
+
+  public async createNotification(payload: { userId: number; title: string; message: string; type?: string; metadata?: any }): Promise<boolean> {
+    try {
+      // Prefer using the notification queue to deliver app-only notifications
+      const queuePayload = {
+        type: payload.type || 'system_alert',
+        channels: ['app'],
+        data: {
+          userId: payload.userId.toString(),
+          message: payload.message,
+          taskId: payload.metadata?.taskData?.taskId?.toString(),
+          taskTitle: payload.metadata?.taskData?.taskTitle,
+          metadata: payload.metadata
+        },
+        priority: 'low'
+      };
+
+      const response = await fetch(`${this.API_BASE}/notify/queue`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(queuePayload),
+      });
+
+      const ok = response.ok;
+      let id: string | undefined;
+      if (ok) {
+        const result = await response.json();
+        id = result?.id || this.generateId();
+      }
+
+      // Mirror to local state so it shows up instantly (even if backend fails)
+      this.addNotification({
+        id: id,
+        type: payload.type || 'system_alert',
+        title: payload.title,
+        message: payload.message,
+        timestamp: Date.now(),
+        userId: payload.userId,
+        metadata: payload.metadata,
+      });
+
+      return ok;
+    } catch (error) {
+      console.error('❌ Error creating notification in backend:', error);
+      // Fallback: still add to local state so user sees it
+      this.addNotification({
+        type: payload.type || 'system_alert',
+        title: payload.title,
+        message: payload.message,
+        timestamp: Date.now(),
+        userId: payload.userId,
+        metadata: payload.metadata,
+      });
+      return false;
+    }
   }
 
   /**

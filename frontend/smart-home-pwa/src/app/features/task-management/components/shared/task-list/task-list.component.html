@@ -120,7 +120,7 @@
               </div>
               
               <!-- Menú de opciones (tres puntos) -->
-              @if (canManageTask(task)) {
+              @if (canEditTask(task)) {
                 <button mat-icon-button [matMenuTriggerFor]="taskMenu">
                   <mat-icon>more_vert</mat-icon>
                 </button>
@@ -141,16 +141,15 @@
                     <span>Subir Documento</span>
                   </button>
                   
+                  <mat-divider></mat-divider>
+                  <button mat-menu-item (click)="editTask(task)">
+                    <mat-icon>edit</mat-icon>
+                    <span>Editar</span>
+                  </button>
+                  
                   @if (task.status !== 'completed') {
-                    <mat-divider></mat-divider>
-                    
-                    <button mat-menu-item (click)="editTask(task)">
-                      <mat-icon>edit</mat-icon>
-                      <span>Editar</span>
-                    </button>
-                    
-                    <!-- Marcar completada: solo para tareas en progreso -->
-                    @if (task.status === 'in_progress') {
+                    <!-- Marcar completada: solo si el usuario puede cambiar estado -->
+                    @if (canChangeStatus(task) && task.status === 'in_progress') {
                       <button mat-menu-item (click)="completeTask(task)">
                         <mat-icon>check_circle</mat-icon>
                         <span>Marcar Completada</span>
@@ -191,12 +190,12 @@
                 <mat-progress-bar [value]="task.progress" mode="determinate"></mat-progress-bar>
                 <div class="progress-controls">
                   <button mat-icon-button (click)="updateProgress(task, -10)" 
-                          [disabled]="(task.progress ?? 0) <= 0"
+                          [disabled]="!canChangeStatus(task) || (task.progress ?? 0) <= 0"
                           matTooltip="Reducir progreso">
                     <mat-icon>remove</mat-icon>
                   </button>
                   <button mat-icon-button (click)="updateProgress(task, 10)" 
-                          [disabled]="(task.progress ?? 0) >= 100"
+                          [disabled]="!canChangeStatus(task) || (task.progress ?? 0) >= 100"
                           matTooltip="Aumentar progreso">
                     <mat-icon>add</mat-icon>
                   </button>
@@ -235,18 +234,18 @@
           </mat-card-content>
 
           <!-- Botones de acción para tareas no completadas -->
-          @if (canManageTask(task) && task.status !== 'completed') {
+          @if (canEditTask(task) && task.status !== 'completed') {
             <mat-card-actions>
-              <!-- Botón Comenzar: solo para tareas pendientes -->
-              @if (task.status === 'pending') {
+              <!-- Botón Comenzar: solo para tareas pendientes y si puede cambiar estado -->
+              @if (canChangeStatus(task) && task.status === 'pending') {
                 <button mat-button color="primary" (click)="startTask(task)">
                   <mat-icon>play_arrow</mat-icon>
                   Comenzar
                 </button>
               }
               
-              <!-- Botón Completar: solo para tareas en progreso con 100% de progreso -->
-              @if (task.status === 'in_progress') {
+              <!-- Botón Completar: solo para tareas en progreso con 100% de progreso y si puede cambiar estado -->
+              @if (canChangeStatus(task) && task.status === 'in_progress') {
                 <button mat-raised-button color="accent" 
                         (click)="completeTask(task)"
                         [disabled]="(task.progress ?? 0) < 100"

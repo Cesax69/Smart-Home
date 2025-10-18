@@ -109,7 +109,7 @@ export class TaskService {
       };
 
       // Enviar notificación al notifications-service
-      const notificationServiceUrl = process.env.NOTIFICATIONS_SERVICE_URL || 'http://localhost:3003';
+      const notificationServiceUrl = process.env.NOTIFICATIONS_SERVICE_URL || 'http://localhost:3004';
       const response = await fetch(`${notificationServiceUrl}/notify/family`, {
         method: 'POST',
         headers: {
@@ -134,10 +134,6 @@ export class TaskService {
    * Convierte un registro de base de datos a objeto Task
    */
   private mapDatabaseTaskToTask(dbTask: DatabaseTask): Task {
-    // LOGS DE DEPURACIÓN USANDO console.log para mayor visibilidad
-    console.log('=== MAPEO PROGRESS ===');
-    console.log('dbTask.progress:', dbTask.progress, 'Type:', typeof dbTask.progress);
-    
     const mappedTask = {
       id: dbTask.id,
       title: dbTask.title,
@@ -161,9 +157,6 @@ export class TaskService {
       updatedAt: dbTask.updated_at,
       progress: dbTask.progress !== null && dbTask.progress !== undefined ? dbTask.progress : 0
     };
-    
-    console.log('mappedTask.progress:', mappedTask.progress);
-    console.log('=== FIN MAPEO ===');
     return mappedTask;
   }
 
@@ -232,9 +225,9 @@ export class TaskService {
       const client = await databaseService.getConnection();
       try {
         const insertTaskQuery = `
-          INSERT INTO public.tasks (user_id, title, description, status, priority, category, due_date)
+          INSERT INTO tasks (user_id, title, description, status, priority, category, due_date)
           VALUES ($1, $2, $3, $4, $5, $6, $7)
-          RETURNING id, user_id AS created_by_id, title, description, category, priority, status, due_date, completed_at, created_at, updated_at, progress
+          RETURNING id, user_id AS created_by_id, title, description, category, priority, status, due_date, completed_at, created_at, updated_at
         `;
         const insertTaskParams = [
           taskData.createdById,
@@ -251,7 +244,7 @@ export class TaskService {
 
         // Insertar asignaciones para todos los miembros seleccionados
         const insertAssignQuery = `
-          INSERT INTO public.task_assignments (task_id, user_id, assigned_by, status)
+          INSERT INTO task_assignments (task_id, user_id, assigned_by, status)
           VALUES ($1, $2, $3, $4)
           ON CONFLICT (task_id, user_id) DO UPDATE SET assigned_by = EXCLUDED.assigned_by, status = EXCLUDED.status
         `;
@@ -276,7 +269,7 @@ export class TaskService {
           completed_at: t.completed_at,
           created_at: t.created_at,
           updated_at: t.updated_at,
-          progress: t.progress || 0
+          progress: 0
         } as any;
 
         const newTask = this.mapDatabaseTaskToTask(dbTask);
@@ -311,33 +304,32 @@ export class TaskService {
             t.completed_at,
             t.created_at,
             t.updated_at,
-            t.progress,
             (
               SELECT ta.user_id 
-              FROM public.task_assignments ta 
+              FROM task_assignments ta 
               WHERE ta.task_id = t.id 
               ORDER BY ta.assigned_at DESC 
               LIMIT 1
             ) AS assigned_user_id,
             (
               SELECT ARRAY_AGG(ta2.user_id)
-              FROM public.task_assignments ta2
+              FROM task_assignments ta2
               WHERE ta2.task_id = t.id
             ) AS assigned_user_ids,
             (
               SELECT tf.file_url 
-              FROM public.task_files tf 
+              FROM task_files tf 
               WHERE tf.task_id = t.id AND tf.file_url IS NOT NULL 
               ORDER BY tf.created_at DESC 
               LIMIT 1
             ) AS file_url
-          FROM public.tasks t`;
+          FROM tasks t`;
         
         const params: any[] = [];
         const conditions: string[] = [];
 
         if (userId) {
-          conditions.push(`EXISTS (SELECT 1 FROM public.task_assignments ta WHERE ta.task_id = t.id AND ta.user_id = $${params.length + 1})`);
+          conditions.push(`EXISTS (SELECT 1 FROM task_assignments ta WHERE ta.task_id = t.id AND ta.user_id = $${params.length + 1})`);
           params.push(userId);
         }
 
@@ -384,29 +376,28 @@ export class TaskService {
             t.completed_at,
             t.created_at,
             t.updated_at,
-            t.progress,
             (
               SELECT ta.user_id 
-              FROM public.task_assignments ta 
+              FROM task_assignments ta 
               WHERE ta.task_id = t.id 
               ORDER BY ta.assigned_at DESC 
               LIMIT 1
             ) AS assigned_user_id,
             (
               SELECT ARRAY_AGG(ta2.user_id)
-              FROM public.task_assignments ta2
+              FROM task_assignments ta2
               WHERE ta2.task_id = t.id
             ) AS assigned_user_ids,
             (
               SELECT tf.file_url 
-              FROM public.task_files tf 
+              FROM task_files tf 
               WHERE tf.task_id = t.id AND tf.file_url IS NOT NULL 
               ORDER BY tf.created_at DESC 
               LIMIT 1
             ) AS file_url
-          FROM public.tasks t
+          FROM tasks t
           WHERE EXISTS (
-            SELECT 1 FROM public.task_assignments ta 
+            SELECT 1 FROM task_assignments ta 
             WHERE ta.task_id = t.id AND ta.user_id = $1
           )
           ORDER BY t.created_at DESC
@@ -445,27 +436,26 @@ export class TaskService {
             t.completed_at,
             t.created_at,
             t.updated_at,
-            t.progress,
             (
               SELECT ta.user_id 
-              FROM public.task_assignments ta 
+              FROM task_assignments ta 
               WHERE ta.task_id = t.id 
               ORDER BY ta.assigned_at DESC 
               LIMIT 1
             ) AS assigned_user_id,
             (
               SELECT ARRAY_AGG(ta2.user_id)
-              FROM public.task_assignments ta2
+              FROM task_assignments ta2
               WHERE ta2.task_id = t.id
             ) AS assigned_user_ids,
             (
               SELECT tf.file_url 
-              FROM public.task_files tf 
+              FROM task_files tf 
               WHERE tf.task_id = t.id AND tf.file_url IS NOT NULL 
               ORDER BY tf.created_at DESC 
               LIMIT 1
             ) AS file_url
-          FROM public.tasks t
+          FROM tasks t
           WHERE LOWER(t.category) = LOWER($1)
           ORDER BY t.created_at DESC
         `;
@@ -506,24 +496,24 @@ export class TaskService {
             t.updated_at,
             (
               SELECT ta.user_id 
-              FROM public.task_assignments ta 
+              FROM task_assignments ta 
               WHERE ta.task_id = t.id 
               ORDER BY ta.assigned_at DESC 
               LIMIT 1
             ) AS assigned_user_id,
             (
               SELECT ARRAY_AGG(ta2.user_id)
-              FROM public.task_assignments ta2
+              FROM task_assignments ta2
               WHERE ta2.task_id = t.id
             ) AS assigned_user_ids,
             (
               SELECT tf.file_url 
-              FROM public.task_files tf 
+              FROM task_files tf 
               WHERE tf.task_id = t.id AND tf.file_url IS NOT NULL 
               ORDER BY tf.created_at DESC 
               LIMIT 1
             ) AS file_url
-          FROM public.tasks t
+          FROM tasks t
           WHERE LOWER(t.status) = LOWER($1)
           ORDER BY t.created_at DESC
         `;
@@ -561,44 +551,33 @@ export class TaskService {
             t.completed_at,
             t.created_at,
             t.updated_at,
-            t.progress,
             (
               SELECT ta.user_id 
-              FROM public.task_assignments ta 
+              FROM task_assignments ta 
               WHERE ta.task_id = t.id 
               ORDER BY ta.assigned_at DESC 
               LIMIT 1
             ) AS assigned_user_id,
             (
               SELECT ARRAY_AGG(ta2.user_id)
-              FROM public.task_assignments ta2
+              FROM task_assignments ta2
               WHERE ta2.task_id = t.id
             ) AS assigned_user_ids,
             (
               SELECT tf.file_url 
-              FROM public.task_files tf 
+              FROM task_files tf 
               WHERE tf.task_id = t.id AND tf.file_url IS NOT NULL 
               ORDER BY tf.created_at DESC 
               LIMIT 1
             ) AS file_url
-          FROM public.tasks t
+          FROM tasks t
           WHERE t.id = $1
         `;
         const { rows } = await client.query(query, [id]);
         if (!rows.length) return null;
-        
-        // LOGS DE DEPURACIÓN USANDO console.log para mayor visibilidad
-        console.log('=== DEPURACIÓN PROGRESS ===');
-        console.log('Task ID:', id);
-        console.log('Raw progress from DB:', rows[0].progress);
-        console.log('Progress type:', typeof rows[0].progress);
-        console.log('Raw row data:', JSON.stringify(rows[0], null, 2));
-        
+
         const mappedTask = this.mapDatabaseTaskToTask(rows[0] as DatabaseTask);
-        
-        console.log('Mapped task progress:', mappedTask.progress);
-        console.log('=== FIN DEPURACIÓN ===');
-        
+
         return mappedTask;
       } finally {
         client.release();
@@ -643,11 +622,11 @@ export class TaskService {
         if (updateData.status !== undefined) { fields.push(`status = $${idx++}`); params.push(this.mapAppStatusToDb(updateData.status)); }
         if (updateData.dueDate !== undefined) { fields.push(`due_date = $${idx++}`); params.push(updateData.dueDate || null); }
         if (updateData.completedAt !== undefined) { fields.push(`completed_at = $${idx++}`); params.push(updateData.completedAt || null); }
-        if (updateData.progress !== undefined) { fields.push(`progress = $${idx++}`); params.push(updateData.progress); }
+        // Nota: la columna progress no existe en el esquema actual; ignoramos este campo si viene
 
         fields.push(`updated_at = NOW()`);
 
-        const updateQuery = `UPDATE public.tasks SET ${fields.join(', ')} WHERE id = $${idx} RETURNING id, user_id AS created_by_id, title, description, category, priority, status, due_date, completed_at, created_at, updated_at, progress`;
+        const updateQuery = `UPDATE tasks SET ${fields.join(', ')} WHERE id = $${idx} RETURNING id, user_id AS created_by_id, title, description, category, priority, status, due_date, completed_at, created_at, updated_at`;
         params.push(id);
 
         // LOGS DE DEPURACIÓN PARA EL PROGRESO
@@ -664,9 +643,9 @@ export class TaskService {
 
         // Actualizar asignaciones si vienen en el payload
         if (Array.isArray(updateData.assignedUserIds) && updateData.assignedUserIds.length > 0) {
-          await client.query(`DELETE FROM public.task_assignments WHERE task_id = $1`, [id]);
+          await client.query(`DELETE FROM task_assignments WHERE task_id = $1`, [id]);
           const insertAssignQuery = `
-            INSERT INTO public.task_assignments (task_id, user_id, assigned_by, status)
+            INSERT INTO task_assignments (task_id, user_id, assigned_by, status)
             VALUES ($1, $2, $3, $4)
             ON CONFLICT (task_id, user_id) DO UPDATE SET assigned_by = EXCLUDED.assigned_by, status = EXCLUDED.status
           `;
@@ -674,8 +653,8 @@ export class TaskService {
             await client.query(insertAssignQuery, [id, uid, rows[0].created_by_id, 'assigned']);
           }
         } else if (updateData.assignedUserId !== undefined) {
-          await client.query(`DELETE FROM public.task_assignments WHERE task_id = $1`, [id]);
-          await client.query(`INSERT INTO public.task_assignments (task_id, user_id, assigned_by, status) VALUES ($1, $2, $3, $4)`,
+          await client.query(`DELETE FROM task_assignments WHERE task_id = $1`, [id]);
+          await client.query(`INSERT INTO task_assignments (task_id, user_id, assigned_by, status) VALUES ($1, $2, $3, $4)`,
             [id, updateData.assignedUserId, rows[0].created_by_id, 'assigned']
           );
         }
@@ -699,7 +678,7 @@ export class TaskService {
           completed_at: rows[0].completed_at,
           created_at: rows[0].created_at,
           updated_at: rows[0].updated_at,
-          progress: rows[0].progress !== null && rows[0].progress !== undefined ? rows[0].progress : 0
+          progress: 0
         } as any;
 
         const updatedTask = this.mapDatabaseTaskToTask(dbTask);
@@ -728,10 +707,10 @@ export class TaskService {
       }
       const client = await databaseService.getConnection();
       try {
-        const { rows } = await client.query(`SELECT id, user_id AS created_by_id, title, description, category, priority, status, due_date, completed_at, created_at, updated_at, progress FROM public.tasks WHERE id = $1`, [id]);
+        const { rows } = await client.query(`SELECT id, user_id AS created_by_id, title, description, category, priority, status, due_date, completed_at, created_at, updated_at FROM tasks WHERE id = $1`, [id]);
         if (!rows.length) return false;
         const dbTaskBefore: DatabaseTask = rows[0] as any;
-        await client.query(`DELETE FROM public.tasks WHERE id = $1`, [id]);
+        await client.query(`DELETE FROM tasks WHERE id = $1`, [id]);
         const deletedTask = this.mapDatabaseTaskToTask(dbTaskBefore);
         await this.publishEvent('TareaEliminada', deletedTask);
         return true;
@@ -772,7 +751,7 @@ export class TaskService {
             tf.thumbnail_path, 
             tf.created_at,
             'Usuario' as uploaded_by_name
-          FROM public.task_files tf
+          FROM task_files tf
           WHERE tf.task_id = $1
           ORDER BY tf.created_at DESC
         `, [taskId]);
@@ -816,7 +795,7 @@ export class TaskService {
           } = f;
 
           const { rows } = await client.query(`
-            INSERT INTO public.task_files (task_id, file_name, file_path, file_url, file_size, file_type, mime_type, uploaded_by, storage_type, google_drive_id, is_image, thumbnail_path)
+            INSERT INTO task_files (task_id, file_name, file_path, file_url, file_size, file_type, mime_type, uploaded_by, storage_type, google_drive_id, is_image, thumbnail_path)
             VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
             RETURNING id, task_id, file_name, file_path, file_url, file_size, file_type, mime_type, uploaded_by, storage_type, google_drive_id, is_image, thumbnail_path, created_at
           `, [
@@ -865,7 +844,7 @@ export class TaskService {
             created_by_name,
             created_at,
             updated_at
-          FROM public.task_comments 
+          FROM task_comments 
           WHERE task_id = $1 
           ORDER BY created_at ASC
         `, [taskId]);
@@ -900,7 +879,7 @@ export class TaskService {
       const client = await databaseService.getConnection();
       try {
         const { rows } = await client.query(`
-          INSERT INTO public.task_comments (task_id, comment, created_by, created_by_name)
+          INSERT INTO task_comments (task_id, comment, created_by, created_by_name)
           VALUES ($1, $2, $3, $4)
           RETURNING id, task_id, comment, created_by, created_by_name, created_at, updated_at
         `, [
@@ -930,9 +909,9 @@ export class TaskService {
       }
       const client = await databaseService.getConnection();
       try {
-        const { rows } = await client.query(`SELECT id FROM public.task_files WHERE id = $1`, [fileRecordId]);
+        const { rows } = await client.query(`SELECT id FROM task_files WHERE id = $1`, [fileRecordId]);
         if (!rows.length) return false;
-        await client.query(`DELETE FROM public.task_files WHERE id = $1`, [fileRecordId]);
+        await client.query(`DELETE FROM task_files WHERE id = $1`, [fileRecordId]);
         return true;
       } finally {
         client.release();
@@ -956,7 +935,7 @@ export class TaskService {
             COUNT(*) FILTER (WHERE status = 'pending') AS pending,
             COUNT(*) FILTER (WHERE status = 'in_progress') AS in_progress,
             COUNT(*) FILTER (WHERE status = 'completed') AS completed
-          FROM public.tasks
+          FROM tasks
         `);
         const statsRow = rows[0];
 
@@ -972,14 +951,14 @@ export class TaskService {
           otros: 0
         };
 
-        const { rows: catRows } = await client.query(`SELECT category, COUNT(*) AS count FROM public.tasks GROUP BY category`);
+        const { rows: catRows } = await client.query(`SELECT category, COUNT(*) AS count FROM tasks GROUP BY category`);
         catRows.forEach((r: any) => {
           const cat = this.normalizeCategory(r.category);
           tasksByCategoryInit[cat] = (tasksByCategoryInit[cat] || 0) + Number(r.count || 0);
         });
 
         const tasksByPriority: Record<TaskPriority, number> = { baja: 0, media: 0, alta: 0, urgente: 0 };
-        const { rows: priRows } = await client.query(`SELECT priority, COUNT(*) AS count FROM public.tasks GROUP BY priority`);
+        const { rows: priRows } = await client.query(`SELECT priority, COUNT(*) AS count FROM tasks GROUP BY priority`);
         priRows.forEach((r: any) => {
           const p = (['baja','media','alta','urgente'].includes((r.priority || '').toLowerCase()) ? (r.priority as TaskPriority) : 'media');
           tasksByPriority[p] = (tasksByPriority[p] || 0) + Number(r.count || 0);
@@ -991,8 +970,8 @@ export class TaskService {
           SELECT ta.user_id, 
                  COUNT(*) AS count,
                  COUNT(*) FILTER (WHERE t.status = 'completed') AS completed
-          FROM public.task_assignments ta
-          JOIN public.tasks t ON t.id = ta.task_id
+          FROM task_assignments ta
+          JOIN tasks t ON t.id = ta.task_id
           GROUP BY ta.user_id
         `);
         memRows.forEach((r: any) => {
@@ -1044,24 +1023,24 @@ export class TaskService {
             t.updated_at,
             (
               SELECT ta.user_id 
-              FROM public.task_assignments ta 
+              FROM task_assignments ta 
               WHERE ta.task_id = t.id 
               ORDER BY ta.assigned_at DESC 
               LIMIT 1
             ) AS assigned_user_id,
             (
               SELECT ARRAY_AGG(ta2.user_id)
-              FROM public.task_assignments ta2
+              FROM task_assignments ta2
               WHERE ta2.task_id = t.id
             ) AS assigned_user_ids,
             (
               SELECT tf.file_url 
-              FROM public.task_files tf 
+              FROM task_files tf 
               WHERE tf.task_id = t.id AND tf.file_url IS NOT NULL 
               ORDER BY tf.created_at DESC 
               LIMIT 1
             ) AS file_url
-          FROM public.tasks t
+          FROM tasks t
           WHERE t.status <> 'completed' AND t.due_date IS NOT NULL AND t.due_date > NOW() AND t.due_date <= NOW() + INTERVAL '24 hours'
           ORDER BY t.due_date ASC
         `);
@@ -1095,27 +1074,26 @@ export class TaskService {
             t.completed_at,
             t.created_at,
             t.updated_at,
-            t.progress,
             (
               SELECT ta.user_id 
-              FROM public.task_assignments ta 
+              FROM task_assignments ta 
               WHERE ta.task_id = t.id 
               ORDER BY ta.assigned_at DESC 
               LIMIT 1
             ) AS assigned_user_id,
             (
               SELECT ARRAY_AGG(ta2.user_id)
-              FROM public.task_assignments ta2
+              FROM task_assignments ta2
               WHERE ta2.task_id = t.id
             ) AS assigned_user_ids,
             (
               SELECT tf.file_url 
-              FROM public.task_files tf 
+              FROM task_files tf 
               WHERE tf.task_id = t.id AND tf.file_url IS NOT NULL 
               ORDER BY tf.created_at DESC 
               LIMIT 1
             ) AS file_url
-          FROM public.tasks t
+          FROM tasks t
           WHERE t.status <> 'completed' AND t.due_date IS NOT NULL AND t.due_date < NOW()
           ORDER BY t.due_date ASC
         `);

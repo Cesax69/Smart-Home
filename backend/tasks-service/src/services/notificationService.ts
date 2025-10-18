@@ -67,11 +67,12 @@ export class NotificationService {
       // Obtener información del usuario que completó la tarea
       const completedByUser = await this.getUserById(parseInt(completedByUserId));
       if (!completedByUser) {
-        console.error('❌ Usuario que completó la tarea no encontrado:', completedByUserId);
-        return;
+        console.warn('⚠️ Usuario que completó la tarea no encontrado, usaré valores por defecto:', completedByUserId);
       }
       
-      console.log('👤 User who completed task:', { id: completedByUser.id, name: `${completedByUser.firstName} ${completedByUser.lastName}` });
+      if (completedByUser) {
+        console.log('👤 User who completed task:', { id: completedByUser.id, name: `${completedByUser.firstName} ${completedByUser.lastName}` });
+      }
 
       // Obtener comentarios y archivos de la tarea
       const taskComments = await this.getTaskComments(task.id);
@@ -83,14 +84,18 @@ export class NotificationService {
       // Obtener los jefes del hogar
       const householdHeads = await this.getHouseholdHeads();
       if (!householdHeads || householdHeads.length === 0) {
-        console.error('❌ No se encontraron jefes del hogar para enviar la notificación');
-        return;
+        console.warn('⚠️ No se encontraron jefes del hogar, se usará fallback con usuario 1');
       }
       
-      console.log('👥 Household heads found:', householdHeads.map(h => ({ id: h.id, name: `${h.firstName} ${h.lastName}` })));
+      if (householdHeads && householdHeads.length > 0) {
+        console.log('👥 Household heads found:', householdHeads.map(h => ({ id: h.id, name: `${h.firstName} ${h.lastName}` })));
+      }
 
       // Crear el mensaje de notificación con información adicional
-      let message = `${completedByUser.firstName} ${completedByUser.lastName} ha completado la tarea "${task.title}"`;
+      const completedByDisplayName = completedByUser
+        ? `${completedByUser.firstName} ${completedByUser.lastName}`
+        : `Usuario ${completedByUserId}`;
+      let message = `${completedByDisplayName} ha completado la tarea "${task.title}"`;
       
       if (taskComments.length > 0) {
         message += ` con ${taskComments.length} comentario${taskComments.length > 1 ? 's' : ''}`;
@@ -102,13 +107,36 @@ export class NotificationService {
       
       console.log('📝 Notification message:', message);
 
-      // Enviar notificación a cada jefe del hogar
-      for (const head of householdHeads) {
+      // Build recipient set: household heads + assigned user + completedBy user
+      const recipientIds = new Set<number>();
+
+      if (householdHeads && householdHeads.length > 0) {
+        for (const head of householdHeads) {
+          if (head?.id) recipientIds.add(head.id);
+        }
+      } else {
+        // Fallback to user 1 if no heads found
+        recipientIds.add(1);
+      }
+
+      if (task.assignedUserId) {
+        recipientIds.add(task.assignedUserId);
+      }
+
+      const completedByNum = parseInt(completedByUserId);
+      if (!isNaN(completedByNum)) {
+        recipientIds.add(completedByNum);
+      }
+
+      console.log('👥 Recipients to notify:', Array.from(recipientIds));
+
+      // Send notification to each recipient
+      for (const recipientId of recipientIds) {
         const notification: NotificationEvent = {
           type: 'task_completed',
           channels: ['app', 'whatsapp'],
           data: {
-            userId: head.id.toString(),
+            userId: recipientId.toString(),
             familyId: 'family_1',
             taskId: task.id?.toString(),
             taskTitle: task.title,
@@ -118,20 +146,20 @@ export class NotificationService {
               priority: task.priority,
               completedAt: new Date().toISOString(),
               completedByUserId: completedByUserId,
-              completedByUserName: `${completedByUser.firstName} ${completedByUser.lastName}`,
+              completedByUserName: completedByUser ? `${completedByUser.firstName} ${completedByUser.lastName}` : undefined,
               originalAssignee: task.assignedUserId,
               commentsCount: taskComments.length,
               filesCount: taskFiles.length,
-              comments: taskComments.slice(0, 3), // Solo los primeros 3 comentarios para evitar payload muy grande
-              files: taskFiles.slice(0, 5) // Solo los primeros 5 archivos
+              comments: taskComments.slice(0, 3),
+              files: taskFiles.slice(0, 5)
             }
           },
           priority: task.priority === 'alta' ? 'high' : 'low'
         };
 
-        console.log('📤 Sending notification to head:', { headId: head.id, notification });
+        console.log('📤 Sending notification to recipient:', { recipientId, notification });
         await this.sendNotification(notification);
-        console.log('✅ Notification sent to head:', head.id);
+        console.log('✅ Notification sent to recipient:', recipientId);
       }
       
       console.log(`✅ Task completion notification sent for task: ${task.title}`);
@@ -240,10 +268,14 @@ export class NotificationService {
         message: event.data.message
       };
 
-      await axios.post(`${this.NOTIFICATION_SERVICE_URL}/notify/family`, notificationPayload);
-      console.log('Notification sent successfully');
+      const url = `${this.NOTIFICATION_SERVICE_URL}/notify/family`;
+      console.log('📤 Enviando notificación', { url, notificationPayload });
+      const res = await axios.post(url, notificationPayload);
+      console.log('✅ Notificación enviada correctamente', { status: res.status });
     } catch (error) {
-      console.error('Error sending notification:', error);
+      const status = (error as any)?.response?.status;
+      const data = (error as any)?.response?.data;
+      console.error('❌ Error enviando notificación', { status, data, event });
     }
   }
 
@@ -261,7 +293,7 @@ export class NotificationService {
    */
   private async getTaskComments(taskId: number): Promise<any[]> {
     try {
-      const response = await axios.get(`${this.TASKS_SERVICE_URL}/tasks/${taskId}/comments`);
+      const response = await axios.get(`${this.TASKS_SERVICE_URL}/api/tasks/${taskId}/comments`);
       return response.data?.data || [];
     } catch (error) {
       console.error('Error fetching task comments:', error);
@@ -274,7 +306,7 @@ export class NotificationService {
    */
   private async getTaskFiles(taskId: number): Promise<any[]> {
     try {
-      const response = await axios.get(`${this.TASKS_SERVICE_URL}/tasks/${taskId}/files`);
+      const response = await axios.get(`${this.TASKS_SERVICE_URL}/api/tasks/${taskId}/files`);
       return response.data?.data || [];
     } catch (error) {
       console.error('Error fetching task files:', error);

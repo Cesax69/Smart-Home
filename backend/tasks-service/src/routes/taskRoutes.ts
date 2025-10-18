@@ -20,10 +20,6 @@ router.get('/tasks/status/:status', (req, res) => taskController.getTasksByStatu
 router.post('/tasks', (req, res) => taskController.createTask(req, res));
 router.get('/tasks', (req, res) => taskController.getAllTasks(req, res));
 
-// Ruta de prueba para verificar el progress directamente desde la base de datos
-// DEBE estar ANTES de /tasks/:id para evitar conflictos
-router.get('/tasks/:id/progress-test', (req, res) => taskController.getTaskProgressTest(req, res));
-
 router.get('/tasks/:id', (req, res) => taskController.getTaskById(req, res));
 router.put('/tasks/:id', (req, res) => taskController.updateTask(req, res));
 router.patch('/tasks/:id/start', (req, res) => taskController.startTask(req, res));

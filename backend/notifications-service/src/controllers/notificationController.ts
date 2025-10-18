@@ -64,20 +64,10 @@ export class NotificationController {
             priority: requestData.priority
           }
         };
-
-        // Enviar notificación en tiempo real a todos los jefes de hogar
-        if (result.householdHeads && result.householdHeads.length > 0) {
-          result.householdHeads.forEach((head: any) => {
-            const roomName = `user_${head.id}`;
-            io.to(roomName).emit('new_notification', realtimeNotification);
-            console.log(`📱 Notificación en tiempo real enviada al jefe de hogar (usuario ${head.id})`);
-          });
-        } else {
-          // Fallback: enviar al usuario que completó la tarea
-          const roomName = `user_${requestData.userId}`;
-          io.to(roomName).emit('new_notification', realtimeNotification);
-          console.log(`📱 Notificación en tiempo real enviada al usuario ${requestData.userId}`);
-        }
+        // Emitir directamente a la sala del usuario indicado en la solicitud
+        const roomName = `user_${requestData.userId}`;
+        io.to(roomName).emit('new_notification', realtimeNotification);
+        console.log(`📱 Notificación en tiempo real enviada al usuario ${requestData.userId} (room ${roomName})`);
       }
 
       // Responder con éxito

@@ -199,7 +199,8 @@ export class NotificationQueueService {
         userId: notification.data.userId,
         taskId: notification.data.taskId,
         timestamp: new Date().toISOString(),
-        read: false
+        read: false,
+        metadata: notification.data.metadata
       };
 
       // Publish to WebSocket channel for real-time delivery

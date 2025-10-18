@@ -122,14 +122,14 @@ import { User } from '../../../../../models/user.model';
                 </mat-form-field>
 
                 <mat-form-field appearance="outline">
-                  <mat-label>Estado</mat-label>
-                  <mat-select formControlName="status">
-                    <mat-option value="pending">📋 Pendiente</mat-option>
-                    <mat-option value="in_progress">⚡ En Progreso</mat-option>
-                    <mat-option value="completed">✅ Completada</mat-option>
-                  </mat-select>
-                  <mat-icon matSuffix>assignment</mat-icon>
-                </mat-form-field>
+                   <mat-label>Estado</mat-label>
+                   <mat-select formControlName="status" [disabled]="isAdmin">
+                     <mat-option value="pending">📋 Pendiente</mat-option>
+                     <mat-option value="in_progress">⚡ En Progreso</mat-option>
+                     <mat-option value="completed">✅ Completada</mat-option>
+                   </mat-select>
+                   <mat-icon matSuffix>assignment</mat-icon>
+                 </mat-form-field>
               </div>
 
               <div class="form-row">
@@ -338,6 +338,7 @@ export class TaskEditComponent implements OnInit {
   isLoading = signal(true);
   isSubmitting = signal(false);
   taskId: number | null = null;
+  isAdmin: boolean = false;
   filePreviews = signal<{ file: File; name: string; size: number; type: string }[]>([]);
 
   constructor(
@@ -362,16 +363,18 @@ export class TaskEditComponent implements OnInit {
   }
 
   ngOnInit() {
+    const user = this.authService.getCurrentUser();
+    this.isAdmin = !!user && user.role === 'head_of_household';
     this.route.params.subscribe(params => {
-      const routeId = params['id'] ? +params['id'] : null;
-      const modalId = this.data?.taskId ? Number(this.data.taskId) : null;
-      this.taskId = routeId || modalId;
-      if (this.taskId) {
-        this.loadTask();
-        this.loadFamilyMembers();
-      }
-    });
-  }
+       const routeId = params['id'] ? +params['id'] : null;
+       const modalId = this.data?.taskId ? Number(this.data.taskId) : null;
+       this.taskId = routeId || modalId;
+       if (this.taskId) {
+         this.loadTask();
+         this.loadFamilyMembers();
+       }
+     });
+   }
 
   loadTask() {
     if (!this.taskId) return;
@@ -472,6 +475,17 @@ export class TaskEditComponent implements OnInit {
         assignedTo: selectedIds.length === 1 ? selectedIds[0] : undefined,
         dueDate: formValue.dueDate ? formValue.dueDate.toISOString() as any : undefined
       } as any;
+
+      // Si el estado se establece en pendiente, reiniciar progreso
+      if (baseUpdate.status === 'pending') {
+        (baseUpdate as any).progress = 0;
+      }
+
+      // Si es admin, no permitir cambios de estado ni progreso
+      if (this.isAdmin) {
+        delete (baseUpdate as any).status;
+        delete (baseUpdate as any).progress;
+      }
 
       const currentFileUrl = this.task()?.fileUrl;
       const hasNewFiles = (this.filePreviews()?.length || 0) > 0;

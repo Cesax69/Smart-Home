@@ -10,11 +10,13 @@ import { MatTooltipModule } from '@angular/material/tooltip';
 import { MatToolbarModule } from '@angular/material/toolbar';
 import { MatChipsModule } from '@angular/material/chips';
 import { MatMenuModule } from '@angular/material/menu';
+import { MatSnackBar, MatSnackBarModule } from '@angular/material/snack-bar';
 import { Subscription } from 'rxjs';
 import { NotificationService, Notification } from '../../services/notification.service';
 import { AuthService } from '../../services/auth.service';
 import { User } from '../../models/user.model';
 import { Router } from '@angular/router';
+import { TaskService } from '../../features/task-management/services/task.service';
 
 @Component({
   selector: 'app-notifications-list',
@@ -30,7 +32,8 @@ import { Router } from '@angular/router';
     MatTooltipModule,
     MatToolbarModule,
     MatChipsModule,
-    MatMenuModule
+    MatMenuModule,
+    MatSnackBarModule
   ],
   template: `
     <div class="notifications-container">
@@ -135,7 +138,10 @@ import { Router } from '@angular/router';
         <!-- Notification Cards -->
         <div *ngFor="let notification of notifications; trackBy: trackByNotificationId" 
              class="notification-card"
-             [class.unread]="!notification.read">
+             [class.unread]="!notification.read"
+             [class.collapsed]="!showDetails[notification.id]"
+             [class.expanded]="showDetails[notification.id]"
+             (click)="toggleDetails(notification.id)">
           
           <div class="notification-header">
             <div class="notification-meta">
@@ -152,9 +158,14 @@ import { Router } from '@angular/router';
             </div>
           </div>
 
-          <div class="notification-body">
-            <h4 class="notification-title">{{ notification.title }}</h4>
-            <p class="notification-message">{{ notification.message }}</p>
+            <div class="notification-summary" *ngIf="!showDetails[notification.id]">
+              <h4 class="summary-title">{{ notification.title }}</h4>
+              <p class="summary-message">{{ notification.message }}</p>
+            </div>
+
+            <div class="notification-body" *ngIf="showDetails[notification.id]">
+              <h4 class="notification-title">{{ notification.title }}</h4>
+              <p class="notification-message">{{ notification.message }}</p>
             
             <!-- Member Information -->
             <div *ngIf="notification.metadata?.taskData?.createdByName || notification.metadata?.taskData?.completedByUserName" 
@@ -249,7 +260,7 @@ import { Router } from '@angular/router';
                     </div>
                     <button *ngIf="file.file_url" 
                             class="file-action-btn"
-                            (click)="openFile(file.file_url)"
+                            (click)="$event.stopPropagation(); openFile(file.file_url)"
                             matTooltip="Abrir archivo">
                       <mat-icon>open_in_new</mat-icon>
                     </button>
@@ -273,10 +284,19 @@ import { Router } from '@angular/router';
             <button 
               *ngIf="notification.metadata?.taskData?.taskId"
               class="notification-btn view-task"
-              (click)="viewTask(notification.metadata.taskData.taskId)"
+              (click)="$event.stopPropagation(); viewTask(notification.metadata.taskData.taskId)"
               matTooltip="Ver tarea">
               <mat-icon>visibility</mat-icon>
               <span>Ver Tarea</span>
+            </button>
+            
+            <button 
+              *ngIf="notification.type === 'comment_added' && notification.metadata?.taskData?.taskId"
+              class="notification-btn reply-btn"
+              (click)="$event.stopPropagation(); replyToNotification(notification)"
+              matTooltip="Responder">
+              <mat-icon>reply</mat-icon>
+              <span>Responder</span>
             </button>
             
             <button 
@@ -1244,11 +1264,14 @@ export class NotificationsListComponent implements OnInit, OnDestroy {
   showComments: { [key: string]: boolean } = {};
   showFiles: { [key: string]: boolean } = {};
   private subscription = new Subscription();
+  showDetails: { [key: string]: boolean } = {};
 
   constructor(
     private notificationService: NotificationService,
     private authService: AuthService,
-    private router: Router
+    private router: Router,
+    private taskService: TaskService,
+    private snackBar: MatSnackBar
   ) {}
 
   ngOnInit(): void {
@@ -1449,5 +1472,26 @@ export class NotificationsListComponent implements OnInit, OnDestroy {
 
   openFile(fileUrl: string): void {
     window.open(fileUrl, '_blank');
+  }
+
+  toggleDetails(notificationId: string): void {
+    this.showDetails[notificationId] = !this.showDetails[notificationId];
+  }
+
+  replyToNotification(notification: Notification): void {
+    const taskId = notification?.metadata?.taskData?.taskId;
+    if (!taskId) return;
+    const reply = prompt('Responder al comentario:');
+    if (reply && reply.trim()) {
+      this.taskService.addComment(taskId, reply.trim()).subscribe({
+        next: () => {
+          this.snackBar.open('Respuesta publicada', 'Cerrar', { duration: 3000 });
+        },
+        error: (error) => {
+          console.error('Error al responder:', error);
+          this.snackBar.open('Error al publicar respuesta', 'Cerrar', { duration: 3000 });
+        }
+      });
+    }
   }
 }

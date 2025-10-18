@@ -20,6 +20,7 @@ import { MatTooltipModule } from '@angular/material/tooltip';
 // Imports actualizados para la nueva estructura
 import { TaskService } from '../../../services/task.service';
 import { AuthService } from '../../../../../services/auth.service';
+import { NotificationService } from '../../../../../services/notification.service';
 import { Task } from '../../../models/task.model';
 import { User } from '../../../../../models/user.model';
 import { ConfirmDialogComponent } from '../../../../../components/confirm-dialog/confirm-dialog.component';
@@ -72,6 +73,7 @@ export class TaskListComponent implements OnInit {
   private router = inject(Router);
   private dialog = inject(MatDialog);
   private snackBar = inject(MatSnackBar);
+  private notificationService = inject(NotificationService);
 
   ngOnInit(): void {
     // Verificar si hay usuario autenticado
@@ -117,8 +119,13 @@ export class TaskListComponent implements OnInit {
       return;
     }
     
-    // Filtrar tareas por el usuario actual
-    this.taskService.getTasks({ userId: currentUser.id }).subscribe({
+    // Si es jefe del hogar (admin), cargar todas las tareas. Si no, solo las suyas
+    const isAdmin = currentUser.role === 'head_of_household';
+    const tasks$ = isAdmin 
+      ? this.taskService.getTasks()
+      : this.taskService.getTasks({ userId: currentUser.id });
+
+    tasks$.subscribe({
       next: (response: any) => {
         this.tasks.set(response.tasks);
         this.applyFilters();
@@ -273,6 +280,10 @@ export class TaskListComponent implements OnInit {
   }
 
   startTask(task: Task): void {
+    if (!this.canChangeStatus(task)) {
+      this.snackBar.open('No puedes cambiar el estado de esta tarea', 'Cerrar', { duration: 2500 });
+      return;
+    }
     this.taskService.updateTask(task.id, { status: 'in_progress' }).subscribe({
       next: (updatedTask: any) => {
         const tasks = this.tasks();
@@ -292,6 +303,10 @@ export class TaskListComponent implements OnInit {
   }
 
   completeTask(task: Task): void {
+    if (!this.canChangeStatus(task)) {
+      this.snackBar.open('No puedes cambiar el estado de esta tarea', 'Cerrar', { duration: 2500 });
+      return;
+    }
     const dialogRef = this.dialog.open(ConfirmDialogComponent, {
       width: '400px',
       data: {
@@ -423,6 +438,43 @@ export class TaskListComponent implements OnInit {
           this.snackBar.open('Comentario agregado exitosamente', 'Cerrar', {
             duration: 3000
           });
+
+          const currentUser = this.authService.getCurrentUser();
+          
+          if (currentUser?.role === 'head_of_household') {
+            const assignedTarget = task.assignedTo ?? task.assignedUserId ?? (task.assignedUserIds?.[0] ?? 0);
+            if (assignedTarget) {
+              this.notificationService.createNotification({
+                userId: assignedTarget,
+                title: 'Nuevo comentario en tarea',
+                message: `${currentUser?.firstName || 'Usuario'} ${currentUser?.lastName || ''} comentó en "${task.title}": ${comment.trim()}`,
+                metadata: { taskData: { taskId: task.id, taskTitle: task.title } },
+                type: 'comment_added'
+              });
+            }
+          } else {
+            // Notificar a los jefes del hogar cuando un miembro agrega un comentario
+            this.authService.getFamilyMembers().subscribe({
+              next: (members) => {
+                const heads = (members || []).filter(m => m.role === 'head_of_household');
+                if (heads.length === 0) {
+                  console.warn('No se encontraron jefes del hogar para notificar');
+                }
+                heads.forEach(head => {
+                  this.notificationService.createNotification({
+                    userId: head.id,
+                    title: 'Nuevo comentario en tarea',
+                    message: `${currentUser?.firstName || 'Usuario'} ${currentUser?.lastName || ''} comentó en "${task.title}": ${comment.trim()}`,
+                    metadata: { taskData: { taskId: task.id, taskTitle: task.title } },
+                    type: 'comment_added'
+                  });
+                });
+              },
+              error: (err) => {
+                console.error('Error obteniendo miembros de familia para notificar:', err);
+              }
+            });
+          }
         },
         error: (error) => {
           console.error('Error adding comment:', error);
@@ -471,6 +523,10 @@ export class TaskListComponent implements OnInit {
 
   // Método para actualizar el progreso de una tarea
   updateProgress(task: Task, increment: number): void {
+    if (!this.canChangeStatus(task)) {
+      this.snackBar.open('No puedes actualizar el progreso de esta tarea', 'Cerrar', { duration: 2500 });
+      return;
+    }
     const currentProgress = task.progress ?? 0; // Usar 0 si progress es undefined
     const newProgress = Math.max(0, Math.min(100, currentProgress + increment));
     
@@ -506,5 +562,22 @@ export class TaskListComponent implements OnInit {
         this.loadTasks();
       }
     });
+  }
+  // Permisos: admin puede editar pero no cambiar estado
+  isAdmin(): boolean {
+    const user = this.currentUser();
+    return !!user && user.role === 'head_of_household';
+  }
+
+  canEditTask(task: Task): boolean {
+    const user = this.currentUser();
+    if (!user) return false;
+    return user.role === 'head_of_household' || task.assignedTo === user.id;
+  }
+
+  canChangeStatus(task: Task): boolean {
+    const user = this.currentUser();
+    if (!user) return false;
+    return task.assignedTo === user.id && user.role !== 'head_of_household';
   }
 }

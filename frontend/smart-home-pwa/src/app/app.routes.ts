@@ -13,6 +13,11 @@ export const routes: Routes = [
     canActivate: [authGuard],
     children: [
       {
+        path: 'ai-assistant',
+        loadComponent: () => import('./components/ai-assistant/ai-query-assistant.component').then(m => m.AiQueryAssistantComponent),
+        canActivate: [authGuard]
+      },
+      {
         path: 'dashboard/admin',
         component: DashboardAdminComponent,
         canActivate: [adminGuard]

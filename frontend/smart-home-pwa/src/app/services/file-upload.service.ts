@@ -20,7 +20,7 @@ export interface FileUploadResponse {
   providedIn: 'root'
 })
 export class FileUploadService {
-  private readonly apiUrl = 'http://localhost:3005'; // Direct connection to file-upload-service
+  private readonly apiUrl = environment.services.fileUpload; // Use environment-configured base URL
 
   constructor(private http: HttpClient) {}
 
