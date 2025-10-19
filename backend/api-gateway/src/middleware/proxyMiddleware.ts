@@ -19,27 +19,22 @@ const createServiceProxy = (service: ServiceConfig) => {
     // Esto evita problemas de "socket hang up" cuando el stream ya fue consumido
     parseReqBody: PROXY_CONFIG.parseReqBody,
     memoizeHost: PROXY_CONFIG.memoizeHost,
-<<<<<<< HEAD
-    // Asegurar reenvío de headers personalizados
+    // Asegurar que los encabezados y el cuerpo JSON se envíen correctamente, y reenviar x-confirm-code
     proxyReqOptDecorator: (proxyReqOpts: any, srcReq: Request) => {
-      const confirmCode = srcReq.headers['x-confirm-code'] || srcReq.headers['X-Confirm-Code' as any];
-      if (confirmCode) {
-        proxyReqOpts.headers = proxyReqOpts.headers || {};
-        proxyReqOpts.headers['x-confirm-code'] = confirmCode as string;
-      }
-      return proxyReqOpts;
-    },
-=======
-
-    // Asegurar que los encabezados y el cuerpo JSON se envíen correctamente
-    proxyReqOptDecorator: (proxyReqOpts, srcReq: Request) => {
       const contentType = srcReq.headers['content-type'] || 'application/json';
       proxyReqOpts.headers = proxyReqOpts.headers || {};
       proxyReqOpts.headers['Content-Type'] = contentType as string;
       proxyReqOpts.headers['Accept'] = 'application/json';
       // Dejar que el proxy calcule Content-Length correctamente
-      if (proxyReqOpts.headers['Content-Length']) {
+      if ((proxyReqOpts.headers as any)['Content-Length']) {
         delete (proxyReqOpts.headers as any)['Content-Length'];
+      }
+      // Reenviar código de confirmación si está presente
+      const confirmCode =
+        srcReq.headers['x-confirm-code'] ||
+        (srcReq.headers as any)['X-Confirm-Code'];
+      if (confirmCode) {
+        proxyReqOpts.headers['x-confirm-code'] = confirmCode as string;
       }
       return proxyReqOpts;
     },
@@ -55,7 +50,6 @@ const createServiceProxy = (service: ServiceConfig) => {
       }
       return bodyContent;
     },
->>>>>>> cegg
     
     // Modificar la URL de la petición para mantener el prefijo /api
     proxyReqPathResolver: (req: Request) => {
