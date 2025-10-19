@@ -195,29 +195,22 @@ export class TaskActionsDialogComponent implements OnInit {
     if (!file) return;
 
     this.isUploading.set(true);
-    // Intentar reutilizar el folder existente donde están los archivos de la tarea
-    const existingFolderId = this.files().length > 0 ? this.getFolderId(this.files()[0]) : undefined;
     const taskTitle = this.data.task.title;
 
-    this.fileUploadService.uploadFile(file, { taskTitle, folderId: existingFolderId, subfolder: 'progreso' }).subscribe({
+    this.fileUploadService.uploadFile(file, taskTitle).subscribe({
       next: (response) => {
-        // El servicio de subida devuelve { uploaded: [], failed: [], folder }
-        const uploaded = Array.isArray(response?.uploaded) ? response.uploaded : [];
-        const first = uploaded[0];
-        if (!first) {
+        if (!response || !response.fileInfo || !response.fileUrl) {
           this.alerts.error('No se pudo procesar la subida del archivo');
           this.isUploading.set(false);
           return;
         }
 
         const fileInfo = {
-          filename: first.originalName || first.fileName || file.name,
-          originalName: first.originalName || file.name,
-          fileUrl: first.fileUrl || first.webViewLink || first.webContentLink,
-          size: first.size || file.size,
-          mimetype: first.mimetype || file.type,
-          folderId: response?.folder?.id || first.folderId,
-          folderName: response?.folder?.name || first.folderName
+          filename: response.fileInfo.filename,
+          originalName: response.fileInfo.originalName,
+          fileUrl: response.fileUrl,
+          size: response.fileInfo.size,
+          mimetype: response.fileInfo.mimetype
         };
 
         this.taskService.addTaskFile(this.data.task.id, fileInfo).subscribe({
