@@ -9,6 +9,7 @@ import { environment } from '../../environments/environment';
 })
 export class AuthService {
   private readonly API_URL = environment.services.auth;
+  private readonly USE_MOCK = environment.useMockData;
   private currentUserSubject = new BehaviorSubject<User | null>(null);
   private tokenKey = 'smart_home_token';
   
@@ -24,12 +25,16 @@ export class AuthService {
   }
 
   login(credentials: LoginRequest): Observable<LoginResponse> {
-    return this.backendLogin(credentials);
+    if (this.USE_MOCK) {
+      return this.mockLogin(credentials);
+    } else {
+      return this.backendLogin(credentials);
+    }
   }
 
   // Método para login con backend real (preparado para futuro uso)
   private backendLogin(credentials: LoginRequest): Observable<LoginResponse> {
-    return this.http.post<LoginResponse>(`${this.API_URL}/login`, credentials)
+    return this.http.post<LoginResponse>(`${this.API_URL}/auth/login`, credentials)
       .pipe(
         tap(response => {
           this.setCurrentUser(response.user, response.token);
@@ -37,14 +42,83 @@ export class AuthService {
       );
   }
 
-  // Login por rol ya no admite modo mock; usar endpoint real si aplica
+  // Método mock actual (se mantendrá hasta que el backend esté listo)
+  private mockLogin(credentials: LoginRequest): Observable<LoginResponse> {
+    return new Observable<LoginResponse>(observer => {
+      setTimeout(() => {
+        // Simular validación de datos
+        if (!credentials.username || !credentials.password) {
+          observer.error({ error: { message: 'Usuario y contraseña son requeridos' } });
+          return;
+        }
+
+        const users = this.getStoredUsers();
+        const user = users.find(u => u.username === credentials.username);
+        
+        if (!user) {
+          observer.error({ error: { message: 'Credenciales inválidas' } });
+          return;
+        }
+
+        let valid = false;
+        if (credentials.username === 'admin') {
+          valid = credentials.password === 'admin';
+        } else if (credentials.username === 'member') {
+          valid = credentials.password === 'member' || credentials.password === 'password';
+        } else {
+          valid = credentials.password === 'password';
+        }
+
+        if (!valid) {
+          observer.error({ error: { message: 'Credenciales inválidas' } });
+          return;
+        }
+
+        const response: LoginResponse = {
+          user: user,
+          token: 'mock_token_' + Date.now(),
+          message: '¡Inicio de sesión exitoso!'
+        };
+
+        this.setCurrentUser(response.user, response.token);
+        observer.next(response);
+        observer.complete();
+      }, 800); // Simular delay de red
+    });
+  }
+
+  // Método para login por rol (simplificado)
   loginByRole(role: 'head_of_household' | 'family_member'): Observable<LoginResponse> {
-    return this.http.post<LoginResponse>(`${this.API_URL}/login-by-role`, { role })
-      .pipe(
-        tap(response => {
-          this.setCurrentUser(response.user, response.token);
-        })
-      );
+    if (this.USE_MOCK) {
+      return this.mockLoginByRole(role);
+    } else {
+      // Cuando el backend esté listo, implementar endpoint específico
+      return this.http.post<LoginResponse>(`${this.API_URL}/auth/login-by-role`, { role });
+    }
+  }
+
+  private mockLoginByRole(role: 'head_of_household' | 'family_member'): Observable<LoginResponse> {
+    return new Observable<LoginResponse>(observer => {
+      setTimeout(() => {
+        const users = this.getStoredUsers();
+        const user = users.find(u => u.role === role);
+        
+        if (!user) {
+          observer.error({ error: { message: 'No se encontró usuario con ese rol' } });
+          return;
+        }
+
+        const response: LoginResponse = {
+          user: user,
+          token: 'mock_token_' + Date.now(),
+          message: `¡Bienvenido ${role === 'head_of_household' ? 'Jefe del Hogar' : 'Miembro'}!`
+        };
+
+        this.setCurrentUser(response.user, response.token);
+        observer.next(response);
+        observer.complete();
+      }, 500);
+    });
   }
 
   logout(): void {
@@ -79,18 +153,135 @@ export class AuthService {
   }
 
   getFamilyMembers(): Observable<User[]> {
-    // Consultar el microservicio de usuarios
-    return this.http.get<any>(`${environment.services.users}`).pipe(
-      tap(response => {
-        console.log('Family members from microservice:', response);
-      }),
-      // Extraer los datos del response del microservicio
-      map(response => response.data || response)
-    );
+    if (this.USE_MOCK) {
+      // Obtener usuarios del almacenamiento local (modo mock)
+      return of(this.getStoredUsers());
+    } else {
+      // Consultar el microservicio de usuarios
+      return this.http.get<any>(`${this.API_URL}/users`).pipe(
+        tap(response => {
+          console.log('Family members from microservice:', response);
+        }),
+        // Extraer los datos del response del microservicio
+        map(response => response.data || response)
+      );
+    }
   }
 
   // Método para obtener miembros de la familia
-  // Eliminado: almacenamiento local de usuarios mock
+  private getStoredUsers(): User[] {
+    const stored = localStorage.getItem('smart_home_users');
+    if (stored) {
+      const users: User[] = JSON.parse(stored);
+      let mutated = false;
+
+      const ensureUser = (list: User[], user: User) => {
+        if (!list.find(u => u.username === user.username)) {
+          list.push(user);
+          return true;
+        }
+        return false;
+      };
+
+      const now = new Date();
+      const maxId = users.reduce((max, u) => typeof u.id === 'number' && u.id > max ? u.id : max, 0) || 0;
+      let nextId = maxId + 1;
+
+      mutated = ensureUser(users, {
+        id: users.find(u => u.username === 'hijo1')?.id ?? nextId++,
+        username: 'hijo1',
+        email: 'hijo1@smarthome.com',
+        firstName: 'Hijo',
+        lastName: 'Uno',
+        role: 'family_member',
+        createdAt: now,
+        updatedAt: now
+      }) || mutated;
+
+      mutated = ensureUser(users, {
+        id: users.find(u => u.username === 'hijo2')?.id ?? nextId++,
+        username: 'hijo2',
+        email: 'hijo2@smarthome.com',
+        firstName: 'Hijo',
+        lastName: 'Dos',
+        role: 'family_member',
+        createdAt: now,
+        updatedAt: now
+      }) || mutated;
+
+      if (mutated) {
+        localStorage.setItem('smart_home_users', JSON.stringify(users));
+      }
+      return users;
+    }
+    
+    // Usuarios por defecto para testing
+    const defaultUsers: User[] = [
+      {
+        id: 1,
+        username: 'admin',
+        email: 'admin@smarthome.com',
+        firstName: 'Admin',
+        lastName: 'Usuario',
+        role: 'head_of_household',
+        createdAt: new Date('2024-01-01'),
+        updatedAt: new Date('2024-01-01')
+      },
+      {
+        id: 2,
+        username: 'member',
+        email: 'member@smarthome.com',
+        firstName: 'Member',
+        lastName: 'Usuario',
+        role: 'family_member',
+        createdAt: new Date('2024-01-02'),
+        updatedAt: new Date('2024-01-02')
+      },
+      {
+        id: 3,
+        username: 'cesar_garay',
+        email: 'cesar.garay@smarthome.com',
+        firstName: 'César',
+        lastName: 'Garay',
+        role: 'family_member',
+        createdAt: new Date('2024-01-03'),
+        updatedAt: new Date('2024-01-03')
+      },
+      {
+        id: 4,
+        username: 'zahir_rodriguez',
+        email: 'zahir.rodriguez@smarthome.com',
+        firstName: 'Zahir',
+        lastName: 'Rodríguez',
+        role: 'family_member',
+        createdAt: new Date('2024-01-04'),
+        updatedAt: new Date('2024-01-04')
+      },
+      {
+        id: 5,
+        username: 'hijo1',
+        email: 'hijo1@smarthome.com',
+        firstName: 'Hijo',
+        lastName: 'Uno',
+        role: 'family_member',
+        createdAt: new Date('2024-01-05'),
+        updatedAt: new Date('2024-01-05')
+      },
+      {
+        id: 6,
+        username: 'hijo2',
+        email: 'hijo2@smarthome.com',
+        firstName: 'Hijo',
+        lastName: 'Dos',
+        role: 'family_member',
+        createdAt: new Date('2024-01-06'),
+        updatedAt: new Date('2024-01-06')
+      }
+    ];
+    
+    localStorage.setItem('smart_home_users', JSON.stringify(defaultUsers));
+    return defaultUsers;
+  }
 
   private setCurrentUser(user: User, token: string): void {
     if (typeof window !== 'undefined' && typeof localStorage !== 'undefined') {

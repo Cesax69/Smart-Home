@@ -1,4 +1,5 @@
 import { Component, OnInit, OnDestroy } from '@angular/core';
+import { Router } from '@angular/router';
 import { CommonModule } from '@angular/common';
 import { MatIconModule } from '@angular/material/icon';
 import { MatButtonModule } from '@angular/material/button';
@@ -113,6 +114,10 @@ import { NotificationService, Notification } from '../../services/notification.s
       <mat-divider *ngIf="notifications.length > 0"></mat-divider>
       
       <div class="notification-footer" (click)="$event.stopPropagation()">
+        <button mat-button (click)="goToAllNotifications()">
+          <mat-icon>open_in_new</mat-icon>
+          Ver todas las notificaciones
+        </button>
         <button mat-button (click)="requestNotificationPermission()" *ngIf="!isNotificationPermissionGranted">
           <mat-icon>notifications</mat-icon>
           Habilitar notificaciones del navegador
@@ -274,8 +279,7 @@ export class NotificationBellComponent implements OnInit, OnDestroy {
   isNotificationPermissionGranted: boolean = false;
 
   private subscriptions: Subscription[] = [];
-
-  constructor(private notificationService: NotificationService) {}
+  constructor(private router: Router, private notificationService: NotificationService) {}
 
   ngOnInit(): void {
     // Subscribe to notifications
@@ -373,5 +377,9 @@ export class NotificationBellComponent implements OnInit, OnDestroy {
     } else {
       return `${days}d`;
     }
+  }
+
+  goToAllNotifications(): void {
+    this.router.navigate(['/notifications']);
   }
 }

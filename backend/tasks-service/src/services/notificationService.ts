@@ -25,18 +25,16 @@ interface User {
 }
 
 export class NotificationService {
-  // Siempre preferimos enrutar a través del API Gateway
-  private readonly API_GATEWAY_URL = process.env.API_GATEWAY_URL || 'http://api-gateway:3000';
-  private readonly NOTIFICATIONS_BASE_URL = `${this.API_GATEWAY_URL}/api/notifications`;
-  private readonly USERS_BASE_URL = `${this.API_GATEWAY_URL}/api/users`;
-  private readonly TASKS_BASE_URL = `${this.API_GATEWAY_URL}/api/tasks`;
+  private readonly NOTIFICATION_SERVICE_URL = process.env.NOTIFICATION_SERVICE_URL || 'http://localhost:3004';
+  private readonly USERS_SERVICE_URL = process.env.USERS_SERVICE_URL || 'http://localhost:3001';
+  private readonly TASKS_SERVICE_URL = process.env.TASKS_SERVICE_URL || 'http://localhost:3002';
 
   /**
    * Obtiene información de un usuario por ID
    */
   private async getUserById(userId: number): Promise<User | null> {
     try {
-      const response = await axios.get(`${this.USERS_BASE_URL}/${userId}`);
+      const response = await axios.get(`${this.USERS_SERVICE_URL}/api/users/${userId}`);
       return response.data.data;
     } catch (error) {
       console.error('Error fetching user by ID:', error);
@@ -49,7 +47,7 @@ export class NotificationService {
    */
   private async getHouseholdHeads(): Promise<User[]> {
     try {
-      const response = await axios.get(`${this.USERS_BASE_URL}/leaders`);
+      const response = await axios.get(`${this.USERS_SERVICE_URL}/api/users/leaders`);
       return response.data.data || [];
     } catch (error) {
       console.error('Error fetching household heads:', error);
@@ -69,11 +67,12 @@ export class NotificationService {
       // Obtener información del usuario que completó la tarea
       const completedByUser = await this.getUserById(parseInt(completedByUserId));
       if (!completedByUser) {
-        console.error('❌ Usuario que completó la tarea no encontrado:', completedByUserId);
-        return;
+        console.warn('⚠️ Usuario que completó la tarea no encontrado, usaré valores por defecto:', completedByUserId);
       }
       
-      console.log('👤 User who completed task:', { id: completedByUser.id, name: `${completedByUser.firstName} ${completedByUser.lastName}` });
+      if (completedByUser) {
+        console.log('👤 User who completed task:', { id: completedByUser.id, name: `${completedByUser.firstName} ${completedByUser.lastName}` });
+      }
 
       // Obtener comentarios y archivos de la tarea
       const taskComments = await this.getTaskComments(task.id);
@@ -85,14 +84,18 @@ export class NotificationService {
       // Obtener los jefes del hogar
       const householdHeads = await this.getHouseholdHeads();
       if (!householdHeads || householdHeads.length === 0) {
-        console.error('❌ No se encontraron jefes del hogar para enviar la notificación');
-        return;
+        console.warn('⚠️ No se encontraron jefes del hogar, se usará fallback con usuario 1');
       }
       
-      console.log('👥 Household heads found:', householdHeads.map(h => ({ id: h.id, name: `${h.firstName} ${h.lastName}` })));
+      if (householdHeads && householdHeads.length > 0) {
+        console.log('👥 Household heads found:', householdHeads.map(h => ({ id: h.id, name: `${h.firstName} ${h.lastName}` })));
+      }
 
       // Crear el mensaje de notificación con información adicional
-      let message = `${completedByUser.firstName} ${completedByUser.lastName} ha completado la tarea "${task.title}"`;
+      const completedByDisplayName = completedByUser
+        ? `${completedByUser.firstName} ${completedByUser.lastName}`
+        : `Usuario ${completedByUserId}`;
+      let message = `${completedByDisplayName} ha completado la tarea "${task.title}"`;
       
       if (taskComments.length > 0) {
         message += ` con ${taskComments.length} comentario${taskComments.length > 1 ? 's' : ''}`;
@@ -104,13 +107,36 @@ export class NotificationService {
       
       console.log('📝 Notification message:', message);
 
-      // Enviar notificación a cada jefe del hogar
-      for (const head of householdHeads) {
+      // Build recipient set: household heads + assigned user + completedBy user
+      const recipientIds = new Set<number>();
+
+      if (householdHeads && householdHeads.length > 0) {
+        for (const head of householdHeads) {
+          if (head?.id) recipientIds.add(head.id);
+        }
+      } else {
+        // Fallback to user 1 if no heads found
+        recipientIds.add(1);
+      }
+
+      if (task.assignedUserId) {
+        recipientIds.add(task.assignedUserId);
+      }
+
+      const completedByNum = parseInt(completedByUserId);
+      if (!isNaN(completedByNum)) {
+        recipientIds.add(completedByNum);
+      }
+
+      console.log('👥 Recipients to notify:', Array.from(recipientIds));
+
+      // Send notification to each recipient
+      for (const recipientId of recipientIds) {
         const notification: NotificationEvent = {
           type: 'task_completed',
-          channels: ['app'],
+          channels: ['app', 'whatsapp'],
           data: {
-            userId: head.id.toString(),
+            userId: recipientId.toString(),
             familyId: 'family_1',
             taskId: task.id?.toString(),
             taskTitle: task.title,
@@ -120,20 +146,20 @@ export class NotificationService {
               priority: task.priority,
               completedAt: new Date().toISOString(),
               completedByUserId: completedByUserId,
-              completedByUserName: `${completedByUser.firstName} ${completedByUser.lastName}`,
+              completedByUserName: completedByUser ? `${completedByUser.firstName} ${completedByUser.lastName}` : undefined,
               originalAssignee: task.assignedUserId,
               commentsCount: taskComments.length,
               filesCount: taskFiles.length,
-              comments: taskComments.slice(0, 3), // Solo los primeros 3 comentarios para evitar payload muy grande
-              files: taskFiles.slice(0, 5) // Solo los primeros 5 archivos
+              comments: taskComments.slice(0, 3),
+              files: taskFiles.slice(0, 5)
             }
           },
           priority: task.priority === 'alta' ? 'high' : 'low'
         };
 
-        console.log('📤 Sending notification to head:', { headId: head.id, notification });
+        console.log('📤 Sending notification to recipient:', { recipientId, notification });
         await this.sendNotification(notification);
-        console.log('✅ Notification sent to head:', head.id);
+        console.log('✅ Notification sent to recipient:', recipientId);
       }
       
       console.log(`✅ Task completion notification sent for task: ${task.title}`);
@@ -152,7 +178,7 @@ export class NotificationService {
       for (const userId of assignedUserIds) {
         const notification: NotificationEvent = {
           type: 'task_assigned',
-          channels: ['app'],
+          channels: ['app', 'whatsapp'],
           data: {
             userId: userId.toString(),
             familyId: 'family_1',
@@ -187,7 +213,7 @@ export class NotificationService {
       for (const userId of userIds) {
         const notification: NotificationEvent = {
           type: 'task_reminder',
-          channels: ['app'],
+          channels: ['app', 'whatsapp'],
           data: {
             userId: userId.toString(),
             familyId: 'family_1',
@@ -218,10 +244,38 @@ export class NotificationService {
    */
   private async sendNotification(event: NotificationEvent): Promise<void> {
     try {
-      await axios.post(`${this.NOTIFICATIONS_BASE_URL}/notify/queue`, event);
-      console.log('Notification queued successfully');
+      // Transform the event to match the expected format for /notify/family
+      const notificationPayload = {
+        userId: parseInt(event.data.userId),
+        type: event.type === 'task_completed' ? 'tarea_completada' : 
+              event.type === 'task_assigned' ? 'tarea_asignada' : 
+              event.type === 'task_reminder' ? 'recordatorio_tarea' : 'recordatorio_general',
+        priority: event.priority === 'high' ? 'alta' : 'media',
+        taskData: {
+          taskId: event.data.taskId,
+          taskTitle: event.data.taskTitle,
+          category: event.data.metadata?.category,
+          priority: event.data.metadata?.priority,
+          completedAt: event.data.metadata?.completedAt,
+          completedByUserId: event.data.metadata?.completedByUserId,
+          completedByUserName: event.data.metadata?.completedByUserName,
+          originalAssignee: event.data.metadata?.originalAssignee,
+          commentsCount: event.data.metadata?.commentsCount,
+          filesCount: event.data.metadata?.filesCount,
+          comments: event.data.metadata?.comments,
+          files: event.data.metadata?.files
+        },
+        message: event.data.message
+      };
+
+      const url = `${this.NOTIFICATION_SERVICE_URL}/notify/family`;
+      console.log('📤 Enviando notificación', { url, notificationPayload });
+      const res = await axios.post(url, notificationPayload);
+      console.log('✅ Notificación enviada correctamente', { status: res.status });
     } catch (error) {
-      console.error('Error queuing notification:', error);
+      const status = (error as any)?.response?.status;
+      const data = (error as any)?.response?.data;
+      console.error('❌ Error enviando notificación', { status, data, event });
     }
   }
 
@@ -239,7 +293,7 @@ export class NotificationService {
    */
   private async getTaskComments(taskId: number): Promise<any[]> {
     try {
-      const response = await axios.get(`${this.TASKS_BASE_URL}/${taskId}/comments`);
+      const response = await axios.get(`${this.TASKS_SERVICE_URL}/api/tasks/${taskId}/comments`);
       return response.data?.data || [];
     } catch (error) {
       console.error('Error fetching task comments:', error);
@@ -252,7 +306,7 @@ export class NotificationService {
    */
   private async getTaskFiles(taskId: number): Promise<any[]> {
     try {
-      const response = await axios.get(`${this.TASKS_BASE_URL}/${taskId}/files`);
+      const response = await axios.get(`${this.TASKS_SERVICE_URL}/api/tasks/${taskId}/files`);
       return response.data?.data || [];
     } catch (error) {
       console.error('Error fetching task files:', error);
@@ -265,7 +319,7 @@ export class NotificationService {
    */
   async testConnection(): Promise<boolean> {
     try {
-      const response = await axios.get(`${this.NOTIFICATIONS_BASE_URL}/health`, {
+      const response = await axios.get(`${this.NOTIFICATION_SERVICE_URL}/health`, {
         timeout: 3000
       });
       return response.status === 200;

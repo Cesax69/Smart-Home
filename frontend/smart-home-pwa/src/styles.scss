@@ -38,11 +38,298 @@ body {
 
 html, body { height: 100%; background-color: #f5f5f5; }
 body { margin: 0; font-family: Roboto, "Helvetica Neue", sans-serif; }
-/* Altura global del navbar para compensar overlays */
-:root {
-  --navbar-height: 64px;
+
+/* Ajustes visuales para la interfaz de notificaciones */
+app-notifications-list .notifications-header .header-actions .back-btn {
+  display: none !important; /* Oculta botón Volver duplicado */
 }
 
-@media (max-width: 600px) {
-  :root { --navbar-height: 56px; }
+app-notifications-list .header-actions {
+  justify-content: flex-end;
+  gap: 12px;
+}
+
+/* Mejorar visual del estado de conexión */
+app-notifications-list .header-info .connection-status {
+  gap: 10px;
+  padding: 10px 16px;
+  border-radius: 18px;
+  font-weight: 500;
+}
+
+app-notifications-list .header-info .connection-status::before {
+  content: '';
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: #f44336; /* rojo por defecto (desconectado) */
+  box-shadow: 0 0 0 3px rgba(244, 67, 54, 0.2);
+}
+
+app-notifications-list .header-info .connection-status.connected::before {
+  background: #4CAF50; /* verde cuando está conectado */
+  box-shadow: 0 0 0 3px rgba(76, 175, 80, 0.2);
+}
+
+app-notifications-list .header-info .status-text {
+  letter-spacing: 0.2px;
+}
+
+/* Reacomodo de cabecera en una sola fila */
+app-notifications-list .notifications-header {
+  display: grid !important;
+  grid-template-columns: auto 1fr auto;
+  grid-template-areas: 'left center right';
+  align-items: center;
+  gap: 12px;
+  padding: 16px 24px !important;
+  margin-bottom: 20px !important;
+}
+app-notifications-list .header-info { grid-area: left; }
+app-notifications-list .header-main { grid-area: center; }
+app-notifications-list .header-actions { grid-area: right; display: flex; justify-content: flex-end; gap: 12px; }
+app-notifications-list .title-section { text-align: center; }
+app-notifications-list .notifications-title h1 { font-size: 28px !important; }
+app-notifications-list .notifications-subtitle { font-size: 14px !important; margin-top: 4px !important; }
+
+/* Centrar lista y pulir espaciados */
+app-notifications-list .notifications-list { max-width: 980px; margin: 24px auto; padding: 0 16px; }
+app-notifications-list .stats-section { max-width: 980px; margin: 0 auto 8px; padding: 0 16px; }
+
+/* Responsive: apilar en pantallas pequeñas */
+@media (max-width: 768px) {
+  app-notifications-list .notifications-header {
+    grid-template-columns: 1fr;
+    grid-template-areas: 'center' 'left' 'right';
+    gap: 8px;
+    padding: 12px 16px !important;
+  }
+  app-notifications-list .header-actions { justify-content: center; }
+  app-notifications-list .title-section { text-align: center; }
+}
+
+// ... Ocultar bloque de usuario en cabecera de notificaciones */
+app-notifications-list .header-info .user-info {
+  display: none !important;
+}
+
+/* Mostrar acciones solo cuando la tarjeta esté expandida */
+app-notifications-list .notification-actions {
+  display: none !important;
+}
+app-notifications-list .notification-card.expanded .notification-actions {
+  display: flex !important;
+  gap: 10px;
+}
+
+/* Chatbot UI — Overrides de alta especificidad para asegurar aplicación */
+app-ai-query-assistant .assistant-container .assistant-header {
+  border: 1px solid var(--assistant-border) !important;
+  box-shadow: 0 6px 18px rgba(63, 81, 181, 0.08) !important;
+  background: linear-gradient(135deg, #f8fbff, #eef3ff) !important;
+  border-radius: 16px !important;
+}
+app-ai-query-assistant .assistant-container .chat-card {
+  border: 1px solid var(--assistant-border) !important;
+  border-radius: 16px !important;
+  box-shadow: 0 8px 24px rgba(16, 24, 40, 0.08) !important;
+}
+app-ai-query-assistant .assistant-container .chat-history {
+  max-height: 54vh !important;
+  padding: 16px !important;
+  background: var(--assistant-bg) !important;
+  border-radius: 12px !important;
+}
+app-ai-query-assistant .assistant-container .empty-chat {
+  background: #f7f9fc !important;
+  border: 1px dashed #d7dce6 !important;
+  color: #555 !important;
+  padding: 12px !important;
+  border-radius: 12px !important;
+}
+app-ai-query-assistant .assistant-container .msg .bubble {
+  display: grid !important;
+  grid-template-columns: 28px 1fr !important;
+  gap: 12px !important;
+  padding: 12px 14px !important;
+  border-radius: 12px !important;
+  max-width: 85% !important;
+  line-height: 1.45 !important;
+  font-size: 14.5px !important;
+  box-shadow: 0 1px 2px rgba(16, 24, 40, 0.06) !important;
+}
+app-ai-query-assistant .assistant-container .msg.user .bubble {
+  margin-left: auto !important;
+  background: #E8F0FE !important;
+  border: 1px solid #C5D2F7 !important;
+}
+app-ai-query-assistant .assistant-container .msg.assistant .bubble {
+  margin-right: auto !important;
+  background: #F1EBFF !important;
+  border: 1px solid #E0D7FF !important;
+}
+app-ai-query-assistant .assistant-container .msg.system .bubble {
+  margin: 0 auto !important;
+  background: #F9FAFB !important;
+  border: 1px dashed #E5E7EB !important;
+}
+app-ai-query-assistant .assistant-container .role-icon {
+  display: grid !important;
+  place-items: center !important;
+  width: 28px !important;
+  height: 28px !important;
+  border-radius: 50% !important;
+  background: #fff !important;
+  border: 1px solid var(--assistant-border) !important;
+}
+app-ai-query-assistant .assistant-container .content {
+  color: #111827 !important;
+}
+app-ai-query-assistant .assistant-container .chat-input {
+  display: flex !important;
+  align-items: flex-end !important;
+  gap: 10px !important;
+  padding: 12px !important;
+  background: #fff !important;
+  border-top: 1px solid var(--assistant-border) !important;
+}
+app-ai-query-assistant .assistant-container .message-field {
+  flex: 1 !important;
+}
+app-ai-query-assistant .assistant-container .message-field textarea {
+  resize: vertical !important;
+  min-height: 80px !important;
+}
+app-ai-query-assistant .assistant-container .result-card {
+  margin-top: 16px !important;
+  border-radius: 16px !important;
+  border: 1px solid var(--assistant-border) !important;
+  box-shadow: 0 8px 24px rgba(16, 24, 40, 0.08) !important;
+}
+app-ai-query-assistant .assistant-container .result-header {
+  display: flex !important;
+  justify-content: space-between !important;
+  align-items: center !important;
+  padding: 8px 12px !important;
+}
+app-ai-query-assistant .assistant-container .summary-text {
+  background: #f7f9ff !important;
+  border: 1px solid #e3e8ff !important;
+  color: #2b2e5e !important;
+  padding: 10px 12px !important;
+  border-radius: 10px !important;
+  margin: 10px 12px !important;
+}
+app-ai-query-assistant .assistant-container .result-body { padding: 12px !important; }
+app-ai-query-assistant .assistant-container .table-wrap {
+  overflow: auto !important;
+  border: 1px solid var(--assistant-border) !important;
+  border-radius: 10px !important;
+}
+app-ai-query-assistant .assistant-container .result-table { border-collapse: separate !important; border-spacing: 0 !important; width: 100% !important; }
+app-ai-query-assistant .assistant-container .result-table th {
+  position: sticky !important;
+  top: 0 !important;
+  background: #f9fafb !important;
+  text-transform: uppercase !important;
+  letter-spacing: 0.3px !important;
+  font-size: 12px !important;
+}
+app-ai-query-assistant .assistant-container .result-table tr:nth-child(even) td { background: #fcfdff !important; }
+app-ai-query-assistant .assistant-container .result-table th, 
+app-ai-query-assistant .assistant-container .result-table td {
+  border-bottom: 1px solid #eef2f7 !important;
+  padding: 10px !important;
+}
+app-ai-query-assistant .assistant-container .json-wrap pre {
+  background: #f8fafc !important;
+  border: 1px solid #e2e8f0 !important;
+  border-radius: 10px !important;
+  padding: 12px !important;
+  color: #0f172a !important;
+}
+@media (max-width: 768px) {
+  app-ai-query-assistant .assistant-container { padding: 0 12px !important; }
+  app-ai-query-assistant .assistant-container .msg .bubble { grid-template-columns: 24px 1fr !important; font-size: 14px !important; }
+  app-ai-query-assistant .assistant-container .chat-history { max-height: 52vh !important; }
+}
+app-notifications-list .header-info { grid-area: left; }
+app-notifications-list .header-main { grid-area: center; }
+app-notifications-list .header-actions { grid-area: right; display: flex; justify-content: flex-end; gap: 12px; }
+app-notifications-list .title-section { text-align: center; }
+app-notifications-list .notifications-title h1 { font-size: 28px !important; }
+app-notifications-list .notifications-subtitle { font-size: 14px !important; margin-top: 4px !important; }
+
+/* Centrar lista y pulir espaciados */
+app-notifications-list .notifications-list { max-width: 980px; margin: 24px auto; padding: 0 16px; }
+app-notifications-list .stats-section { max-width: 980px; margin: 0 auto 8px; padding: 0 16px; }
+
+/* Responsive: apilar en pantallas pequeñas */
+@media (max-width: 768px) {
+  app-notifications-list .notifications-header {
+    grid-template-columns: 1fr;
+    grid-template-areas: 'center' 'left' 'right';
+    gap: 8px;
+    padding: 12px 16px !important;
+  }
+  app-notifications-list .header-actions { justify-content: center; }
+  app-notifications-list .title-section { text-align: center; }
+}
+
+// ... Ocultar bloque de usuario en cabecera de notificaciones */
+app-notifications-list .header-info .user-info {
+  display: none !important;
+}
+
+/* Mostrar acciones solo cuando la tarjeta esté expandida */
+app-notifications-list .notification-actions {
+  display: none !important;
+}
+app-notifications-list .notification-card.expanded .notification-actions {
+  display: flex !important;
+  gap: 10px;
+}
+
+/* Variables del Chatbot (asegurar valores para var()) */
+app-ai-query-assistant {
+  --assistant-primary: #3f51b5;
+  --assistant-secondary: #5c6bc0;
+  --assistant-bg: #fafafb;
+  --assistant-border: #e5e8f0;
+}
+app-notifications-list .header-info { grid-area: left; }
+app-notifications-list .header-main { grid-area: center; }
+app-notifications-list .header-actions { grid-area: right; display: flex; justify-content: flex-end; gap: 12px; }
+app-notifications-list .title-section { text-align: center; }
+app-notifications-list .notifications-title h1 { font-size: 28px !important; }
+app-notifications-list .notifications-subtitle { font-size: 14px !important; margin-top: 4px !important; }
+
+/* Centrar lista y pulir espaciados */
+app-notifications-list .notifications-list { max-width: 980px; margin: 24px auto; padding: 0 16px; }
+app-notifications-list .stats-section { max-width: 980px; margin: 0 auto 8px; padding: 0 16px; }
+
+/* Responsive: apilar en pantallas pequeñas */
+@media (max-width: 768px) {
+  app-notifications-list .notifications-header {
+    grid-template-columns: 1fr;
+    grid-template-areas: 'center' 'left' 'right';
+    gap: 8px;
+    padding: 12px 16px !important;
+  }
+  app-notifications-list .header-actions { justify-content: center; }
+  app-notifications-list .title-section { text-align: center; }
+}
+
+// ... Ocultar bloque de usuario en cabecera de notificaciones */
+app-notifications-list .header-info .user-info {
+  display: none !important;
+}
+
+/* Mostrar acciones solo cuando la tarjeta esté expandida */
+app-notifications-list .notification-actions {
+  display: none !important;
+}
+app-notifications-list .notification-card.expanded .notification-actions {
+  display: flex !important;
+  gap: 10px;
 }

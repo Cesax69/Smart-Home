@@ -1,7 +1,33 @@
 import { User, FamilyStats } from '../types/User';
 import { databaseService } from '../config/database';
 
-// Todas las lecturas de usuarios usan PostgreSQL (tabla `users`)
+// Ahora todas las lecturas de usuarios usan PostgreSQL (tabla `users`)
+
+// Datos mock para autenticación cuando no hay conexión a BD
+const mockAuthUsers = [
+  {
+    id: 1,
+    username: 'admin',
+    email: 'admin@smarthome.com',
+    password: '$2b$10$hash_for_admin_password',
+    firstName: 'Admin',
+    lastName: 'Usuario',
+    role: 'head_of_household',
+    createdAt: new Date('2024-01-01'),
+    updatedAt: new Date('2024-01-01')
+  },
+  {
+    id: 2,
+    username: 'member',
+    email: 'member@smarthome.com',
+    password: '$2b$10$hash_for_member_password',
+    firstName: 'Member',
+    lastName: 'Usuario',
+    role: 'family_member',
+    createdAt: new Date('2024-01-02'),
+    updatedAt: new Date('2024-01-02')
+  }
+];
 
 export class UserService {
   /**
@@ -55,14 +81,31 @@ export class UserService {
    * @returns Array de líderes del hogar
    */
   public async getFamilyLeaders(): Promise<User[]> {
-    const query = `
-      SELECT id, username, email, first_name, last_name, family_role_id, created_at, updated_at
-      FROM users
-      WHERE family_role_id = 1
-      ORDER BY id ASC
-    `;
-    const result = await databaseService.query(query, []);
-    return (result.rows || []).map(r => this.mapRowToUser(r));
+    try {
+      const query = `
+        SELECT id, username, email, first_name, last_name, family_role_id, created_at, updated_at
+        FROM users
+        WHERE family_role_id = 1
+        ORDER BY id ASC
+      `;
+      const result = await databaseService.query(query, []);
+      return (result.rows || []).map(r => this.mapRowToUser(r));
+    } catch (error) {
+      console.log('⚠️ Database not available, using mock data for family leaders');
+      // Fallback a datos mockeados cuando no hay conexión a BD
+      return mockAuthUsers
+        .filter(user => user.role === 'head_of_household')
+        .map(user => ({
+          id: user.id,
+          username: user.username,
+          email: user.email,
+          firstName: user.firstName,
+          lastName: user.lastName,
+          role: user.role as 'head_of_household' | 'family_member',
+          createdAt: user.createdAt,
+          updatedAt: user.updatedAt
+        }));
+    }
   }
 
   /**
@@ -191,7 +234,7 @@ export class UserService {
    */
   public async findById(id: number): Promise<any | undefined> {
     const query = `
-      SELECT id, username, email, password_hash, first_name, last_name, family_role_id, created_at, updated_at
+      SELECT id, username, email, password_hash, first_name, last_name, family_role_id, family_sub_role_id, created_at, updated_at
       FROM users
       WHERE id = $1
     `;
@@ -220,7 +263,7 @@ export class UserService {
    */
   public async findByUsernameOrEmail(username: string, email?: string): Promise<any | undefined> {
     const query = `
-      SELECT id, username, email, password_hash, first_name, last_name, family_role_id, created_at, updated_at
+      SELECT id, username, email, password_hash, first_name, last_name, family_role_id, family_sub_role_id, created_at, updated_at
       FROM users
       WHERE username = $1 OR email = $2
       LIMIT 1
@@ -247,27 +290,34 @@ export class UserService {
    * @returns Usuario encontrado o undefined
    */
   public async findByRole(role: string): Promise<any | undefined> {
+    // Map app role to family_role_id in DB
     const familyRoleId = role === 'head_of_household' ? 1 : 2;
-    const query = `
-      SELECT id, username, email, password_hash, first_name, last_name, family_role_id, created_at, updated_at
-      FROM users
-      WHERE family_role_id = $1
-      LIMIT 1
-    `;
-    const result = await databaseService.query(query, [familyRoleId]);
-    if (!result.rows.length) return undefined;
-    const row = result.rows[0] as any;
-    return {
-      id: row.id,
-      username: row.username,
-      email: row.email,
-      password: row.password_hash,
-      firstName: row.first_name,
-      lastName: row.last_name,
-      role: row.family_role_id === 1 ? 'head_of_household' : 'family_member',
-      createdAt: row.created_at,
-      updatedAt: row.updated_at
-    };
+    try {
+      const query = `
+        SELECT id, username, email, password_hash, first_name, last_name, family_role_id, created_at, updated_at
+        FROM users
+        WHERE family_role_id = $1
+        ORDER BY id ASC
+        LIMIT 1
+      `;
+      const result = await databaseService.query(query, [familyRoleId]);
+      if (!result.rows.length) return undefined;
+      const row = result.rows[0] as any;
+      return {
+        id: row.id,
+        username: row.username,
+        email: row.email,
+        password: row.password_hash,
+        firstName: row.first_name,
+        lastName: row.last_name,
+        role: row.family_role_id === 1 ? 'head_of_household' : 'family_member',
+        createdAt: row.created_at,
+        updatedAt: row.updated_at
+      };
+    } catch (error) {
+      console.log('⚠️ Database not available for findByRole, using mock data');
+      return mockAuthUsers.find(user => user.role === role);
+    }
   }
 
   /**

@@ -15,9 +15,11 @@ const createServiceProxy = (service: ServiceConfig) => {
     timeout: PROXY_CONFIG.timeout,
     limit: PROXY_CONFIG.limit,
     preserveHostHdr: PROXY_CONFIG.preserveHostHdr,
-    // Para uploads multipart, evitamos parseo del body
-    parseReqBody: service.stripApiPrefix ? false : PROXY_CONFIG.parseReqBody,
+    // Permitir que el proxy maneje el body ya parseado por Express
+    // Esto evita problemas de "socket hang up" cuando el stream ya fue consumido
+    parseReqBody: PROXY_CONFIG.parseReqBody,
     memoizeHost: PROXY_CONFIG.memoizeHost,
+<<<<<<< HEAD
     // Asegurar reenvío de headers personalizados
     proxyReqOptDecorator: (proxyReqOpts: any, srcReq: Request) => {
       const confirmCode = srcReq.headers['x-confirm-code'] || srcReq.headers['X-Confirm-Code' as any];
@@ -27,6 +29,33 @@ const createServiceProxy = (service: ServiceConfig) => {
       }
       return proxyReqOpts;
     },
+=======
+
+    // Asegurar que los encabezados y el cuerpo JSON se envíen correctamente
+    proxyReqOptDecorator: (proxyReqOpts, srcReq: Request) => {
+      const contentType = srcReq.headers['content-type'] || 'application/json';
+      proxyReqOpts.headers = proxyReqOpts.headers || {};
+      proxyReqOpts.headers['Content-Type'] = contentType as string;
+      proxyReqOpts.headers['Accept'] = 'application/json';
+      // Dejar que el proxy calcule Content-Length correctamente
+      if (proxyReqOpts.headers['Content-Length']) {
+        delete (proxyReqOpts.headers as any)['Content-Length'];
+      }
+      return proxyReqOpts;
+    },
+
+    proxyReqBodyDecorator: (bodyContent: any, srcReq: Request) => {
+      // Si el body es un objeto, serializarlo a JSON
+      if (bodyContent && typeof bodyContent === 'object') {
+        try {
+          return JSON.stringify(bodyContent);
+        } catch {
+          return bodyContent;
+        }
+      }
+      return bodyContent;
+    },
+>>>>>>> cegg
     
     // Modificar la URL de la petición para mantener el prefijo /api
     proxyReqPathResolver: (req: Request) => {

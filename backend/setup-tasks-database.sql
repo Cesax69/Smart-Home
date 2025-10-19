@@ -71,7 +71,11 @@ CREATE TABLE IF NOT EXISTS task_comments (
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
+<<<<<<< HEAD
 -- Índices para comentarios de tareas
+=======
+-- Índices para optimización de comentarios
+>>>>>>> cegg
 CREATE INDEX IF NOT EXISTS idx_task_comments_task_id ON task_comments(task_id);
 CREATE INDEX IF NOT EXISTS idx_task_comments_created_by ON task_comments(created_by);
 CREATE INDEX IF NOT EXISTS idx_task_comments_created_at ON task_comments(created_at);
@@ -91,6 +95,9 @@ CREATE INDEX IF NOT EXISTS idx_task_assignments_task_id ON task_assignments(task
 CREATE INDEX IF NOT EXISTS idx_task_assignments_user_id ON task_assignments(user_id);
 CREATE INDEX IF NOT EXISTS idx_task_files_task_id ON task_files(task_id);
 CREATE INDEX IF NOT EXISTS idx_task_files_storage_type ON task_files(storage_type);
+CREATE INDEX IF NOT EXISTS idx_task_comments_task_id ON task_comments(task_id);
+CREATE INDEX IF NOT EXISTS idx_task_comments_created_by ON task_comments(created_by);
+CREATE INDEX IF NOT EXISTS idx_task_comments_created_at ON task_comments(created_at);
 
 -- Asegurar columna start_date si la tabla ya existía previamente
 ALTER TABLE IF NOT EXISTS tasks ADD COLUMN IF NOT EXISTS start_date TIMESTAMP;

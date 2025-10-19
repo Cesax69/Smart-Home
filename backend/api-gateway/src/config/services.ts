@@ -54,6 +54,13 @@ export const SERVICES: Record<string, ServiceConfig> = {
     description: 'Servicio de notificaciones en tiempo real',
     healthEndpoint: '/health',
     stripApiPrefix: true
+  },
+  AI_QUERY: {
+    name: 'AI Query Service',
+    url: process.env.AI_QUERY_SERVICE_URL || 'http://localhost:3006',
+    path: '/api/ai-query',
+    description: 'Servicio de consultas con IA (solo lectura) para SQL/NoSQL',
+    healthEndpoint: '/api/health'
   }
 };
 

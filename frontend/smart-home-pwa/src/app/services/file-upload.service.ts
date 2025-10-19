@@ -20,26 +20,18 @@ export interface FileUploadResponse {
   providedIn: 'root'
 })
 export class FileUploadService {
-  // Usar la URL del microservicio configurada en environment (p.ej. http://localhost:3005/api)
-  private readonly apiUrl = environment.services.fileUpload;
+  private readonly apiUrl = environment.services.fileUpload; // Use environment-configured base URL
 
   constructor(private http: HttpClient) {}
 
   /**
-   * Subir un archivo vía API Gateway -> File Upload Service
+   * Subir un archivo al microservicio de file-upload
    */
-  uploadFile(file: File, options?: { taskTitle?: string; folderId?: string; subfolder?: string }): Observable<any> {
+  uploadFile(file: File): Observable<FileUploadResponse> {
     const formData = new FormData();
     formData.append('file', file);
-    if (options?.taskTitle) {
-      formData.append('taskTitle', options.taskTitle);
-      formData.append('title', options.taskTitle); // compatibilidad
-    }
-    if (options?.folderId) formData.append('folderId', options.folderId);
-    if (options?.subfolder) formData.append('subfolder', options.subfolder);
 
-    // Endpoint en el servicio: POST /upload (Gateway: /api/files -> strip prefix)
-    return this.http.post<any>(`${this.apiUrl}/upload`, formData);
+    return this.http.post<FileUploadResponse>(`${this.apiUrl}/upload`, formData);
   }
 
   /**
@@ -80,17 +72,13 @@ export class FileUploadService {
   /**
    * Subir múltiples archivos
    */
-  uploadMultipleFiles(files: File[], options?: { taskTitle?: string; folderId?: string; subfolder?: string }): Observable<any> {
+  uploadMultipleFiles(files: File[]): Observable<FileUploadResponse[]> {
     const formData = new FormData();
-    files.forEach(file => formData.append('file', file));
-    if (options?.taskTitle) {
-      formData.append('taskTitle', options.taskTitle);
-      formData.append('title', options.taskTitle);
-    }
-    if (options?.folderId) formData.append('folderId', options.folderId);
-    if (options?.subfolder) formData.append('subfolder', options.subfolder);
+    files.forEach(file => {
+      formData.append('file', file);
+    });
 
-    return this.http.post<any>(`${this.apiUrl}/upload`, formData);
+    return this.http.post<FileUploadResponse[]>(`${this.apiUrl}/upload`, formData);
   }
 
   /**

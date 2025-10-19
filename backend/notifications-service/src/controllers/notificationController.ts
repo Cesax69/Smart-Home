@@ -17,7 +17,181 @@ export function setAppInstance(app: any): void {
  */
 export class NotificationController {
 
+<<<<<<< HEAD
   
+=======
+      // Validar que los datos sean correctos para notificaciones familiares
+      if (!WhatsAppService.validateNotificationData(requestData)) {
+        res.status(400).json({
+          success: false,
+          message: "Datos inválidos. Se requiere: { userId: number, type: NotificationType, priority: NotificationPriority, taskData?: TaskNotificationData, message?: string }",
+          timestamp: new Date().toISOString(),
+          error: "INVALID_FAMILY_NOTIFICATION_DATA",
+          supportedTypes: ["tarea_asignada", "tarea_completada", "tarea_actualizada", "recordatorio_tarea", "tarea_vencida", "felicitacion", "reunion_familiar", "emergencia_hogar", "recordatorio_general"],
+          supportedPriorities: ["baja", "media", "alta", "urgente"]
+        });
+        return;
+      }
+
+      // Procesar la notificación familiar
+      const result = await WhatsAppService.sendFamilyNotification(requestData);
+
+      // Enviar notificación en tiempo real si hay una instancia de Socket.IO disponible
+      if (appInstance && appInstance.getSocketIO) {
+        const io = appInstance.getSocketIO();
+        
+        // Crear notificación para el frontend
+        const realtimeNotification = {
+          id: `notif_${Date.now()}`,
+          type: requestData.type === 'tarea_completada' ? 'task_completed' : 'system_alert',
+          title: requestData.type === 'tarea_completada' ? 'Tarea Completada' : 'Nueva Notificación',
+          message: result.message || `Notificación de tipo ${requestData.type}`,
+          timestamp: new Date().toISOString(),
+          read: false,
+          userId: requestData.userId.toString(),
+          metadata: {
+            taskData: {
+              ...requestData.taskData,
+              completedByUserName: requestData.taskData?.completedByUserName || requestData.taskData?.completedByName
+            },
+            notificationType: requestData.type,
+            priority: requestData.priority
+          }
+        };
+        // Emitir directamente a la sala del usuario indicado en la solicitud
+        const roomName = `user_${requestData.userId}`;
+        io.to(roomName).emit('new_notification', realtimeNotification);
+        console.log(`📱 Notificación en tiempo real enviada al usuario ${requestData.userId} (room ${roomName})`);
+      }
+
+      // Responder con éxito
+      res.status(200).json({
+        success: true,
+        message: "Notificación familiar procesada exitosamente",
+        data: result,
+        webhook: "POST /notify/family",
+        timestamp: new Date().toISOString()
+      });
+
+    } catch (error) {
+      console.error('❌ Error en webhook de notificaciones familiares:', error);
+      
+      res.status(500).json({
+        success: false,
+        message: "Error interno del servidor al procesar la notificación familiar",
+        timestamp: new Date().toISOString(),
+        error: "INTERNAL_SERVER_ERROR"
+      });
+    }
+  }
+  /**
+   * Maneja el webhook POST /notify (legacy)
+   * Recibe notificaciones y las procesa para envío por WhatsApp (compatibilidad con versiones anteriores)
+   */
+  static async handleNotifyWebhook(req: Request, res: Response): Promise<void> {
+    try {
+      const requestData = req.body;
+
+      // Validar que los datos sean correctos (formato legacy)
+      if (!WhatsAppService.validateLegacyNotificationData(requestData)) {
+        res.status(400).json({
+          success: false,
+          message: "Datos inválidos. Se requiere: { userId: number, message: string }",
+          timestamp: new Date().toISOString(),
+          error: "INVALID_REQUEST_DATA"
+        });
+        return;
+      }
+
+      const { userId, message } = requestData;
+
+      // Validar longitud del mensaje
+      if (message.length > 1000) {
+        res.status(400).json({
+          success: false,
+          message: "El mensaje es demasiado largo. Máximo 1000 caracteres.",
+          timestamp: new Date().toISOString(),
+          error: "MESSAGE_TOO_LONG"
+        });
+        return;
+      }
+
+      // Procesar la notificación usando el método legacy
+      const result = await WhatsAppService.sendMessage(userId, message);
+
+      // Responder con éxito
+      res.status(200).json({
+        success: true,
+        message: "Notificación procesada exitosamente",
+        data: result,
+        webhook: "POST /notify",
+        timestamp: new Date().toISOString()
+      });
+
+    } catch (error) {
+      console.error('❌ Error en webhook de notificaciones:', error);
+      
+      res.status(500).json({
+        success: false,
+        message: "Error interno del servidor al procesar la notificación",
+        timestamp: new Date().toISOString(),
+        error: "INTERNAL_SERVER_ERROR"
+      });
+    }
+  }
+
+  /**
+   * Obtiene estadísticas de notificaciones familiares
+   */
+  static async getNotificationStats(req: Request, res: Response): Promise<void> {
+    try {
+      const stats = WhatsAppService.getNotificationStats();
+
+      res.status(200).json({
+        success: true,
+        message: "Estadísticas de notificaciones obtenidas exitosamente",
+        data: stats,
+        timestamp: new Date().toISOString()
+      });
+
+    } catch (error) {
+      console.error('❌ Error al obtener estadísticas:', error);
+      
+      res.status(500).json({
+        success: false,
+        message: "Error interno del servidor al obtener estadísticas",
+        timestamp: new Date().toISOString(),
+        error: "INTERNAL_SERVER_ERROR"
+      });
+    }
+  }
+
+  /**
+   * Obtiene información de miembros de la familia
+   */
+  static async getFamilyMembers(req: Request, res: Response): Promise<void> {
+    try {
+      const members = WhatsAppService.getAllFamilyMembers();
+
+      res.status(200).json({
+        success: true,
+        message: "Miembros de la familia obtenidos exitosamente",
+        data: members,
+        timestamp: new Date().toISOString()
+      });
+
+    } catch (error) {
+      console.error('❌ Error al obtener miembros de la familia:', error);
+      
+      res.status(500).json({
+        success: false,
+        message: "Error interno del servidor al obtener miembros de la familia",
+        timestamp: new Date().toISOString(),
+        error: "INTERNAL_SERVER_ERROR"
+      });
+    }
+  }
+>>>>>>> cegg
 
   /**
    * Health check del servicio de notificaciones

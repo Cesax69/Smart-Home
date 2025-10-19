@@ -83,7 +83,7 @@ export class NavbarComponent implements OnInit {
   }
 
   navigate(path: string): void {
-    this.router.navigate([path]);
+    this.router.navigateByUrl(path);
   }
 
   goToDashboard(): void {

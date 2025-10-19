@@ -26,86 +26,6 @@ import { NotificationBellComponent } from '../notification-bell/notification-bel
   ],
   template: `
     <div class="dashboard-container">
-      <!-- Enhanced Header Toolbar -->
-      <mat-toolbar class="dashboard-header" color="primary">
-        <div class="header-left">
-          <button mat-icon-button class="home-btn" matTooltip="Smart Home">
-            <mat-icon>home</mat-icon>
-          </button>
-          <div class="brand-section">
-            <mat-icon class="brand-icon">smart_home</mat-icon>
-            <div class="brand-info">
-              <h1 class="brand-title">Smart Home</h1>
-              <span class="brand-subtitle">Panel de Control</span>
-            </div>
-          </div>
-        </div>
-
-        <div class="header-center">
-          <div class="role-indicator">
-            <mat-icon class="role-icon">admin_panel_settings</mat-icon>
-            <div class="role-info">
-              <span class="role-title">Jefe del Hogar</span>
-              <span class="role-subtitle">Administrador</span>
-            </div>
-          </div>
-        </div>
-
-        <div class="header-right">
-          <div class="user-info" *ngIf="currentUser()">
-            <div class="user-details">
-              <span class="user-name">{{ currentUser()?.firstName }} {{ currentUser()?.lastName }}</span>
-              <span class="user-email">{{ currentUser()?.email }}</span>
-            </div>
-          </div>
-          
-          <div class="action-buttons">
-            <app-notification-bell class="notification-bell"></app-notification-bell>
-            <button mat-icon-button 
-                    (click)="navigateTo('/notifications')" 
-                    matTooltip="Centro de Notificaciones"
-                    class="notifications-btn">
-              <mat-icon>notifications</mat-icon>
-            </button>
-            <button mat-icon-button [matMenuTriggerFor]="userMenu" class="user-menu-btn" 
-                    matTooltip="Menú de Usuario">
-              <mat-icon>account_circle</mat-icon>
-            </button>
-          </div>
-        </div>
-
-        <!-- User Menu -->
-        <mat-menu #userMenu="matMenu">
-          <div class="menu-header">
-            <div class="menu-user-info">
-              <mat-icon class="menu-avatar">admin_panel_settings</mat-icon>
-              <div class="menu-user-details">
-                <span class="menu-user-name">{{ currentUser()?.firstName }} {{ currentUser()?.lastName }}</span>
-                <span class="menu-user-role">Jefe del Hogar</span>
-              </div>
-            </div>
-          </div>
-          <mat-divider></mat-divider>
-          <button mat-menu-item (click)="navigateTo('/profile')">
-            <mat-icon>person</mat-icon>
-            <span>Mi Perfil</span>
-          </button>
-          <button mat-menu-item (click)="navigateTo('/settings')">
-            <mat-icon>settings</mat-icon>
-            <span>Configuración</span>
-          </button>
-          <button mat-menu-item (click)="navigateTo('/notifications')">
-            <mat-icon>notifications</mat-icon>
-            <span>Notificaciones</span>
-          </button>
-          <mat-divider></mat-divider>
-          <button mat-menu-item (click)="logout()" class="logout-item">
-            <mat-icon>logout</mat-icon>
-            <span>Cerrar Sesión</span>
-          </button>
-        </mat-menu>
-      </mat-toolbar>
-
       <!-- Main Content -->
       <div class="dashboard-content">
         <div class="welcome-section">
@@ -236,222 +156,7 @@ import { NotificationBellComponent } from '../notification-bell/notification-bel
       background: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%);
     }
 
-    .dashboard-header {
-      position: sticky;
-      top: 0;
-      z-index: 100;
-      box-shadow: 0 4px 20px rgba(0,0,0,0.1);
-      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%) !important;
-      color: white;
-      padding: 0 24px;
-      min-height: 80px;
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-    }
-
-    .header-left {
-      display: flex;
-      align-items: center;
-      gap: 16px;
-      flex: 1;
-    }
-
-    .home-btn {
-      background: rgba(255,255,255,0.1);
-      color: white;
-      transition: all 0.3s ease;
-    }
-
-    .home-btn:hover {
-      background: rgba(255,255,255,0.2);
-      transform: scale(1.05);
-    }
-
-    .brand-section {
-      display: flex;
-      align-items: center;
-      gap: 12px;
-    }
-
-    .brand-icon {
-      font-size: 32px;
-      width: 32px;
-      height: 32px;
-      color: #ffd700;
-    }
-
-    .brand-info {
-      display: flex;
-      flex-direction: column;
-    }
-
-    .brand-title {
-      margin: 0;
-      font-size: 24px;
-      font-weight: 600;
-      line-height: 1.2;
-    }
-
-    .brand-subtitle {
-      font-size: 14px;
-      opacity: 0.8;
-      margin-top: 2px;
-    }
-
-    .header-center {
-      display: flex;
-      justify-content: center;
-      flex: 1;
-    }
-
-    .role-indicator {
-      display: flex;
-      align-items: center;
-      gap: 12px;
-      padding: 12px 20px;
-      border-radius: 25px;
-      background: rgba(255,255,255,0.1);
-      border: 1px solid rgba(255,255,255,0.2);
-      transition: all 0.3s ease;
-    }
-
-    .role-indicator:hover {
-      background: rgba(255,255,255,0.15);
-      transform: scale(1.02);
-    }
-
-    .role-icon {
-      font-size: 28px;
-      width: 28px;
-      height: 28px;
-      color: #ffd700;
-    }
-
-    .role-info {
-      display: flex;
-      flex-direction: column;
-    }
-
-    .role-title {
-      font-size: 16px;
-      font-weight: 600;
-      line-height: 1.2;
-    }
-
-    .role-subtitle {
-      font-size: 12px;
-      opacity: 0.8;
-      margin-top: 2px;
-    }
-
-    .header-right {
-      display: flex;
-      align-items: center;
-      gap: 16px;
-      flex: 1;
-      justify-content: flex-end;
-    }
-
-    .user-info {
-      display: flex;
-      align-items: center;
-      gap: 12px;
-    }
-
-    .user-details {
-      display: flex;
-      flex-direction: column;
-      align-items: flex-end;
-    }
-
-    .user-name {
-      font-size: 16px;
-      font-weight: 600;
-      line-height: 1.2;
-    }
-
-    .user-email {
-      font-size: 12px;
-      opacity: 0.8;
-      margin-top: 2px;
-    }
-
-    .action-buttons {
-      display: flex;
-      align-items: center;
-      gap: 8px;
-    }
-
-    .notification-bell {
-      margin-right: 8px;
-    }
-
-    .notifications-btn, .user-menu-btn {
-      background: rgba(255,255,255,0.1);
-      color: white;
-      transition: all 0.3s ease;
-      width: 48px;
-      height: 48px;
-    }
-
-    .notifications-btn:hover, .user-menu-btn:hover {
-      background: rgba(255,255,255,0.2);
-      transform: scale(1.05);
-    }
-
-    .notifications-btn mat-icon, .user-menu-btn mat-icon {
-      font-size: 24px;
-      width: 24px;
-      height: 24px;
-    }
-
-    /* Menu Styles */
-    .menu-header {
-      padding: 16px;
-      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-      color: white;
-      margin: -8px -8px 8px -8px;
-    }
-
-    .menu-user-info {
-      display: flex;
-      align-items: center;
-      gap: 12px;
-    }
-
-    .menu-avatar {
-      font-size: 32px;
-      width: 32px;
-      height: 32px;
-      color: #ffd700;
-    }
-
-    .menu-user-details {
-      display: flex;
-      flex-direction: column;
-    }
-
-    .menu-user-name {
-      font-size: 16px;
-      font-weight: 600;
-      line-height: 1.2;
-    }
-
-    .menu-user-role {
-      font-size: 12px;
-      opacity: 0.8;
-      margin-top: 2px;
-    }
-
-    .logout-item {
-      color: #f44336;
-    }
-
-    .logout-item mat-icon {
-      color: #f44336;
-    }
-
+    /* Mantener estilos de contenido; se elimina la toolbar local */
     .dashboard-content {
       padding: 32px 24px;
       max-width: 1200px;
@@ -564,34 +269,7 @@ import { NotificationBellComponent } from '../notification-bell/notification-bel
       box-shadow: 0 4px 15px rgba(102, 126, 234, 0.4);
     }
 
-    @media (max-width: 1024px) {
-      .header-center {
-        display: none;
-      }
-      
-      .user-details {
-        display: none;
-      }
-    }
-
     @media (max-width: 768px) {
-      .dashboard-header {
-        padding: 0 16px;
-        min-height: 64px;
-      }
-
-      .brand-title {
-        font-size: 18px;
-      }
-
-      .brand-subtitle {
-        display: none;
-      }
-
-      .features-grid {
-        grid-template-columns: 1fr;
-      }
-      
       .dashboard-content {
         padding: 24px 16px;
       }
@@ -607,6 +285,10 @@ import { NotificationBellComponent } from '../notification-bell/notification-bel
 
       .welcome-section p {
         font-size: 16px;
+      }
+
+      .features-grid {
+        grid-template-columns: 1fr;
       }
     }
   `]
@@ -624,7 +306,7 @@ export class DashboardAdminComponent implements OnInit {
   }
 
   navigateTo(route: string): void {
-    this.router.navigate([route]);
+    this.router.navigateByUrl(route);
   }
 
   logout(): void {
