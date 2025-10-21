@@ -78,7 +78,7 @@ export class TaskService {
       console.log(`EVENTO PUBLICADO: ${eventType}, UsuarioID: ${notificationUserId}, TareaID: ${taskData.id}, Título: ${taskData.title}`);
 
       // Mapear eventType a tipos de cola Redis
-      let notificationType: 'task_assigned' | 'task_completed' | 'task_reminder' | 'system_alert';
+      let notificationType: 'task_assigned' | 'task_completed' | 'task_reminder' | 'system_alert' | 'task_updated';
       let message: string;
       switch (eventType) {
         case 'TareaCreada':
@@ -90,7 +90,7 @@ export class TaskService {
             notificationType = 'task_completed';
             message = `La tarea "${taskData.title}" fue completada.`;
           } else {
-            notificationType = 'system_alert';
+            notificationType = 'task_updated';
             message = `La tarea "${taskData.title}" fue actualizada.`;
           }
           break;

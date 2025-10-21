@@ -259,6 +259,8 @@ class App {
         return '✅ Tarea Completada';
       case 'task_assigned':
         return '📋 Nueva Tarea Asignada';
+      case 'task_updated':
+        return '📝 Tarea Actualizada';
       case 'task_reminder':
         return '⏰ Recordatorio de Tarea';
       case 'system_alert':

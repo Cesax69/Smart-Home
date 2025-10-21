@@ -173,6 +173,83 @@ export class NotificationService {
   }
 
   /**
+   * Notificación de actualización de tarea (comentarios, archivos, edición)
+   */
+  async sendTaskUpdatedNotification(task: Task, actorUserId: number, info?: { change: 'files_added' | 'file_updated' | 'file_deleted' | 'task_edited' | 'comment_added'; count?: number; fileName?: string; commentPreview?: string }): Promise<void> {
+    try {
+      const recipients = Array.from(new Set(
+        ((task.assignedUserIds && task.assignedUserIds.length ? task.assignedUserIds : (task.assignedUserId ? [task.assignedUserId] : [])) || [])
+          .filter(Boolean)
+      ))
+      .filter(id => id !== actorUserId)
+      .map(id => id.toString());
+
+      if (!recipients.length) {
+        console.warn('⚠️ No hay destinatarios para actualización de tarea');
+        return;
+      }
+
+      const actor = await this.getUser(actorUserId);
+      const taskComments = await this.getTaskComments(task.id);
+      const taskFiles = await this.getTaskFiles(task.id);
+
+      let message = `La tarea "${task.title}" fue actualizada.`;
+      if (info?.change === 'files_added') {
+        message = `${actor ? `${actor.firstName} ${actor.lastName}` : 'Se'} agregó${(info?.count || 0) > 1 ? 'ron' : ''} ${info?.count || 1} archivo${(info?.count || 1) > 1 ? 's' : ''} a la tarea "${task.title}"`;
+      } else if (info?.change === 'file_updated') {
+        message = `${actor ? `${actor.firstName} ${actor.lastName}` : 'Se'} actualizó el archivo "${info?.fileName || ''}" en la tarea "${task.title}"`;
+      } else if (info?.change === 'file_deleted') {
+        message = `${actor ? `${actor.firstName} ${actor.lastName}` : 'Se'} eliminó un archivo de la tarea "${task.title}"`;
+      } else if (info?.change === 'comment_added') {
+        const preview = (info?.commentPreview || '').trim();
+        message = `${actor ? `${actor.firstName} ${actor.lastName}` : 'Se'} agregó un comentario en "${task.title}": ${preview ? '"' + preview + '"' : ''}`;
+      } else if (info?.change === 'task_edited') {
+        message = `${actor ? `${actor.firstName} ${actor.lastName}` : 'Se'} editó la información de la tarea "${task.title}"`;
+      }
+
+      const event: NotificationEvent = {
+        type: 'task_updated',
+        channels: ['app'],
+        data: {
+          userId: actorUserId.toString(),
+          recipients,
+          taskId: task.id?.toString(),
+          taskTitle: task.title,
+          message,
+          metadata: {
+            change: info?.change || 'task_edited',
+            count: info?.count,
+            fileName: info?.fileName,
+            commentPreview: info?.commentPreview,
+            taskData: {
+              taskId: task.id?.toString(),
+              taskTitle: task.title,
+              category: task.category,
+              priority: task.priority,
+              dueDate: task.dueDate,
+              description: task.description,
+              createdById: task.createdById,
+              createdByName: task.createdByName,
+              assignedUserIds: task.assignedUserIds,
+              assignedUserId: task.assignedUserId
+            },
+            commentsCount: taskComments.length,
+            filesCount: taskFiles.length,
+            comments: taskComments.slice(0, 3),
+            files: taskFiles.slice(0, 5)
+          }
+        },
+        priority: task.priority === 'alta' ? 'high' : 'low'
+      };
+
+      await this.sendNotification(event);
+      console.log(`✅ Task updated notification queued for recipients: ${JSON.stringify(recipients)}`);
+    } catch (error) {
+      console.error('❌ Error sending task updated notification:', error);
+    }
+  }
+
+  /**
    * Send task reminder notification
    */
   async sendTaskReminderNotification(task: Task, userIds: number[]): Promise<void> {

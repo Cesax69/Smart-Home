@@ -4,7 +4,7 @@ import { v4 as uuidv4 } from 'uuid';
 
 export interface NotificationJob {
   id: string;
-  type: 'task_completed' | 'task_assigned' | 'task_reminder' | 'system_alert';
+  type: 'task_completed' | 'task_assigned' | 'task_reminder' | 'system_alert' | 'task_updated';
   channels: ('app' | 'email')[];
   data: {
     userId: string;
@@ -193,6 +193,8 @@ export class NotificationQueueService {
         return '✅ Tarea Completada';
       case 'task_assigned':
         return '📋 Nueva Tarea Asignada';
+      case 'task_updated':
+        return '📝 Tarea Actualizada';
       case 'task_reminder':
         return '⏰ Recordatorio de Tarea';
       case 'system_alert':

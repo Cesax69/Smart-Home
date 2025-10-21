@@ -336,6 +336,14 @@ export class TaskController {
         return;
       }
 
+      // Disparar notificación de actualización de tarea (edición de información)
+      try {
+        const actorUserId = Number((req.body as any)?.userId ?? updatedTask.createdById);
+        await this.notificationService.sendTaskUpdatedNotification(updatedTask, actorUserId, { change: 'task_edited' });
+      } catch (notificationError) {
+        console.warn('⚠️ Failed to send task updated notification:', notificationError);
+      }
+
       res.status(200).json({
         success: true,
         data: updatedTask,
@@ -504,6 +512,18 @@ export class TaskController {
         };
       });
       const inserted = await this.taskService.addTaskFiles(taskId, mapped);
+
+      // Disparar notificación por archivos agregados
+      try {
+        const actorUserId = Number(req.body?.uploadedBy ?? fallbackUploaderId ?? 0);
+        const task = await this.taskService.getTaskById(taskId);
+        if (task) {
+          await this.notificationService.sendTaskUpdatedNotification(task, actorUserId, { change: 'files_added', count: inserted.length });
+        }
+      } catch (notificationError) {
+        console.warn('⚠️ Failed to send task files-added notification:', notificationError);
+      }
+
       res.status(201).json({ success: true, data: inserted, message: `Se registraron ${inserted.length} archivos` } as TaskResponse);
     } catch (error) {
       console.error('Error en addTaskFiles controller:', error);
@@ -567,6 +587,20 @@ export class TaskController {
         res.status(404).json({ success: false, message: 'Archivo no encontrado' } as TaskResponse);
         return;
       }
+
+      // Disparar notificación por archivo actualizado
+      try {
+        const actorUserId = Number(req.body?.uploaded_by ?? req.body?.uploadedBy ?? updated.uploaded_by ?? 0);
+        if (updated.task_id) {
+          const task = await this.taskService.getTaskById(Number(updated.task_id));
+          if (task) {
+            await this.notificationService.sendTaskUpdatedNotification(task, actorUserId, { change: 'file_updated', fileName: updated.file_name });
+          }
+        }
+      } catch (notificationError) {
+        console.warn('⚠️ Failed to send task file-updated notification:', notificationError);
+      }
+
       res.status(200).json({ success: true, data: updated } as TaskResponse);
     } catch (error) {
       console.error('Error en updateTaskFile controller:', error);
@@ -628,6 +662,16 @@ export class TaskController {
         createdBy,
         createdByName
       });
+
+      // Disparar notificación por comentario agregado
+      try {
+        const task = await this.taskService.getTaskById(taskId);
+        if (task) {
+          await this.notificationService.sendTaskUpdatedNotification(task, Number(createdBy), { change: 'comment_added', commentPreview: comment.trim().slice(0, 80) });
+        }
+      } catch (notificationError) {
+        console.warn('⚠️ Failed to send task comment-added notification:', notificationError);
+      }
 
       res.status(201).json({
         success: true,
