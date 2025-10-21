@@ -1,3 +1,4 @@
+import axios from 'axios';
 import { Task, CreateTaskRequest, UpdateTaskRequest, DatabaseTask, TaskStatus, TaskCategory, TaskPriority, TaskStats } from '../types/Task';
 import { databaseService } from '../config/database';
 
@@ -43,6 +44,8 @@ export class TaskService {
         return 'en_proceso';
       case 'completed':
         return 'completada';
+      case 'archived':
+        return 'archivada';
       default:
         return 'pendiente';
     }
@@ -59,6 +62,8 @@ export class TaskService {
         return 'in_progress';
       case 'completada':
         return 'completed';
+      case 'archivada':
+        return 'archived';
       default:
         return 'pending';
     }
@@ -69,64 +74,90 @@ export class TaskService {
    */
   private async publishEvent(eventType: string, taskData: Task, userId?: number) {
     try {
-      // Usar el userId proporcionado o el assignedUserId como fallback
       const notificationUserId = userId || taskData.assignedUserId;
       console.log(`EVENTO PUBLICADO: ${eventType}, UsuarioID: ${notificationUserId}, TareaID: ${taskData.id}, Título: ${taskData.title}`);
-      
-      // Mapear tipos de eventos a tipos de notificación
-      let notificationType: string;
+
+      // Mapear eventType a tipos de cola Redis
+      let notificationType: 'task_assigned' | 'task_completed' | 'task_reminder' | 'system_alert';
+      let message: string;
       switch (eventType) {
         case 'TareaCreada':
-          notificationType = 'tarea_asignada';
+          notificationType = 'task_assigned';
+          message = `Nueva tarea asignada: "${taskData.title}"`;
           break;
         case 'TareaActualizada':
-          notificationType = taskData.status === 'completada' ? 'tarea_completada' : 'tarea_actualizada';
+          if (taskData.status === 'completada') {
+            notificationType = 'task_completed';
+            message = `La tarea "${taskData.title}" fue completada.`;
+          } else {
+            notificationType = 'system_alert';
+            message = `La tarea "${taskData.title}" fue actualizada.`;
+          }
           break;
         case 'TareaEliminada':
-          notificationType = 'tarea_eliminada';
+          notificationType = 'system_alert';
+          message = `La tarea "${taskData.title}" fue eliminada.`;
           break;
         default:
-          notificationType = 'general';
+          notificationType = 'system_alert';
+          message = `Evento de tarea: ${eventType}`;
       }
 
-      // Preparar datos para el webhook de notificaciones
-      const notificationPayload = {
-        userId: notificationUserId,
+      // Destinatarios: todos los asignados, o el asignado único si existe
+      const recipients: string[] = Array.isArray(taskData.assignedUserIds) && taskData.assignedUserIds.length > 0
+        ? taskData.assignedUserIds.filter(Boolean).map(id => id.toString())
+        : (taskData.assignedUserId ? [taskData.assignedUserId.toString()] : []);
+
+      const queuePayload = {
         type: notificationType,
-        priority: taskData.priority === 'urgente' ? 'alta' : taskData.priority === 'alta' ? 'media' : 'baja',
-        taskData: {
-          id: taskData.id,
-          title: taskData.title,
-          description: taskData.description,
-          category: taskData.category,
-          priority: taskData.priority,
-          status: taskData.status,
-          assignedUserName: taskData.assignedUserName,
-          createdByName: taskData.createdByName,
-          dueDate: taskData.dueDate,
-          reward: taskData.reward
-        }
+        channels: ['app'],
+        data: {
+          userId: (notificationUserId || taskData.createdById || 0).toString(),
+          recipients,
+          taskId: taskData.id?.toString(),
+          taskTitle: taskData.title,
+          message,
+          metadata: {
+            taskData: {
+              taskId: taskData.id?.toString(),
+              taskTitle: taskData.title,
+              description: taskData.description,
+              category: taskData.category,
+              priority: taskData.priority,
+              status: taskData.status,
+              assignedUserName: taskData.assignedUserName,
+              createdByName: taskData.createdByName,
+              dueDate: taskData.dueDate,
+              reward: taskData.reward
+            }
+          }
+        },
+        priority: taskData.priority === 'urgente' ? 'high' : 'low'
       };
 
-      // Enviar notificación al notifications-service
-      const notificationServiceUrl = process.env.NOTIFICATIONS_SERVICE_URL || 'http://localhost:3004';
-      const response = await fetch(`${notificationServiceUrl}/notify/family`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(notificationPayload)
-      });
+      const notificationServiceUrl = process.env.NOTIFICATIONS_SERVICE_URL || process.env.NOTIFICATION_SERVICE_URL || 'http://localhost:3004';
+      const timeoutMs = parseInt(process.env.NOTIFICATION_HTTP_TIMEOUT_MS || '2000');
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
+      try {
+        const response = await fetch(`${notificationServiceUrl}/notify/queue`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify(queuePayload),
+          signal: controller.signal
+        });
 
-      if (response.ok) {
-         const result = await response.json() as { message?: string };
-         console.log(`✅ Notificación enviada exitosamente:`, result.message || 'Sin mensaje');
-       } else {
-         console.error(`❌ Error al enviar notificación: ${response.status} ${response.statusText}`);
-       }
+        if (!response.ok) {
+          const errorText = await response.text();
+          console.warn('Notificación no enviada:', errorText);
+        }
+      } finally {
+        clearTimeout(timeoutId);
+      }
     } catch (error) {
-      console.error('❌ Error al publicar evento de notificación:', error);
-      // No lanzamos el error para que no afecte la operación principal de la tarea
+      console.error('Error enviando notificación:', error);
     }
   }
 
@@ -137,7 +168,7 @@ export class TaskService {
     const mappedTask = {
       id: dbTask.id,
       title: dbTask.title,
-      description: dbTask.description,
+      description: dbTask.description || undefined,
       category: this.normalizeCategory(dbTask.category as unknown as string),
       priority: (['baja', 'media', 'alta', 'urgente'].includes((dbTask.priority as unknown as string) || '')
         ? (dbTask.priority as unknown as TaskPriority)
@@ -164,13 +195,14 @@ export class TaskService {
    * Valida el estado de una tarea
    */
   private isValidStatus(status: string): status is TaskStatus {
-    return ['pendiente', 'en_proceso', 'completada'].includes(status);
+    return ['pendiente', 'en_proceso', 'completada', 'archivada'].includes(status);
   }
 
   /**
    * Valida la categoría de una tarea
    */
-  private isValidCategory(category: string): category is TaskCategory {
+  private isValidCategory(category?: string | null): category is TaskCategory {
+    if (!category) return false;
     return ['limpieza', 'cocina', 'lavanderia', 'jardin', 'mantenimiento', 'organizacion', 'mascotas', 'compras', 'otros'].includes(category);
   }
 
@@ -189,10 +221,6 @@ export class TaskService {
       // Validar datos de entrada
       if (!taskData.title || taskData.title.trim().length === 0) {
         throw new Error('El título de la tarea es requerido');
-      }
-
-      if (!taskData.description || taskData.description.trim().length === 0) {
-        throw new Error('La descripción de la tarea es requerida');
       }
 
       const assigneeIds = Array.isArray(taskData.assignedUserIds) && taskData.assignedUserIds.length > 0
@@ -232,7 +260,7 @@ export class TaskService {
         const insertTaskParams = [
           taskData.createdById,
           taskData.title.trim(),
-          taskData.description.trim(),
+          taskData.description ? taskData.description.trim() : null,
           this.mapAppStatusToDb(status),
           priority,
           taskData.category,
@@ -273,7 +301,8 @@ export class TaskService {
         } as any;
 
         const newTask = this.mapDatabaseTaskToTask(dbTask);
-        await this.publishEvent('TareaCreada', newTask);
+        // Eliminado: no publicar evento de familia en creación para evitar notificaciones a jefes del hogar
+        // this.publishEvent('TareaCreada', newTask).catch(err => console.warn('Fallo al publicar evento TareaCreada:', err));
         return newTask;
       } finally {
         client.release();
@@ -304,6 +333,7 @@ export class TaskService {
             t.completed_at,
             t.created_at,
             t.updated_at,
+            t.progress,
             (
               SELECT ta.user_id 
               FROM task_assignments ta 
@@ -345,8 +375,7 @@ export class TaskService {
         query += ' ORDER BY t.created_at DESC';
         
         const { rows } = await client.query(query, params);
-        const tasks = rows.map((r: any) => this.mapDatabaseTaskToTask(r as DatabaseTask));
-        return tasks;
+        return rows.map((r: any) => this.mapDatabaseTaskToTask(r as DatabaseTask));
       } finally {
         client.release();
       }
@@ -376,6 +405,7 @@ export class TaskService {
             t.completed_at,
             t.created_at,
             t.updated_at,
+            t.progress,
             (
               SELECT ta.user_id 
               FROM task_assignments ta 
@@ -436,6 +466,7 @@ export class TaskService {
             t.completed_at,
             t.created_at,
             t.updated_at,
+            t.progress,
             (
               SELECT ta.user_id 
               FROM task_assignments ta 
@@ -494,6 +525,7 @@ export class TaskService {
             t.completed_at,
             t.created_at,
             t.updated_at,
+            t.progress,
             (
               SELECT ta.user_id 
               FROM task_assignments ta 
@@ -551,6 +583,7 @@ export class TaskService {
             t.completed_at,
             t.created_at,
             t.updated_at,
+            t.progress,
             (
               SELECT ta.user_id 
               FROM task_assignments ta 
@@ -611,6 +644,72 @@ export class TaskService {
 
       const client = await databaseService.getConnection();
       try {
+        // Obtener título actual para comparar
+        const { rows: currentRows } = await client.query('SELECT id, title FROM tasks WHERE id = $1', [id]);
+        if (!currentRows.length) return null;
+        const currentTitle: string = (currentRows[0].title || '').toString();
+
+        // Si el título cambia, intentar renombrar la carpeta de Drive antes de actualizar en DB
+        if (updateData.title !== undefined && updateData.title.toString().trim() !== currentTitle.toString().trim()) {
+          const gateway = process.env.API_GATEWAY_URL || 'http://localhost:3000';
+          const safeCurrentTitle = currentTitle.toString().trim().replace(/[\\/:*?"<>|]/g, '-');
+          const safeNewTitle = updateData.title.toString().trim().replace(/[\\/:*?"<>|]/g, '-');
+          let driveFolderId: string | null = null;
+
+          try {
+            // Buscar un archivo registrado para la tarea y obtener su carpeta padre
+            const { rows: fileRows } = await client.query(
+              'SELECT google_drive_id FROM task_files WHERE task_id = $1 AND google_drive_id IS NOT NULL LIMIT 1',
+              [id]
+            );
+            const fileId: string | null = (fileRows.length && fileRows[0].google_drive_id) ? fileRows[0].google_drive_id : null;
+            if (fileId) {
+              try {
+                const infoResp = await axios.get(`${gateway}/api/files/drive/files/${encodeURIComponent(fileId)}`, { timeout: 20000 });
+                const parents: string[] = Array.isArray(infoResp.data?.fileInfo?.parents) ? infoResp.data.fileInfo.parents : [];
+                driveFolderId = parents.length ? parents[0] : null;
+              } catch (err) {
+                console.warn('No se pudo obtener información del archivo en Drive:', err instanceof Error ? err.message : err);
+              }
+            }
+            // Fallback: buscar carpeta por nombre de la tarea si no se obtuvo desde un archivo
+            if (!driveFolderId) {
+              try {
+                const resp = await axios.get(`${gateway}/api/files/drive/folders/by-name`, {
+                  params: { name: safeCurrentTitle },
+                  timeout: 20000
+                });
+                driveFolderId = resp.data?.folder?.id || null;
+              } catch (err) {
+                console.warn('No se encontró carpeta de Drive por nombre:', err instanceof Error ? err.message : err);
+              }
+            }
+          } catch (err) {
+            console.warn('No se pudo determinar carpeta de Drive para la tarea al renombrar:', err instanceof Error ? err.message : err);
+          }
+
+          if (driveFolderId) {
+            // Intentar renombrar la carpeta
+            try {
+              const resp = await axios.post(
+                `${gateway}/api/files/drive/folders/${encodeURIComponent(driveFolderId)}/rename`,
+                { newName: safeNewTitle },
+                { timeout: 30000, headers: { 'Content-Type': 'application/json' }, params: { newName: safeNewTitle } }
+              );
+              const ok = !!resp.data?.success;
+              if (!ok) {
+                throw new Error('No se pudo renombrar la carpeta de Drive; la tarea no se actualizó');
+              }
+            } catch (err) {
+              const msg = err instanceof Error ? err.message : 'Error renombrando carpeta de Drive';
+              throw new Error(`${msg}`);
+            }
+          } else {
+            // Si no se encuentra carpeta asociada, continuar con la actualización pero advertir en logs
+            console.warn(`No se encontró carpeta de Drive para la tarea ${id} (título: "${currentTitle}"). Se actualizará el título sin renombrar carpeta.`);
+          }
+        }
+
         const fields: string[] = [];
         const params: any[] = [];
         let idx = 1;
@@ -622,11 +721,15 @@ export class TaskService {
         if (updateData.status !== undefined) { fields.push(`status = $${idx++}`); params.push(this.mapAppStatusToDb(updateData.status)); }
         if (updateData.dueDate !== undefined) { fields.push(`due_date = $${idx++}`); params.push(updateData.dueDate || null); }
         if (updateData.completedAt !== undefined) { fields.push(`completed_at = $${idx++}`); params.push(updateData.completedAt || null); }
-        // Nota: la columna progress no existe en el esquema actual; ignoramos este campo si viene
+        if (updateData.progress !== undefined) {
+          const p = Math.max(0, Math.min(100, Number(updateData.progress)));
+          fields.push(`progress = $${idx++}`);
+          params.push(isFinite(p) ? p : 0);
+        }
 
         fields.push(`updated_at = NOW()`);
 
-        const updateQuery = `UPDATE tasks SET ${fields.join(', ')} WHERE id = $${idx} RETURNING id, user_id AS created_by_id, title, description, category, priority, status, due_date, completed_at, created_at, updated_at`;
+        const updateQuery = `UPDATE tasks SET ${fields.join(', ')} WHERE id = $${idx} RETURNING id, user_id AS created_by_id, title, description, category, priority, status, due_date, completed_at, created_at, updated_at, progress`;
         params.push(id);
 
         // LOGS DE DEPURACIÓN PARA EL PROGRESO
@@ -678,15 +781,15 @@ export class TaskService {
           completed_at: rows[0].completed_at,
           created_at: rows[0].created_at,
           updated_at: rows[0].updated_at,
-          progress: 0
+          progress: rows[0].progress
         } as any;
 
         const updatedTask = this.mapDatabaseTaskToTask(dbTask);
-        
-        // Pasar el userId del request body para las notificaciones
-        const notificationUserId = (updateData as any).userId;
-        await this.publishEvent('TareaActualizada', updatedTask, notificationUserId);
-        
+        const notificationUserId = (updateData as any).userId || updatedTask.createdById;
+
+-        this.publishEvent('TareaActualizada', updatedTask, notificationUserId).catch(err => console.warn('Fallo al publicar evento TareaActualizada:', err));
+        const actorUserId = (updateData as any).userId || updatedTask.createdById;
++        this.publishEvent('TareaActualizada', updatedTask, actorUserId).catch(err => console.warn('Fallo al publicar evento TareaActualizada:', err));
         return updatedTask;
       } finally {
         client.release();
@@ -710,9 +813,62 @@ export class TaskService {
         const { rows } = await client.query(`SELECT id, user_id AS created_by_id, title, description, category, priority, status, due_date, completed_at, created_at, updated_at FROM tasks WHERE id = $1`, [id]);
         if (!rows.length) return false;
         const dbTaskBefore: DatabaseTask = rows[0] as any;
+
+        // Intentar determinar la carpeta en Google Drive asociada a la tarea
+        let driveFolderId: string | null = null;
+        try {
+          // Buscar un archivo registrado para la tarea y obtener su carpeta padre
+          const { rows: fileRows } = await client.query(
+            `SELECT google_drive_id FROM task_files WHERE task_id = $1 AND google_drive_id IS NOT NULL LIMIT 1`,
+            [id]
+          );
+          const fileId: string | null = (fileRows.length && fileRows[0].google_drive_id) ? fileRows[0].google_drive_id : null;
+          const gateway = process.env.API_GATEWAY_URL || 'http://localhost:3000';
+          if (fileId) {
+            try {
+              const infoResp = await axios.get(`${gateway}/api/files/drive/files/${encodeURIComponent(fileId)}`, { timeout: 20000 });
+              const parents: string[] = Array.isArray(infoResp.data?.fileInfo?.parents) ? infoResp.data.fileInfo.parents : [];
+              driveFolderId = parents.length ? parents[0] : null;
+            } catch (err) {
+              console.warn('No se pudo obtener información del archivo en Drive:', err instanceof Error ? err.message : err);
+            }
+          }
+          // Fallback: buscar carpeta por nombre de la tarea si no se obtuvo desde un archivo
+          if (!driveFolderId) {
+            const safeTitle = (dbTaskBefore.title || 'Sin título').toString().trim().replace(/[\\/:*?"<>|]/g, '-');
+            try {
+              const resp = await axios.get(`${gateway}/api/files/drive/folders/by-name`, {
+                params: { name: safeTitle },
+                timeout: 20000
+              });
+              driveFolderId = resp.data?.folder?.id || null;
+            } catch (err) {
+              console.warn('No se encontró carpeta de Drive por nombre:', err instanceof Error ? err.message : err);
+            }
+          }
+        } catch (err) {
+          console.warn('No se pudo determinar carpeta de Drive para la tarea:', err instanceof Error ? err.message : err);
+        }
+
+        // Eliminar la tarea (task_files se eliminarán por ON DELETE CASCADE)
         await client.query(`DELETE FROM tasks WHERE id = $1`, [id]);
+
+        // Intentar eliminar la carpeta de Drive si la determinamos
+        if (driveFolderId) {
+          const gateway = process.env.API_GATEWAY_URL || 'http://localhost:3000';
+          try {
+            await axios.delete(`${gateway}/api/files/drive/folders/${encodeURIComponent(driveFolderId)}`, {
+              params: { recursive: 'true' },
+              timeout: 30000
+            });
+            console.log(`🗑️ Carpeta de Drive eliminada para tarea ${id}: ${driveFolderId}`);
+          } catch (err) {
+            console.error('Error eliminando carpeta de Drive de la tarea:', err instanceof Error ? err.message : err);
+          }
+        }
+
         const deletedTask = this.mapDatabaseTaskToTask(dbTaskBefore);
-        await this.publishEvent('TareaEliminada', deletedTask);
+        this.publishEvent('TareaEliminada', deletedTask).catch(err => console.warn('Fallo al publicar evento TareaEliminada:', err));
         return true;
       } finally {
         client.release();
@@ -736,19 +892,19 @@ export class TaskService {
         // Hacer JOIN con la tabla users para obtener el nombre del usuario
         const { rows } = await client.query(`
           SELECT 
-            tf.id, 
-            tf.task_id, 
-            tf.file_name, 
-            tf.file_path, 
-            tf.file_url, 
-            tf.file_size, 
-            tf.file_type, 
-            tf.mime_type, 
-            tf.uploaded_by, 
-            tf.storage_type, 
-            tf.google_drive_id, 
-            tf.is_image, 
-            tf.thumbnail_path, 
+            tf.id,
+            tf.task_id,
+            tf.file_name,
+            tf.file_path,
+            tf.file_url,
+            tf.file_size,
+            tf.file_type,
+            tf.mime_type,
+            tf.uploaded_by,
+            tf.storage_type,
+            tf.google_drive_id,
+            tf.is_image,
+            tf.thumbnail_path,
             tf.created_at,
             'Usuario' as uploaded_by_name
           FROM task_files tf
@@ -1021,6 +1177,7 @@ export class TaskService {
             t.completed_at,
             t.created_at,
             t.updated_at,
+            t.progress,
             (
               SELECT ta.user_id 
               FROM task_assignments ta 
@@ -1074,6 +1231,7 @@ export class TaskService {
             t.completed_at,
             t.created_at,
             t.updated_at,
+            t.progress,
             (
               SELECT ta.user_id 
               FROM task_assignments ta 
@@ -1106,4 +1264,65 @@ export class TaskService {
       throw error;
     }
   }
+
+  async archiveTask(id: number): Promise<Task | null> {
+    return this.updateTask(id, { status: 'archivada' });
+  }
+
+  async unarchiveTask(id: number): Promise<Task | null> {
+    return this.updateTask(id, { status: 'pendiente' });
+  }
+
+  async updateTaskFile(fileRecordId: number, fileData: any): Promise<any | null> {
+    try {
+      if (!fileRecordId || fileRecordId <= 0) {
+        throw new Error('ID de archivo inválido');
+      }
+      const client = await databaseService.getConnection();
+      try {
+        const { rows: existingRows } = await client.query('SELECT id FROM task_files WHERE id = $1', [fileRecordId]);
+        if (!existingRows.length) {
+          return null;
+        }
+
+        const allowed = ['file_name','file_path','file_url','file_size','file_type','mime_type','uploaded_by','storage_type','google_drive_id','is_image','thumbnail_path'];
+        const sets: string[] = [];
+        const values: any[] = [];
+        let idx = 1;
+        for (const key of allowed) {
+          if (fileData[key] !== undefined) {
+            sets.push(`${key} = $${idx}`);
+            values.push(fileData[key]);
+            idx++;
+          }
+        }
+
+        if (!sets.length) {
+          const { rows } = await client.query(
+            'SELECT id, task_id, file_name, file_path, file_url, file_size, file_type, mime_type, uploaded_by, storage_type, google_drive_id, is_image, thumbnail_path, created_at FROM task_files WHERE id = $1',
+            [fileRecordId]
+          );
+          return rows[0] || null;
+        }
+
+        values.push(fileRecordId);
+        const { rows } = await client.query(
+          `UPDATE task_files
+           SET ${sets.join(', ')}
+           WHERE id = $${idx}
+           RETURNING id, task_id, file_name, file_path, file_url, file_size, file_type, mime_type, uploaded_by, storage_type, google_drive_id, is_image, thumbnail_path, created_at`,
+          values
+        );
+        return rows[0] || null;
+      } finally {
+        client.release();
+      }
+    } catch (error) {
+      console.error('Error en updateTaskFile:', error);
+      throw error;
+    }
+  }
+
 }
+
+  

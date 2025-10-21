@@ -15,9 +15,8 @@ const createServiceProxy = (service: ServiceConfig) => {
     timeout: PROXY_CONFIG.timeout,
     limit: PROXY_CONFIG.limit,
     preserveHostHdr: PROXY_CONFIG.preserveHostHdr,
-    // Permitir que el proxy maneje el body ya parseado por Express
-    // Esto evita problemas de "socket hang up" cuando el stream ya fue consumido
-    parseReqBody: PROXY_CONFIG.parseReqBody,
+    // Para servicios con cuerpo multipart (File Upload), NO parsear el body en el proxy
+    parseReqBody: service.name === 'File Upload Service' ? false : true,
     memoizeHost: PROXY_CONFIG.memoizeHost,
     // Asegurar que los encabezados y el cuerpo JSON se envíen correctamente, y reenviar x-confirm-code
     proxyReqOptDecorator: (proxyReqOpts: any, srcReq: Request) => {
@@ -40,8 +39,13 @@ const createServiceProxy = (service: ServiceConfig) => {
     },
 
     proxyReqBodyDecorator: (bodyContent: any, srcReq: Request) => {
-      // Si el body es un objeto, serializarlo a JSON
-      if (bodyContent && typeof bodyContent === 'object') {
+      const ct = (srcReq.headers['content-type'] || '').toString().toLowerCase();
+      // No tocar multipart/form-data ni cuerpos binarios/Buffer
+      if (ct.includes('multipart/form-data') || Buffer.isBuffer(bodyContent)) {
+        return bodyContent;
+      }
+      // Si el body es un objeto y es JSON, serializar
+      if (bodyContent && typeof bodyContent === 'object' && ct.includes('application/json')) {
         try {
           return JSON.stringify(bodyContent);
         } catch {
@@ -67,31 +71,7 @@ const createServiceProxy = (service: ServiceConfig) => {
         console.log(`🔄 [PROXY] ${req.method} ${originalUrl} -> ${svc.url}${originalUrl}`);
         return originalUrl;
       }
-      
-      return req.originalUrl;
-    },
-
-    // Manejar respuestas del proxy
-    userResDecorator: (proxyRes: any, proxyResData: any, userReq: Request, userRes: Response) => {
-      const svc = getServiceByPath(userReq.originalUrl);
-      
-      if (svc) {
-        console.log(`✅ [PROXY] ${userReq.method} ${userReq.originalUrl} -> ${svc.name} (${proxyRes.statusCode})`);
-      }
-      
-      return proxyResData;
-    },
-
-    // Manejar errores del proxy
-    proxyErrorHandler: (err: any, res: Response, next: NextFunction) => {
-      console.error('❌ [PROXY ERROR]:', err.message);
-      
-      res.status(503).json({
-        success: false,
-        message: 'Servicio no disponible temporalmente',
-        error: 'SERVICE_UNAVAILABLE',
-        timestamp: new Date().toISOString()
-      });
+      return originalUrl;
     }
   });
 };

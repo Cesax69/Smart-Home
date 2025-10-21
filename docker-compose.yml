@@ -41,26 +41,6 @@ services:
       timeout: 10s
       retries: 3
 
-  # Base de datos PostgreSQL para Notificaciones
-  postgres-notifications:
-    image: postgres:15-alpine
-    container_name: smart-home-postgres-notifications
-    environment:
-      POSTGRES_DB: smart_home
-      POSTGRES_USER: postgres
-      POSTGRES_PASSWORD: linux
-    ports:
-      - "5434:5432"
-    volumes:
-      - postgres_notifications_data:/var/lib/postgresql/data
-      - ./backend/setup-notifications-database.sql:/docker-entrypoint-initdb.d/setup-notifications-database.sql
-    networks:
-      - smart-home-network
-    healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U postgres -d smart_home"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
 
   # API Gateway
   api-gateway:
@@ -128,6 +108,7 @@ services:
       - DB_SCHEMA=public
       - USERS_SERVICE_URL=http://users-service:3001
       - NOTIFICATION_SERVICE_URL=http://notifications-service:3004
+      - API_GATEWAY_URL=http://api-gateway:3000
     depends_on:
       postgres-tasks:
         condition: service_healthy
@@ -151,16 +132,8 @@ services:
       - REDIS_HOST=smart-home-redis
       - REDIS_PORT=6379
       - REDIS_PASSWORD=smartHomeRedis2024
-      - DB_HOST=postgres-notifications
-      - DB_PORT=5432
-      - DB_NAME=smart_home
-      - DB_USER=postgres
-      - DB_PASSWORD=linux
-      - DB_SCHEMA=notifications_schema
     depends_on:
       redis:
-        condition: service_healthy
-      postgres-notifications:
         condition: service_healthy
     networks:
       - smart-home-network
@@ -201,13 +174,11 @@ services:
       PORT: 3006
       USERS_SERVICE_URL: http://users-service:3001/api
       AI_DB_CONNECTIONS: >-
-        [{"id":"users-pg","type":"postgres","name":"Users DB (Postgres)","url":"postgresql://postgres:linux@postgres-users:5432/users_db","readOnly":true},{"id":"tasks-pg","type":"postgres","name":"Tasks DB (Postgres)","url":"postgresql://postgres:linux@postgres-tasks:5432/tasks_db","readOnly":true},{"id":"notifications-pg","type":"postgres","name":"Notifications DB (Postgres)","url":"postgresql://postgres:linux@postgres-notifications:5432/smart_home","readOnly":true}]
+        [{"id":"users-pg","type":"postgres","name":"Users DB (Postgres)","url":"postgresql://postgres:linux@postgres-users:5432/users_db","readOnly":true},{"id":"tasks-pg","type":"postgres","name":"Tasks DB (Postgres)","url":"postgresql://postgres:linux@postgres-tasks:5432/tasks_db","readOnly":true}]
     depends_on:
       postgres-users:
         condition: service_healthy
       postgres-tasks:
-        condition: service_healthy
-      postgres-notifications:
         condition: service_healthy
     networks:
       - smart-home-network
@@ -239,8 +210,6 @@ volumes:
   postgres_users_data:
     driver: local
   postgres_tasks_data:
-    driver: local
-  postgres_notifications_data:
     driver: local
   file_uploads:
     driver: local

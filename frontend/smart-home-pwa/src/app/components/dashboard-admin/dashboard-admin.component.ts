@@ -21,9 +21,8 @@ import { NotificationBellComponent } from '../notification-bell/notification-bel
     MatIconModule,
     MatToolbarModule,
     MatMenuModule,
-    MatDividerModule,
-    NotificationBellComponent
-  ],
+    MatDividerModule
+],
   template: `
     <div class="dashboard-container">
       <!-- Main Content -->

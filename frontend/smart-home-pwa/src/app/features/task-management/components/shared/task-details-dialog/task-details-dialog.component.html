@@ -1,0 +1,102 @@
+<!-- Header -->
+<h2 mat-dialog-title>
+  {{ task.title }}
+</h2>
+
+<mat-dialog-content class="dialog-content">
+  <mat-tab-group>
+    <mat-tab label="Resumen">
+      <div class="summary">
+        <div class="chip-row">
+          <mat-chip-set>
+            <mat-chip color="primary" selected>
+              Estado: {{ statusLabel(task.status) }}
+            </mat-chip>
+            <mat-chip color="accent" selected>
+              Prioridad: {{ priorityLabel(task.priority) }}
+            </mat-chip>
+          </mat-chip-set>
+        </div>
+
+        <p>
+          <mat-icon inline>schedule</mat-icon>
+          Creada: {{ formatDate(task.createdAt) }}
+        </p>
+        <p *ngIf="task.dueDate">
+          <mat-icon inline>event</mat-icon>
+          Vence: {{ formatDate(task.dueDate) }}
+        </p>
+
+        <p *ngIf="task.description">
+          <mat-icon inline>description</mat-icon>
+          {{ task.description }}
+        </p>
+
+        <p *ngIf="getAssignedUsers(task).length > 0">
+          <mat-icon inline>{{ getAssignedUsers(task).length > 1 ? 'people' : 'person' }}</mat-icon>
+          Asignada a: {{ getAssignedUserNames(task) }}
+        </p>
+
+
+      </div>
+    </mat-tab>
+
+    <mat-tab label="Comentarios">
+      <div class="comments">
+        <mat-list *ngIf="comments()?.length; else noComments">
+          <mat-list-item *ngFor="let c of comments()">
+            <mat-icon matListItemIcon>comment</mat-icon>
+            <div matListItemTitle>{{ c.comment }}</div>
+            <div matListItemLine>
+              <small>{{ c.createdByName }} • {{ formatDate(c.createdAt) }}</small>
+            </div>
+          </mat-list-item>
+        </mat-list>
+
+        <ng-template #noComments>
+          <p class="muted">No hay comentarios todavía.</p>
+        </ng-template>
+
+        <mat-divider></mat-divider>
+
+        <div class="comment-restriction" *ngIf="isHouseholdHead">
+          <mat-icon>visibility</mat-icon>
+          El jefe del hogar solo puede ver los comentarios; no puede responder.
+        </div>
+
+        <div class="comment-input" *ngIf="canComment">
+          <mat-form-field appearance="outline" class="full">
+            <mat-label>Agregar comentario</mat-label>
+            <textarea matInput rows="2" [(ngModel)]="commentText" placeholder="Escribe tu comentario..."></textarea>
+          </mat-form-field>
+
+          <button mat-raised-button color="primary" (click)="addComment()"
+            [disabled]="isAddingComment() || !commentText || !commentText.trim()">
+            <mat-icon>send</mat-icon>
+            Publicar
+          </button>
+        </div>
+      </div>
+    </mat-tab>
+
+    <mat-tab label="Archivos" *ngIf="files()?.length">
+      <div class="files">
+        <mat-list>
+          <mat-list-item *ngFor="let f of files()">
+            <mat-icon matListItemIcon>attach_file</mat-icon>
+            <div matListItemTitle>
+              <a [href]="getFileUrl(f)" target="_blank" rel="noopener">{{ getFileName(f) }}</a>
+            </div>
+            <div matListItemLine>
+              <small>{{ getFileMime(f) }} • {{ getFileSize(f) | number }} bytes</small>
+            </div>
+          </mat-list-item>
+        </mat-list>
+      </div>
+    </mat-tab>
+  </mat-tab-group>
+</mat-dialog-content>
+
+<mat-dialog-actions align="end">
+  <button mat-button mat-dialog-close>Cerrar</button>
+</mat-dialog-actions>

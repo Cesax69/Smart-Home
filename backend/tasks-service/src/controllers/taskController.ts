@@ -34,20 +34,23 @@ export class TaskController {
 
       const newTask = await this.taskService.createTask(taskData);
 
-      // Send notification for task assignment
-      try {
-        const assignedUserIds: number[] = [];
-        if (hasSingleAssignee) {
-          assignedUserIds.push(taskData.assignedUserId!);
-        }
-        if (hasMultipleAssignees) {
-          assignedUserIds.push(...taskData.assignedUserIds!);
-        }
-        
-        await this.notificationService.sendTaskAssignedNotification(newTask, assignedUserIds);
-      } catch (notificationError) {
-        console.warn('⚠️ Failed to send task assignment notification:', notificationError);
-        // Continue with the response even if notification fails
+      // Send notification for task assignment (no bloquear la respuesta)
+      const assignedUserIds: number[] = [];
+      if (hasSingleAssignee) {
+        assignedUserIds.push(taskData.assignedUserId!);
+      }
+      if (hasMultipleAssignees) {
+        assignedUserIds.push(...taskData.assignedUserIds!);
+      }
+      const uniqueAssignedUserIds = Array.from(new Set(assignedUserIds.filter(id => !!id && id > 0)));
+      // No notificar al creador de la tarea por asignación
+      const recipients = uniqueAssignedUserIds.filter(id => id !== taskData.createdById);
+      if (recipients.length > 0) {
+        this.notificationService
+          .sendTaskAssignedNotification(newTask, recipients)
+          .catch((notificationError) => {
+            console.warn('⚠️ Failed to send task assignment notification:', notificationError);
+          });
       }
 
       res.status(201).json({
@@ -359,37 +362,6 @@ export class TaskController {
         res.status(400).json({
           success: false,
           message: 'ID de tarea inválido'
-        } as TaskResponse);
-        return;
-      }
-
-      // Obtener la tarea para validar por nombre
-      const existingTask = await this.taskService.getTaskById(taskId);
-      if (!existingTask) {
-        res.status(404).json({
-          success: false,
-          message: 'Tarea no encontrada'
-        } as TaskResponse);
-        return;
-      }
-
-      // Confirmación requerida para eliminación permanente: nombre exacto de la tarea
-      const providedCode = (req.body && (req.body.confirmationCode || req.body.code))
-        || (req.headers['x-confirm-code'] as string | undefined);
-      const expectedCode = String(existingTask.title || existingTask.description || '').trim();
-
-      if (!expectedCode) {
-        res.status(400).json({
-          success: false,
-          message: 'La tarea no tiene nombre disponible para confirmar eliminación'
-        } as TaskResponse);
-        return;
-      }
-
-      if (!providedCode || String(providedCode).trim().toUpperCase() !== expectedCode.toUpperCase()) {
-        res.status(400).json({
-          success: false,
-          message: 'Se requiere escribir el nombre exacto de la tarea para eliminar'
         } as TaskResponse);
         return;
       }

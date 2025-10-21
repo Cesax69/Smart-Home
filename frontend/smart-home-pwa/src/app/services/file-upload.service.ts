@@ -26,12 +26,21 @@ export class FileUploadService {
 
   /**
    * Subir un archivo al microservicio de file-upload
+   * Admite opciones para nombrar carpeta y reutilizar folderId.
    */
-  uploadFile(file: File): Observable<FileUploadResponse> {
+  uploadFile(file: File, opts?: { taskTitle?: string; title?: string; folderId?: string; subfolder?: string }): Observable<any> {
     const formData = new FormData();
     formData.append('file', file);
 
-    return this.http.post<FileUploadResponse>(`${this.apiUrl}/upload`, formData);
+    const title = (opts?.taskTitle || opts?.title || '').toString();
+    if (title) {
+      formData.append('taskTitle', title);
+      formData.append('title', title);
+    }
+    if (opts?.folderId) formData.append('folderId', opts.folderId);
+    if (opts?.subfolder) formData.append('subfolder', opts.subfolder);
+
+    return this.http.post<any>(`${this.apiUrl}/upload`, formData);
   }
 
   /**
@@ -133,5 +142,22 @@ export class FileUploadService {
     const i = Math.floor(Math.log(bytes) / Math.log(k));
 
     return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+  }
+
+  /**
+   * Buscar carpeta de Google Drive por nombre
+   */
+  getDriveFolderByName(name: string, parentId?: string): Observable<any> {
+    const params: any = parentId ? { params: { name, parentId } } : { params: { name } };
+    return this.http.get(`${this.apiUrl}/drive/folders/by-name`, params);
+  }
+
+  /**
+   * Renombrar carpeta de Google Drive
+   * Se envía el newName tanto en body como en query para máxima compatibilidad.
+   */
+  renameDriveFolder(folderId: string, newName: string): Observable<any> {
+    const params = { newName } as any;
+    return this.http.patch(`${this.apiUrl}/drive/folders/${folderId}/rename`, { newName }, { params });
   }
 }

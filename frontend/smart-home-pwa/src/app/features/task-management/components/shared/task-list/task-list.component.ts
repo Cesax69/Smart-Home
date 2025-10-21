@@ -13,19 +13,22 @@ import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
 import { MatProgressBarModule } from '@angular/material/progress-bar';
 import { MatMenuModule } from '@angular/material/menu';
 import { MatDialogModule, MatDialog } from '@angular/material/dialog';
-import { MatSnackBar, MatSnackBarModule } from '@angular/material/snack-bar';
+
 import { MatDividerModule } from '@angular/material/divider';
 import { MatTooltipModule } from '@angular/material/tooltip';
+import { MatSlideToggleModule } from '@angular/material/slide-toggle';
+import { TaskDetailsDialogComponent } from '../task-details-dialog/task-details-dialog.component';
 
 // Imports actualizados para la nueva estructura
 import { TaskService } from '../../../services/task.service';
 import { AuthService } from '../../../../../services/auth.service';
 import { NotificationService } from '../../../../../services/notification.service';
+import { AlertService } from '../../../../../services/alert.service';
 import { Task } from '../../../models/task.model';
 import { User } from '../../../../../models/user.model';
 import { ConfirmDialogComponent } from '../../../../../components/confirm-dialog/confirm-dialog.component';
 import { TaskCreateComponent } from '../../admin/task-create/task-create.component';
-import { TaskEditComponent } from '../task-edit/task-edit.component';
+import { AdminTaskEditComponent } from '../../admin/task-edit/task-edit.component';
 
 @Component({
   selector: 'app-task-list',
@@ -44,10 +47,10 @@ import { TaskEditComponent } from '../task-edit/task-edit.component';
     MatProgressBarModule,
     MatMenuModule,
     MatDialogModule,
-    MatSnackBarModule,
     MatDividerModule,
-    MatTooltipModule
-  ],
+    MatTooltipModule,
+    MatSlideToggleModule
+],
   templateUrl: './task-list.component.html',
   styleUrl: './task-list.component.scss'
 })
@@ -63,6 +66,7 @@ export class TaskListComponent implements OnInit {
   priorityFilter = '';
   dueDateFilter = '';
   assignedUserFilter = '';
+  showArchived = false;
   
   // Lista de usuarios para el filtro
   familyMembers = signal<User[]>([]);
@@ -72,7 +76,7 @@ export class TaskListComponent implements OnInit {
   private authService = inject(AuthService);
   private router = inject(Router);
   private dialog = inject(MatDialog);
-  private snackBar = inject(MatSnackBar);
+  private alerts = inject(AlertService);
   private notificationService = inject(NotificationService);
 
   ngOnInit(): void {
@@ -86,23 +90,6 @@ export class TaskListComponent implements OnInit {
       console.warn('No hay usuario autenticado en task-list');
       this.isLoading.set(false);
     }
-  }
-
-  // Método para cambiar entre roles para pruebas
-  switchUserRole(): void {
-    const currentRole = this.currentUser()?.role;
-    const newRole = currentRole === 'head_of_household' ? 'family_member' : 'head_of_household';
-    
-    this.authService.loginByRole(newRole).subscribe({
-      next: (user) => {
-        this.currentUser.set(user);
-        this.loadTasks();
-        this.snackBar.open(`Cambiado a: ${newRole === 'head_of_household' ? 'Jefe del Hogar' : 'Miembro de la Familia'}`, 'Cerrar', { duration: 2000 });
-      },
-      error: (error) => {
-        console.error('Error al cambiar rol:', error);
-      }
-    });
   }
 
   loadTasks(): void {
@@ -133,7 +120,7 @@ export class TaskListComponent implements OnInit {
       },
       error: (error: any) => {
         console.error('Error loading tasks:', error);
-        this.snackBar.open('Error al cargar las tareas', 'Cerrar', { duration: 3000 });
+        this.alerts.error('Error al cargar las tareas', undefined, { duration: 3000 });
         this.isLoading.set(false);
       }
     });
@@ -192,6 +179,13 @@ export class TaskListComponent implements OnInit {
       filtered = filtered.filter(task => task.assignedTo === assignedUserId);
     }
 
+    // Filtrado exclusivo por archivadas según el toggle
+    if (this.showArchived) {
+      filtered = filtered.filter(task => task.status === 'archived');
+    } else {
+      filtered = filtered.filter(task => task.status !== 'archived');
+    }
+
     this.filteredTasks.set(filtered);
   }
 
@@ -206,7 +200,7 @@ export class TaskListComponent implements OnInit {
 
   reloadTasks(): void {
     this.loadTasks();
-    this.snackBar.open('Tareas recargadas', 'Cerrar', { duration: 2000 });
+    this.alerts.info('Tareas recargadas', undefined, { duration: 2000 });
   }
 
   canManageTask(task: Task): boolean {
@@ -222,19 +216,21 @@ export class TaskListComponent implements OnInit {
   }
 
   getPriorityLabel(priority: string): string {
-    const labels = {
-      'low': 'Baja',
-      'medium': 'Media',
-      'high': 'Alta'
+    const labels: Record<string, string> = {
+      'baja': 'Baja',
+      'media': 'Media',
+      'alta': 'Alta',
+      'urgente': 'Urgente'
     };
-    return labels[priority as keyof typeof labels] || priority;
+    return labels[priority] || priority;
   }
 
   getStatusLabel(status: string): string {
     const labels = {
       'pending': 'Pendiente',
       'in_progress': 'En Progreso',
-      'completed': 'Completada'
+      'completed': 'Completada',
+      'archived': 'Archivada'
     };
     return labels[status as keyof typeof labels] || status;
   }
@@ -281,7 +277,7 @@ export class TaskListComponent implements OnInit {
 
   startTask(task: Task): void {
     if (!this.canChangeStatus(task)) {
-      this.snackBar.open('No puedes cambiar el estado de esta tarea', 'Cerrar', { duration: 2500 });
+      this.alerts.warning('No puedes cambiar el estado de esta tarea', undefined, { duration: 2500 });
       return;
     }
     this.taskService.updateTask(task.id, { status: 'in_progress' }).subscribe({
@@ -293,18 +289,18 @@ export class TaskListComponent implements OnInit {
           this.tasks.set([...tasks]);
           this.applyFilters();
         }
-        this.snackBar.open('Tarea iniciada', 'Cerrar', { duration: 2000 });
+        this.alerts.success('Tarea iniciada', undefined, { duration: 2000 });
       },
       error: (error: any) => {
         console.error('Error starting task:', error);
-        this.snackBar.open('Error al iniciar la tarea', 'Cerrar', { duration: 3000 });
+        this.alerts.error('Error al iniciar la tarea', undefined, { duration: 3000 });
       }
     });
   }
 
   completeTask(task: Task): void {
     if (!this.canChangeStatus(task)) {
-      this.snackBar.open('No puedes cambiar el estado de esta tarea', 'Cerrar', { duration: 2500 });
+      this.alerts.warning('No puedes cambiar el estado de esta tarea', undefined, { duration: 2500 });
       return;
     }
     const dialogRef = this.dialog.open(ConfirmDialogComponent, {
@@ -323,36 +319,56 @@ export class TaskListComponent implements OnInit {
       if (result) {
         const currentUser = this.currentUser();
         if (!currentUser || !currentUser.id) {
-          this.snackBar.open('Error: Usuario no autenticado', 'Cerrar', { duration: 3000 });
+          this.alerts.error('Error: Usuario no autenticado', undefined, { duration: 3000 });
           return;
         }
 
         this.taskService.completeTaskWithUserId(task.id, currentUser.id).subscribe({
-          next: (updatedTask: Task) => {
-            console.log('Task completed successfully:', updatedTask);
-            const tasks = this.tasks();
-            const index = tasks.findIndex(t => t.id === task.id);
-            if (index !== -1) {
-              tasks[index] = updatedTask;
-              this.tasks.set([...tasks]);
-              this.applyFilters();
-            }
-            this.snackBar.open('¡Felicidades! Tarea completada 🎉', 'Cerrar', { 
+          next: (updatedTask) => {
+            this.reloadTasks();
+
+            this.alerts.success('¡Felicidades! Tarea completada exitosamente 🎉.', undefined, {
               duration: 3000,
-              panelClass: ['success-snackbar']
+            });
+
+
+          },
+          error: () => {
+            this.alerts.error('Ocurrió un error al completar la tarea. Intenta de nuevo.', undefined, {
+              duration: 3000,
             });
           },
-          error: (error: any) => {
-            console.error('Error completing task:', error);
-            this.snackBar.open('Error al completar la tarea', 'Cerrar', { duration: 3000 });
-          }
         });
       }
     });
   }
 
   editTask(task: Task): void {
-    this.router.navigate(['/tasks/edit', task.id]);
+    if (this.isAdmin()) {
+      const dialogRef = this.dialog.open(AdminTaskEditComponent, {
+        width: '1000px',
+        maxWidth: '95vw',
+        data: { taskId: task.id },
+        panelClass: 'admin-task-edit-dialog'
+      });
+
+      dialogRef.afterClosed().subscribe(result => {
+        if (result) {
+          const tasks = this.tasks();
+          const idx = tasks.findIndex(t => t.id === task.id);
+          if (idx !== -1) {
+            tasks[idx] = result;
+            this.tasks.set([...tasks]);
+            this.applyFilters();
+          } else {
+            this.reloadTasks();
+          }
+          this.alerts.success('Tarea actualizada', undefined, { duration: 2000 });
+        }
+      });
+    } else {
+      this.router.navigate(['/tasks/edit', task.id]);
+    }
   }
 
   reassignTask(task: Task): void {
@@ -362,28 +378,34 @@ export class TaskListComponent implements OnInit {
 
   deleteTask(task: Task): void {
     const dialogRef = this.dialog.open(ConfirmDialogComponent, {
-      width: '400px',
+      width: '420px',
       data: {
-        title: 'Confirmar eliminación',
-        message: `¿Estás seguro de que deseas eliminar la tarea "${task.title}"?`,
+        title: 'Eliminar definitivamente',
+        message: `Esta acción eliminará la tarea "${task.title}" y sus referencias. Escribe el nombre exacto para confirmar.`,
         confirmText: 'Eliminar',
-        cancelText: 'Cancelar'
+        cancelText: 'Cancelar',
+        icon: 'delete_forever',
+        color: 'warn',
+        requireText: true,
+        expectedText: task.title,
+        placeholder: 'Escribe el nombre exacto de la tarea',
+        helperText: 'Para confirmar, escribe exactamente el título de la tarea'
       }
     });
 
     dialogRef.afterClosed().subscribe(result => {
-      if (result) {
-        this.taskService.deleteTask(task.id).subscribe({
+      if (typeof result === 'string' && result.trim().length > 0) {
+        this.taskService.deleteTask(task.id, result).subscribe({
           next: () => {
             const tasks = this.tasks();
             const updatedTasks = tasks.filter(t => t.id !== task.id);
             this.tasks.set(updatedTasks);
             this.applyFilters();
-            this.snackBar.open('Tarea eliminada exitosamente', 'Cerrar', { duration: 3000 });
+            this.alerts.success('Tarea eliminada exitosamente', undefined, { duration: 3000 });
           },
           error: (error: any) => {
             console.error('Error deleting task:', error);
-            this.snackBar.open('Error al eliminar la tarea', 'Cerrar', { duration: 3000 });
+            this.alerts.error('Error al eliminar la tarea', undefined, { duration: 3000 });
           }
         });
       }
@@ -403,9 +425,8 @@ export class TaskListComponent implements OnInit {
       if (result) {
         // Si se creó una tarea, recargar la lista
         this.loadTasks();
-        this.snackBar.open('Tarea creada exitosamente', 'Cerrar', { 
-          duration: 3000,
-          panelClass: ['success-snackbar']
+        this.alerts.success('Tarea creada exitosamente', undefined, { 
+          duration: 3000
         });
       }
     });
@@ -424,10 +445,16 @@ export class TaskListComponent implements OnInit {
 
   // Nuevos métodos para las funcionalidades agregadas
   viewTaskDetails(task: Task): void {
-    this.snackBar.open(`Ver detalles de: ${task.title}`, 'Cerrar', {
-      duration: 3000
+    const dialogRef = this.dialog.open(TaskDetailsDialogComponent, {
+      width: '800px',
+      maxWidth: '90vw',
+      maxHeight: '90vh',
+      data: { task }
     });
-    // TODO: Implementar modal de detalles completos
+
+    dialogRef.afterClosed().subscribe(result => {
+      // No action needed on close for now
+    });
   }
 
   addComment(task: Task): void {
@@ -435,50 +462,14 @@ export class TaskListComponent implements OnInit {
     if (comment && comment.trim()) {
       this.taskService.addComment(task.id, comment.trim()).subscribe({
         next: () => {
-          this.snackBar.open('Comentario agregado exitosamente', 'Cerrar', {
+          this.alerts.success('Comentario agregado exitosamente', undefined, {
             duration: 3000
           });
 
-          const currentUser = this.authService.getCurrentUser();
-          
-          if (currentUser?.role === 'head_of_household') {
-            const assignedTarget = task.assignedTo ?? task.assignedUserId ?? (task.assignedUserIds?.[0] ?? 0);
-            if (assignedTarget) {
-              this.notificationService.createNotification({
-                userId: assignedTarget,
-                title: 'Nuevo comentario en tarea',
-                message: `${currentUser?.firstName || 'Usuario'} ${currentUser?.lastName || ''} comentó en "${task.title}": ${comment.trim()}`,
-                metadata: { taskData: { taskId: task.id, taskTitle: task.title } },
-                type: 'comment_added'
-              });
-            }
-          } else {
-            // Notificar a los jefes del hogar cuando un miembro agrega un comentario
-            this.authService.getFamilyMembers().subscribe({
-              next: (members) => {
-                const heads = (members || []).filter(m => m.role === 'head_of_household');
-                if (heads.length === 0) {
-                  console.warn('No se encontraron jefes del hogar para notificar');
-                }
-                heads.forEach(head => {
-                  this.notificationService.createNotification({
-                    userId: head.id,
-                    title: 'Nuevo comentario en tarea',
-                    message: `${currentUser?.firstName || 'Usuario'} ${currentUser?.lastName || ''} comentó en "${task.title}": ${comment.trim()}`,
-                    metadata: { taskData: { taskId: task.id, taskTitle: task.title } },
-                    type: 'comment_added'
-                  });
-                });
-              },
-              error: (err) => {
-                console.error('Error obteniendo miembros de familia para notificar:', err);
-              }
-            });
-          }
         },
         error: (error) => {
           console.error('Error adding comment:', error);
-          this.snackBar.open('Error al agregar comentario', 'Cerrar', {
+          this.alerts.error('Error al agregar comentario', undefined, {
             duration: 3000
           });
         }
@@ -504,13 +495,13 @@ export class TaskListComponent implements OnInit {
         
         this.taskService.addTaskFile(task.id, fileInfo).subscribe({
           next: () => {
-            this.snackBar.open(`Archivo "${file.name}" subido exitosamente`, 'Cerrar', {
+            this.alerts.success(`Archivo "${file.name}" subido exitosamente`, undefined, {
               duration: 3000
             });
           },
           error: (error) => {
             console.error('Error uploading file:', error);
-            this.snackBar.open('Error al subir archivo', 'Cerrar', {
+            this.alerts.error('Error al subir archivo', undefined, {
               duration: 3000
             });
           }
@@ -521,48 +512,83 @@ export class TaskListComponent implements OnInit {
     input.click();
   }
 
-  // Método para actualizar el progreso de una tarea
-  updateProgress(task: Task, increment: number): void {
-    if (!this.canChangeStatus(task)) {
-      this.snackBar.open('No puedes actualizar el progreso de esta tarea', 'Cerrar', { duration: 2500 });
+  // Archivar tarea (solo jefe del hogar)
+  archiveTask(task: Task): void {
+    if (!this.isAdmin()) {
+      this.alerts.warning('Solo el jefe del hogar puede archivar', undefined, { duration: 2500 });
       return;
     }
-    const currentProgress = task.progress ?? 0; // Usar 0 si progress es undefined
-    const newProgress = Math.max(0, Math.min(100, currentProgress + increment));
-    
-    const updatedTask = { ...task, progress: newProgress };
-    
-    // Si el progreso llega a 100%, marcar como completada
-    if (newProgress === 100) {
-      updatedTask.status = 'completed';
-      updatedTask.completedAt = new Date();
-    }
-
-    // Actualizar inmediatamente la tarea en el signal local
-    const currentTasks = this.tasks();
-    const updatedTasks = currentTasks.map(t => 
-      t.id === task.id ? { ...t, progress: newProgress, status: updatedTask.status, completedAt: updatedTask.completedAt } : t
-    );
-    this.tasks.set(updatedTasks);
-    this.applyFilters(); // Aplicar filtros para actualizar filteredTasks
-
-    this.taskService.updateTask(task.id, updatedTask).subscribe({
-      next: () => {
-        this.snackBar.open(`Progreso actualizado a ${newProgress}%`, 'Cerrar', {
-          duration: 2000
+    const dialogRef = this.dialog.open(ConfirmDialogComponent, {
+      width: '420px',
+      data: {
+        title: 'Archivar Tarea',
+        message: `¿Deseas archivar la tarea "${task.title}"?`,
+        confirmText: 'Archivar',
+        cancelText: 'Cancelar',
+        icon: 'inventory_2'
+      }
+    });
+    dialogRef.afterClosed().subscribe(result => {
+      if (result) {
+        this.taskService.archiveTask(task.id).subscribe({
+          next: (updatedTask: Task) => {
+            const tasks = this.tasks();
+            const index = tasks.findIndex(t => t.id === task.id);
+            if (index !== -1) {
+              tasks[index] = updatedTask;
+              this.tasks.set([...tasks]);
+              this.applyFilters();
+            }
+            this.alerts.success('Tarea archivada', undefined, { duration: 2500 });
+          },
+          error: (error: any) => {
+            console.error('Error archivando tarea:', error);
+            this.alerts.error('Error al archivar la tarea', undefined, { duration: 3000 });
+          }
         });
-        // No necesitamos recargar todas las tareas ya que actualizamos localmente
-      },
-      error: (error) => {
-        console.error('Error updating progress:', error);
-        this.snackBar.open('Error al actualizar el progreso', 'Cerrar', {
-          duration: 3000
-        });
-        // En caso de error, recargar para sincronizar
-        this.loadTasks();
       }
     });
   }
+
+  // Desarchivar tarea (solo jefe del hogar)
+  unarchiveTask(task: Task): void {
+    if (!this.isAdmin()) {
+      this.alerts.warning('Solo el jefe del hogar puede desarchivar', undefined, { duration: 2500 });
+      return;
+    }
+    const dialogRef = this.dialog.open(ConfirmDialogComponent, {
+      width: '420px',
+      data: {
+        title: 'Desarchivar Tarea',
+        message: `¿Deseas restaurar la tarea "${task.title}"?`,
+        confirmText: 'Desarchivar',
+        cancelText: 'Cancelar',
+        icon: 'unarchive'
+      }
+    });
+    dialogRef.afterClosed().subscribe(result => {
+      if (result) {
+        this.taskService.unarchiveTask(task.id).subscribe({
+          next: (updatedTask) => {
+            const tasks = this.tasks();
+            const index = tasks.findIndex(t => t.id === task.id);
+            if (index !== -1) {
+              tasks[index] = updatedTask;
+              this.tasks.set([...tasks]);
+              this.applyFilters();
+            }
+            this.alerts.success('Tarea restaurada', undefined, { duration: 2500 });
+          },
+          error: (error) => {
+            console.error('Error desarchivando tarea:', error);
+            this.alerts.error('Error al desarchivar la tarea', undefined, { duration: 3000 });
+          }
+        });
+      }
+    });
+  }
+
+  
   // Permisos: admin puede editar pero no cambiar estado
   isAdmin(): boolean {
     const user = this.currentUser();

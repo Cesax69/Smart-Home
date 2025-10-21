@@ -63,7 +63,6 @@ ON CONFLICT (role_name) DO NOTHING;
 -- Insertar sub-roles para miembros
 -- (Eliminado) Sub-roles
 
-<<<<<<< HEAD
 -- Insertar usuarios iniciales (familia)
 INSERT INTO users (username, email, password_hash, first_name, last_name, family_role_id, birth_date) 
 VALUES 
@@ -87,14 +86,10 @@ ON CONFLICT (email) DO NOTHING;
 
 -- Preferencias para nuevos usuarios de la familia
 -- (Eliminado) Preferencias de usuario
-=======
--- Sin usuarios de ejemplo pre-cargados
->>>>>>> cegg
 
 -- Mensaje de confirmación
 DO $$
 BEGIN
-<<<<<<< HEAD
     RAISE NOTICE 'Base de datos de Usuarios Smart Home configurada exitosamente!';
     RAISE NOTICE 'Sistema de roles familiares implementado:';
     RAISE NOTICE 'Usuarios iniciales creados (familia):';
@@ -104,9 +99,4 @@ BEGIN
     RAISE NOTICE '  - Hija: hija1/password';
     RAISE NOTICE '  - Hijo: hijo2/password';
     RAISE NOTICE 'Total de usuarios creados: 5';
-=======
-    RAISE NOTICE 'Base de datos de Usuarios Smart Home configurada exitosamente (sin datos de ejemplo).';
-    RAISE NOTICE 'Roles y sub-roles familiares de base creados si no existían.';
-    RAISE NOTICE 'No se insertaron usuarios ni preferencias por defecto.';
->>>>>>> cegg
 END $$;

@@ -61,4 +61,12 @@ router.delete('/drive/folders/:folderId', UploadController.deleteDriveFolder);
  */
 router.get('/drive/folders/by-name', UploadController.getDriveFolderByName);
 
+/**
+ * PATCH /drive/folders/:folderId/rename
+ * Renombrar carpeta de Google Drive
+ */
+router.patch('/drive/folders/:folderId/rename', UploadController.renameDriveFolder);
+// Alias POST por si algún cliente/proxy no maneja PATCH correctamente
+router.post('/drive/folders/:folderId/rename', UploadController.renameDriveFolder);
+
 export { router as uploadRoutes };

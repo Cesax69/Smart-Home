@@ -6,8 +6,8 @@ Microservicio para gestionar y entregar notificaciones en tiempo real dentro del
 
 - API REST mínima centrada en `POST /notify/queue` y diagnósticos
 - Entrega en tiempo real vía WebSockets (Socket.IO) suscrito a Redis
-- Cola única `queue:notifications` para desacoplar producción y entrega
-- Persistencia ligera en Redis: `notification:{id}` con TTL (7 días)
+- Cola única `queue:notification` para desacoplar producción y entrega
+- Persistencia única en Redis: Hash `notification` (cada campo = notificación) con expiración lógica `expires_at` (por defecto 7 días) y limpieza periódica
 - Pub/Sub simplificado: canal global `notification:new`
 - Health y diagnóstico: `GET /health`, `GET /redis/health`, `GET /queue/stats`
 
@@ -33,52 +33,14 @@ Estado de datos iniciales:
 
 - Sin scripts SQL.
 - Claves y canales usados:
-  - `queue:notifications` — Lista FIFO de trabajos de notificación
-  - `notification:{id}` — Registro de notificación temporal (TTL 7 días)
+  - `queue:notification` — Lista FIFO de trabajos de notificación
+  - `notification` — Hash único de notificaciones (campo = `notification_id`) con metadatos, `recipients`, `readBy`, `expires_at`
   - `pubsubChannel` — `notification:new` (canal global único)
-- Claves eliminadas/no usadas en esta versión:
-  - `user:{userId}:notifications:index`, `user:{userId}:notifications:unread`
-  - `notification:history:{id}`, `user:{userId}:notification_history`
+- Limpieza: se realiza por lógica interna leyendo `expires_at` y eliminando del Hash cuando expira
 
-## 📡 Endpoints Principales
+## 🧩 Consumo básico desde frontend
 
-- `POST /notify/queue` — Agrega una notificación a la cola
-- `GET /queue/stats` — Estadísticas de la cola
-- `GET /redis/health` — Estado de Redis
-- `GET /health` — Health del servicio
-
-Endpoints no soportados (manejados en frontend/cliente):
-- `GET /notifications/:userId` — No soportado
-- `PUT /notifications/:notificationId/read` — No soportado
-- `PUT /notifications/user/:userId/read-all` — No soportado
-- `GET /notifications/:userId/unread-count` — No soportado
-- `DELETE /notifications/:notificationId` — No soportado
-
-### Ejemplo: agregar a la cola
-
-```bash
-curl -X POST http://localhost:3000/api/notifications/notify/queue \
-  -H "Content-Type: application/json" \
-  -d '{
-    "type": "task_completed",
-    "channels": ["app"],
-    "data": {
-      "userId": "1",
-      "taskId": "42",
-      "taskTitle": "Sacar la basura",
-      "message": "Juan ha completado la tarea"
-    }
-  }'
-```
-
-## 🔌 Tiempo real (Socket.IO)
-
-- Conexión: `ws://localhost:3004` (mismo puerto del servicio)
-- Unirse a sala del usuario: emitir `join_user_room` con `{ userId }`
-- Evento de notificación: `new_notification` con payload amigable para UI
-
-Ejemplo cliente (Node):
-```js
+```ts
 // Instalar: npm i socket.io-client
 import { io } from 'socket.io-client';
 const socket = io('http://localhost:3004', { transports: ['websocket'] });

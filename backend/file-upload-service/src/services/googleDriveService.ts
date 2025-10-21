@@ -320,7 +320,7 @@ export class GoogleDriveService {
     try {
       const response = await this.drive.files.update({
         fileId: folderId,
-        resource: { name: newName },
+        requestBody: { name: newName },
         fields: 'id, name',
         supportsAllDrives: true
       });

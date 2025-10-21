@@ -22,12 +22,13 @@ import { MatButtonToggleModule } from '@angular/material/button-toggle';
 import { AuthService } from '../../../../../services/auth.service';
 import { TaskService } from '../../../services/task.service';
 import { User } from '../../../../../models/user.model';
-import { CreateTaskRequest } from '../../../models/task.model';
+import { Task, CreateTaskRequest } from '../../../models/task.model';
 import { forkJoin, of, switchMap, catchError } from 'rxjs';
-import { HttpClient } from '@angular/common/http';
+import { HttpClient, HttpClientModule } from '@angular/common/http';
 import { environment } from '../../../../../../environments/environment';
 import { FormValidators } from '../../../../../shared/validators/form-validators';
 import { AlertService } from '../../../../../services/alert.service';
+import { NotificationService } from '../../../../../services/notification.service';
 
 interface FilePreview {
   file: File;
@@ -56,7 +57,8 @@ interface FilePreview {
     MatChipsModule,
     MatProgressBarModule,
     MatTooltipModule,
-    MatButtonToggleModule
+    MatButtonToggleModule,
+    HttpClientModule
   ],
   templateUrl: './task-create.component.html',
   styleUrl: './task-create.component.scss'
@@ -68,7 +70,7 @@ interface FilePreview {
  * Incluye botones de Limpiar y Recargar y usa Signals para estado local.
  */
 export class TaskCreateComponent implements OnInit {
-  taskForm: FormGroup;
+  taskForm!: FormGroup;
   familyMembers = signal<User[]>([]);
   filePreviews = signal<FilePreview[]>([]);
   isDragOver = signal(false);
@@ -83,19 +85,19 @@ export class TaskCreateComponent implements OnInit {
 
   constructor(
     private fb: FormBuilder,
-    private authService: AuthService,
     private taskService: TaskService,
+    private alertService: AlertService,
+    private authService: AuthService,
     private dialogRef: MatDialogRef<TaskCreateComponent>,
     private http: HttpClient,
-    private alertService: AlertService
-  ) {
-    this.taskForm = this.createForm();
-  }
+    private notificationService: NotificationService,
+  ) {}
 
   ngOnInit(): void {
     // Bloquear cierre por clic fuera del modal
     this.dialogRef.disableClose = true;
     this.loadFamilyMembers();
+    this.taskForm = this.createForm();
   }
 
   private createForm(): FormGroup {
@@ -107,7 +109,6 @@ export class TaskCreateComponent implements OnInit {
         FormValidators.noWhitespaceValidator()
       ]],
       description: ['', [
-        // Descripción opcional, solo limitamos longitud máxima
         Validators.maxLength(500)
       ]],
       category: ['limpieza', Validators.required],
@@ -393,7 +394,7 @@ export class TaskCreateComponent implements OnInit {
             };
 
             return this.taskService.createTask(payload).pipe(
-              switchMap((createdTask) => {
+              switchMap((createdTask: Task) => {
                 const uploaded = Array.isArray(uploadResp?.uploaded) ? uploadResp.uploaded : [];
                 if (uploaded.length) {
                   return this.taskService.registerTaskFiles(createdTask.id, uploaded).pipe(
@@ -405,7 +406,7 @@ export class TaskCreateComponent implements OnInit {
               })
             );
           }),
-          catchError((error) => {
+          catchError((error: any) => {
             console.error('Error subiendo archivo:', error);
             this.alertService.update(progressId, { type: 'error', loading: false, title: 'Error subiendo archivo', message: 'No se pudo subir el archivo. La tarea no se creó.', duration: 5000 });
             this.isSubmitting.set(false);
@@ -419,6 +420,8 @@ export class TaskCreateComponent implements OnInit {
             // Cerrar todas las secciones del accordion al guardar
             this.accordion?.closeAll();
             this.isSubmitting.set(false);
+
+
             this.dialogRef.close(createdTask);
           },
           error: (error) => {

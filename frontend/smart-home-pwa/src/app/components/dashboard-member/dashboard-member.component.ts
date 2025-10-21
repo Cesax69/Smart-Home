@@ -19,8 +19,7 @@ import { NotificationBellComponent } from '../notification-bell/notification-bel
     MatButtonModule,
     MatIconModule,
     MatToolbarModule,
-    MatMenuModule,
-    NotificationBellComponent
+    MatMenuModule
   ],
   template: `
     <div class="dashboard-container">
@@ -30,7 +29,7 @@ import { NotificationBellComponent } from '../notification-bell/notification-bel
           <!-- Eliminado: icono de rol y texto de rol -->
         </div>
         <div class="header-actions">
-          <app-notification-bell></app-notification-bell>
+          
           <!-- Eliminado: botón de menú de usuario -->
         </div>
       </div>

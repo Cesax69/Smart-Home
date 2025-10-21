@@ -4,11 +4,12 @@ import cors from 'cors';
 import morgan from 'morgan';
 import helmet from 'helmet';
 import dotenv from 'dotenv';
+import { createProxyMiddleware } from 'http-proxy-middleware';
 
 // Importar configuraciones y middlewares
 import { routingMiddleware } from './middleware';
 import routes from './routes';
-import { SERVICES } from './config/services';
+import { SERVICES, PROXY_CONFIG } from './config/services';
 
 // Cargar variables de entorno
 dotenv.config();
@@ -19,6 +20,7 @@ dotenv.config();
 class APIGateway {
   public app: Application;
   private port: number;
+  private wsProxy: any;
 
   constructor() {
     this.app = express();
@@ -57,7 +59,24 @@ class APIGateway {
     const logFormat = process.env.LOG_FORMAT || 'combined';
     this.app.use(morgan(logFormat));
 
-    // No parseamos el cuerpo en el Gateway; el proxy gestionará JSON/multipart
+    // Parsear JSON y URL-encoded para handlers específicos (auth)
+    // Evitar parsear cuerpo para rutas `/api/files/*` para no interferir con streaming hacia File Upload Service
+    const jsonParser = express.json({ limit: PROXY_CONFIG.limit });
+    const urlencodedParser = express.urlencoded({ extended: true, limit: PROXY_CONFIG.limit });
+    this.app.use((req: Request, res: Response, next: NextFunction) => {
+      const path = req.originalUrl || req.url || '';
+      if (path.startsWith('/api/files')) {
+        return next();
+      }
+      return jsonParser(req, res, next);
+    });
+    this.app.use((req: Request, res: Response, next: NextFunction) => {
+      const path = req.originalUrl || req.url || '';
+      if (path.startsWith('/api/files')) {
+        return next();
+      }
+      return urlencodedParser(req, res, next);
+    });
 
     // Headers personalizados
     this.app.use((req: Request, res: Response, next: NextFunction) => {
@@ -65,6 +84,15 @@ class APIGateway {
       res.setHeader('X-Gateway-Version', '1.0.0');
       next();
     });
+
+    // Proxy WebSocket específico para Socket.IO del Notifications Service
+    this.wsProxy = createProxyMiddleware('/socket.io', {
+      target: SERVICES.NOTIFICATIONS.url,
+      ws: true,
+      changeOrigin: true,
+      logLevel: 'warn'
+    });
+    this.app.use(this.wsProxy);
   }
 
   /**
@@ -238,7 +266,22 @@ class APIGateway {
    * Iniciar el servidor
    */
   public listen(): void {
-    this.app.listen(this.port, () => {
+    const server = http.createServer(this.app);
+
+    // Encajar upgrades WebSocket de Socket.IO hacia notifications-service
+    server.on('upgrade', (req: any, socket: any, head: any) => {
+      const url = req?.url || '';
+      if (url.startsWith('/socket.io')) {
+        try {
+          this.wsProxy?.upgrade?.(req, socket, head);
+        } catch (err) {
+          console.error('❌ [WS UPGRADE ERROR]:', (err as Error).message);
+          socket.destroy();
+        }
+      }
+    });
+
+    server.listen(this.port, () => {
       console.log('\n🚀 ===== SMART HOME API GATEWAY =====');
       console.log(`🌐 Servidor corriendo en: http://localhost:${this.port}`);
       console.log(`📊 Entorno: ${process.env.NODE_ENV || 'development'}`);

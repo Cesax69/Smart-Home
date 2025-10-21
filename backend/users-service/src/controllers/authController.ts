@@ -22,7 +22,7 @@ export class AuthController {
         console.log('❌ Missing credentials');
         res.status(400).json({
           success: false,
-          message: 'Username y password son requeridos'
+          message: 'Username y password son requeridos desde controller'
         });
         return;
       }

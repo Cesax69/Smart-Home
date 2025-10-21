@@ -47,7 +47,7 @@ export class NotificationQueueService {
         maxAttempts: 3
       };
 
-      await this.redisService.addToQueue('notifications', queueJob);
+      await this.redisService.addToQueue('notification', queueJob);
       
       // Also publish to real-time channel for immediate processing
       await this.redisService.publish('notification:new', notificationJob);
@@ -105,7 +105,7 @@ export class NotificationQueueService {
   // Process next notification from queue
   private async processNextNotification(): Promise<void> {
     try {
-      const job = await this.redisService.processQueue('notifications');
+      const job = await this.redisService.processQueue('notification');
       
       if (job && job.data) {
         const notification: NotificationJob = job.data;
@@ -207,7 +207,7 @@ export class NotificationQueueService {
   // Get queue statistics
   async getQueueStats(): Promise<any> {
     try {
-      const totalCount = await this.redisService.getQueueLength('notifications');
+      const totalCount = await this.redisService.getQueueLength('notification');
       
       return {
         isProcessing: this.isProcessing,

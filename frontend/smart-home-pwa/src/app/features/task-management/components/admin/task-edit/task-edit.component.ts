@@ -25,6 +25,8 @@ import { Task, UpdateTaskRequest, TaskFile } from '../../../models/task.model';
 import { User } from '../../../../../models/user.model';
 import { FormValidators } from '../../../../../shared/validators/form-validators';
 import { AlertService } from '../../../../../services/alert.service';
+import { FileUploadService } from '../../../../../services/file-upload.service';
+import { NotificationService } from '../../../../../services/notification.service';
 
 interface FilePreview {
   file: File;
@@ -81,7 +83,9 @@ export class AdminTaskEditComponent implements OnInit {
     private alertService: AlertService,
     @Optional() @Inject(MAT_DIALOG_DATA) public data: any,
     private route: ActivatedRoute,
-    private router: Router
+    private router: Router,
+    private fileUploadService: FileUploadService,
+    private notificationService: NotificationService,
   ) {
     this.taskForm = this.fb.group({
       title: ['', [Validators.required, Validators.minLength(3)]],
@@ -549,6 +553,50 @@ export class AdminTaskEditComponent implements OnInit {
       (updates as any).estimatedTime = minutes;
     }
 
+    // Renombrar carpeta de Drive si el título cambió y hay folderId
+    const oldTitle = (this.task?.title || '').toString().trim();
+    const newTitle = (v.title || '').toString().trim();
+    const driveFolderId = this.existingFiles[0]?.folderId;
+
+    const applyRename = (folderId: string) => {
+      this.fileUploadService.renameDriveFolder(folderId, newTitle).subscribe({
+        next: () => {
+          // Actualizar folder_name en registros existentes de archivos
+          this.existingFiles = this.existingFiles.map(f => ({ ...f, folderName: newTitle, folderId }));
+          this.existingFiles.forEach(f => {
+            this.taskService.updateTaskFile(f.id, { folderName: newTitle, folderId }).subscribe({
+              next: (updated: any) => {
+                const normalized = this.normalizeTaskFile(updated);
+                // Sincronizar por si el backend ajusta valores
+                this.existingFiles = this.existingFiles.map(ff => ff.id === f.id ? {
+                  ...ff,
+                  folderId: normalized.folderId,
+                  folderName: normalized.folderName
+                } : ff);
+              },
+              error: () => { /* no bloquear flujo por errores de sync */ }
+            });
+          });
+        },
+        error: () => { /* ya está manejado por finalize */ }
+      });
+    };
+
+    if (newTitle && oldTitle && newTitle !== oldTitle) {
+      if (driveFolderId) {
+        applyRename(driveFolderId);
+      } else {
+        // Fallback: buscar carpeta por nombre anterior si no hay archivos registrados
+        this.fileUploadService.getDriveFolderByName(oldTitle).subscribe({
+          next: (resp) => {
+            const fid = resp?.folder?.id;
+            if (fid) applyRename(fid);
+          },
+          error: () => { /* ignorar si no existe carpeta previa */ }
+        });
+      }
+    }
+
     const hasNewFiles = this.filePreviews.length > 0;
     const upload$ = hasNewFiles ? this.uploadSelectedFiles(v.title || '') : null;
 
@@ -585,6 +633,7 @@ export class AdminTaskEditComponent implements OnInit {
         if (progressId) {
           this.alertService.update(progressId, { type: 'success', loading: false, title: 'Tarea actualizada', message: 'Los cambios se guardaron correctamente', duration: 3000 });
         }
+
         // Cerrar todas las secciones del accordion al guardar
         this.accordion?.closeAll();
         if (this.dialogRef) {

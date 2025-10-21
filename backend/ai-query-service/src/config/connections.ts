@@ -1,4 +1,5 @@
-import { Pool as PgPool } from 'pg';
+import pg from 'pg';
+const { Pool: PgPool } = pg;
 import mysql from 'mysql2/promise';
 import mssql from 'mssql';
 import { MongoClient } from 'mongodb';
@@ -19,11 +20,11 @@ const pools: Record<string, any> = {};
 let connections: DbConnectionConfig[] = [];
 
 const buildDefaultPgUrl = (): string => {
-  const host = process.env.DB_HOST || 'localhost';
-  const port = process.env.DB_PORT || '5432';
-  const database = process.env.DB_NAME || 'smart_home_db';
-  const user = process.env.DB_USER || 'postgres';
-  const password = process.env.DB_PASSWORD || 'linux';
+  const host = (globalThis as any).process?.env?.DB_HOST || 'localhost';
+  const port = (globalThis as any).process?.env?.DB_PORT || '5432';
+  const database = (globalThis as any).process?.env?.DB_NAME || 'tasks_db';
+  const user = (globalThis as any).process?.env?.DB_USER || 'postgres';
+  const password = (globalThis as any).process?.env?.DB_PASSWORD || 'linux';
   // Construir string de conexión Postgres compatible con contraseña opcional
   // Si la contraseña es vacía, incluir el separador ':' para que pg trate password como cadena vacía
   return `postgresql://${user}:${password}@${host}:${port}/${database}`;
@@ -31,7 +32,7 @@ const buildDefaultPgUrl = (): string => {
 
 const loadConnections = (): DbConnectionConfig[] => {
   try {
-    const raw = process.env.AI_DB_CONNECTIONS || '[]';
+    const raw = (globalThis as any).process?.env?.AI_DB_CONNECTIONS || '[]';
     const parsed: DbConnectionConfig[] = JSON.parse(raw);
     connections = parsed;
   } catch (err) {

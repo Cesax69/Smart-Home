@@ -1,5 +1,5 @@
 # Usar imagen oficial de Node.js LTS
-FROM node:18-alpine
+FROM mirror.gcr.io/library/node:18
 
 # Establecer directorio de trabajo
 WORKDIR /app
@@ -20,13 +20,8 @@ RUN npm run build
 RUN npm prune --production
 
 
-# Crear usuario no-root para seguridad
-RUN addgroup -g 1001 -S nodejs
-RUN adduser -S fileuploadservice -u 1001
-
-# Cambiar propietario de archivos y directorios
-RUN chown -R fileuploadservice:nodejs /app
-USER fileuploadservice
+# Ejecutar como usuario por defecto en la imagen base
+# (Se elimina la creación de usuario por compatibilidad de la base image)
 
 # Exponer puerto
 EXPOSE 3005

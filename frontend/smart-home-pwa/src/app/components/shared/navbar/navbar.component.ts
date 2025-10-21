@@ -9,6 +9,7 @@ import { MatDividerModule } from '@angular/material/divider';
 import { MatTooltipModule } from '@angular/material/tooltip';
 import { AuthService } from '../../../services/auth.service';
 import { NotificationService, Notification } from '../../../services/notification.service';
+import { NotificationBellComponent } from "../../notification-bell/notification-bell.component";
 
 @Component({
   selector: 'app-navbar',
@@ -20,8 +21,9 @@ import { NotificationService, Notification } from '../../../services/notificatio
     MatIconModule,
     MatMenuModule,
     MatDividerModule,
-    MatTooltipModule
-  ],
+    MatTooltipModule,
+    NotificationBellComponent
+],
   templateUrl: './navbar.component.html',
   styleUrl: './navbar.component.scss'
 })

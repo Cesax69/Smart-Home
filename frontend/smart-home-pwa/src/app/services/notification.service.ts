@@ -52,6 +52,8 @@ export class NotificationService {
     
     if (this.currentUserId) {
       this.connectToNotificationService();
+      // Load notifications from backend for the current user
+      this.loadNotificationsFromBackend().catch(err => console.error('❌ Error initial loading notifications:', err));
     } else {
       console.warn('⚠️ No user ID found, notifications will not work');
       // Subscribe to auth changes to connect when user logs in
@@ -60,43 +62,46 @@ export class NotificationService {
           this.currentUserId = user.id.toString();
           console.log('👤 User logged in, connecting to notifications:', this.currentUserId);
           this.connectToNotificationService();
+          this.loadNotificationsFromBackend().catch(err => console.error('❌ Error loading notifications after login:', err));
         } else if (!user) {
           console.log('👤 User logged out, disconnecting from notifications');
           this.disconnect();
+          this.notificationsSubject.next([]);
+          this.updateUnreadCount();
         }
       });
     }
-    
-    // Load stored notifications from localStorage FIRST
-    this.loadStoredNotifications();
   }
 
   /**
-   * Get current user ID from localStorage or auth service
+   * Get current user ID from auth service
    */
   private getCurrentUserId(): string | null {
     try {
-      // First try to get from auth service
+      // Get from auth service only
       const currentUser = this.authService.getCurrentUser();
       if (currentUser && currentUser.id) {
         console.log('📱 User from AuthService:', currentUser);
         return currentUser.id.toString();
       }
-      
-      // Fallback: try to get from localStorage with correct key
-      const storedUser = localStorage.getItem('smart_home_user');
-      if (storedUser) {
-        const user = JSON.parse(storedUser);
-        console.log('📱 User from localStorage:', user);
-        return user.id ? user.id.toString() : null;
-      }
-      
-      console.log('⚠️ No user found in AuthService or localStorage');
+      console.log('⚠️ No user found in AuthService');
       return null;
     } catch (error) {
       console.error('❌ Error getting current user ID:', error);
       return null;
     }
+  }
+
+  private getAuthHeaders(contentTypeJson: boolean = false): Record<string, string> {
+    const headers: Record<string, string> = {};
+    const token = this.authService.getToken();
+    if (token) {
+      headers['Authorization'] = `Bearer ${token}`;
+    }
+    if (contentTypeJson) {
+      headers['Content-Type'] = 'application/json';
+    }
+    return headers;
   }
 
   /**
@@ -183,7 +188,6 @@ export class NotificationService {
 
     this.notificationsSubject.next(updatedNotifications);
     this.updateUnreadCount();
-    this.saveNotificationsToStorage();
 
     // Show browser notification if permission is granted
     this.showBrowserNotification(notification);
@@ -202,7 +206,6 @@ export class NotificationService {
 
     this.notificationsSubject.next(updatedNotifications);
     this.updateUnreadCount();
-    this.saveNotificationsToStorage();
   }
 
   /**
@@ -218,7 +221,6 @@ export class NotificationService {
 
     this.notificationsSubject.next(updatedNotifications);
     this.updateUnreadCount();
-    this.saveNotificationsToStorage();
 
     // Sync with backend database
     this.syncMarkAsReadWithBackend(notificationId);
@@ -235,7 +237,6 @@ export class NotificationService {
 
     this.notificationsSubject.next(updatedNotifications);
     this.updateUnreadCount();
-    this.saveNotificationsToStorage();
 
     // Sync with backend database
     this.syncMarkAllAsReadWithBackend();
@@ -252,7 +253,6 @@ export class NotificationService {
 
     this.notificationsSubject.next(updatedNotifications);
     this.updateUnreadCount();
-    this.saveNotificationsToStorage();
 
     // Sync with backend database
     this.syncDeleteWithBackend(notificationId);
@@ -268,7 +268,9 @@ export class NotificationService {
     }
 
     try {
-      const response = await fetch(`${this.API_BASE}/notifications/${this.currentUserId}?limit=${limit}&offset=${offset}`);
+      const response = await fetch(`${this.API_BASE}/notifications/${this.currentUserId}?limit=${limit}&offset=${offset}`, {
+        headers: this.getAuthHeaders()
+      });
       
       if (response.ok) {
         const result = await response.json();
@@ -290,7 +292,6 @@ export class NotificationService {
           
           this.notificationsSubject.next(mergedNotifications);
           this.updateUnreadCount();
-          this.saveNotificationsToStorage();
           
           console.log(`📋 Loaded ${backendNotifications.length} notifications from backend`);
         }
@@ -309,9 +310,7 @@ export class NotificationService {
     try {
       const response = await fetch(`${this.API_BASE}/notifications/${notificationId}/read`, {
         method: 'PUT',
-        headers: {
-          'Content-Type': 'application/json'
-        },
+        headers: this.getAuthHeaders(true),
         body: JSON.stringify({ userId: parseInt(this.currentUserId) })
       });
 
@@ -332,9 +331,7 @@ export class NotificationService {
     try {
       const response = await fetch(`${this.API_BASE}/notifications/user/${this.currentUserId}/read-all`, {
         method: 'PUT',
-        headers: {
-          'Content-Type': 'application/json'
-        }
+        headers: this.getAuthHeaders(true)
       });
 
       if (response.ok) {
@@ -355,9 +352,7 @@ export class NotificationService {
     try {
       const response = await fetch(`${this.API_BASE}/notifications/${notificationId}`, {
         method: 'DELETE',
-        headers: {
-          'Content-Type': 'application/json'
-        },
+        headers: this.getAuthHeaders(true),
         body: JSON.stringify({ userId: parseInt(this.currentUserId) })
       });
 
@@ -376,7 +371,9 @@ export class NotificationService {
     if (!this.currentUserId) return 0;
 
     try {
-      const response = await fetch(`${this.API_BASE}/notifications/${this.currentUserId}/unread-count`);
+      const response = await fetch(`${this.API_BASE}/notifications/${this.currentUserId}/unread-count`, {
+        headers: this.getAuthHeaders()
+      });
       
       if (response.ok) {
         const result = await response.json();
@@ -416,7 +413,6 @@ export class NotificationService {
   clearAllNotifications(): void {
     this.notificationsSubject.next([]);
     this.unreadCountSubject.next(0);
-    this.saveNotificationsToStorage();
   }
 
   /**
@@ -476,40 +472,6 @@ export class NotificationService {
   }
 
   /**
-   * Save notifications to localStorage
-   */
-  private saveNotificationsToStorage(): void {
-    try {
-      const notifications = this.notificationsSubject.value;
-      localStorage.setItem('smart_home_notifications', JSON.stringify(notifications));
-    } catch (error) {
-      console.error('Error saving notifications to storage:', error);
-    }
-  }
-
-  /**
-   * Load notifications from localStorage
-   */
-  private loadStoredNotifications(): void {
-    try {
-      const stored = localStorage.getItem('smart_home_notifications');
-      if (stored) {
-        const notifications: Notification[] = JSON.parse(stored);
-        // Convert timestamp strings back to Date objects
-        const processedNotifications = notifications.map(n => ({
-          ...n,
-          timestamp: new Date(n.timestamp)
-        }));
-        
-        this.notificationsSubject.next(processedNotifications);
-        this.updateUnreadCount();
-      }
-    } catch (error) {
-      console.error('Error loading notifications from storage:', error);
-    }
-  }
-
-  /**
    * Generate unique ID
    */
   private generateId(): string {
@@ -558,7 +520,7 @@ export class NotificationService {
 
   public async createNotification(payload: { userId: number; title: string; message: string; type?: string; metadata?: any }): Promise<boolean> {
     try {
-      // Prefer using the notification queue to deliver app-only notifications
+      // Enviar SIEMPRE a la cola Redis para entrega centralizada
       const queuePayload = {
         type: payload.type || 'system_alert',
         channels: ['app'],
@@ -574,40 +536,21 @@ export class NotificationService {
 
       const response = await fetch(`${this.API_BASE}/notify/queue`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: this.getAuthHeaders(true),
         body: JSON.stringify(queuePayload),
       });
 
       const ok = response.ok;
-      let id: string | undefined;
-      if (ok) {
-        const result = await response.json();
-        id = result?.id || this.generateId();
+      if (!ok) {
+        const errorText = await response.text().catch(() => '');
+        console.warn('Notificación no encolada correctamente:', errorText);
       }
-
-      // Mirror to local state so it shows up instantly (even if backend fails)
-      this.addNotification({
-        id: id,
-        type: payload.type || 'system_alert',
-        title: payload.title,
-        message: payload.message,
-        timestamp: Date.now(),
-        userId: payload.userId,
-        metadata: payload.metadata,
-      });
-
+      
+      // No espejar localmente: la entrega vendrá por Socket.IO
       return ok;
     } catch (error) {
-      console.error('❌ Error creating notification in backend:', error);
-      // Fallback: still add to local state so user sees it
-      this.addNotification({
-        type: payload.type || 'system_alert',
-        title: payload.title,
-        message: payload.message,
-        timestamp: Date.now(),
-        userId: payload.userId,
-        metadata: payload.metadata,
-      });
+      console.error('❌ Error creando notificación en cola Redis:', error);
+      // No agregar a estado local: evitar desincronización; confiar en Redis/WebSocket
       return false;
     }
   }

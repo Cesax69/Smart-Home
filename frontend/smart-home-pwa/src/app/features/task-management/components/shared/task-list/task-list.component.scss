@@ -1,7 +1,8 @@
 .task-list-container {
-  padding: 24px;
-  max-width: 1200px;
-  margin: 0 auto;
+  min-height: 100vh;
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  padding: 20px;
+  font-family: 'Roboto', sans-serif;
 }
 
 .header {
@@ -9,17 +10,26 @@
   justify-content: space-between;
   align-items: center;
   margin-bottom: 24px;
+  background: rgba(255, 255, 255, 0.95);
+  border-radius: 16px;
+  padding: 20px;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
+  backdrop-filter: blur(10px);
 }
 
 .header h1 {
   margin: 0;
-  color: #333;
+  color: #2d3748;
 }
 
 .header-actions {
   display: flex;
   gap: 12px;
   align-items: center;
+}
+
+.archived-toggle {
+  margin-left: 8px;
 }
 
 .role-switch-btn {
@@ -29,6 +39,11 @@
 
 .filters-card {
   margin-bottom: 24px;
+  background: rgba(255, 255, 255, 0.95);
+  border-radius: 16px;
+  padding: 20px;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.08);
+  backdrop-filter: blur(10px);
 }
 
 .filters-row {
@@ -55,6 +70,9 @@
 .empty-state {
   text-align: center;
   padding: 48px 24px;
+  background: rgba(255, 255, 255, 0.95);
+  border-radius: 16px;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
 }
 
 .empty-icon {
@@ -74,11 +92,184 @@
 .task-card {
   transition: all 0.3s ease;
   border-left: 4px solid transparent;
+  background: white;
+  border-radius: 12px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
 }
 
 .task-card:hover {
   transform: translateY(-2px);
   box-shadow: 0 8px 16px rgba(0,0,0,0.15);
+}
+
+.task-card.priority-alta {
+  border-left-color: #f44336;
+}
+
+.task-card.priority-media {
+  border-left-color: #ff9800;
+}
+
+.task-card.priority-baja {
+  border-left-color: #4caf50;
+}
+
+.task-card.priority-urgente {
+  border-left-color: #d32f2f;
+}
+
+.task-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  width: 100%;
+}
+
+.task-title-section {
+  flex: 1;
+}
+
+.task-title-section h3 {
+  margin: 0 0 8px 0;
+  color: #333;
+  font-size: 18px;
+}
+
+.task-badges {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.task-badges mat-chip {
+  font-size: 12px;
+  height: 24px;
+}
+
+.priority-alta {
+  background-color: #ffebee;
+  color: #c62828;
+}
+
+.priority-media {
+  background-color: #fff3e0;
+  color: #ef6c00;
+}
+
+.priority-baja {
+  background-color: #e8f5e8;
+  color: #2e7d32;
+}
+
+.priority-urgente {
+  background-color: #ffebee;
+  color: #b71c1c;
+}
+
+.status-pending {
+  background-color: #e3f2fd;
+  color: #1565c0;
+}
+
+.status-in_progress {
+  background-color: #f3e5f5;
+  color: #7b1fa2;
+}
+
+.status-completed {
+  background-color: #e8f5e8;
+  color: #2e7d32;
+}
+
+.status-archived {
+  background-color: #eceff1;
+  color: #455a64;
+}
+
+.task-description {
+  margin: 16px 0;
+  color: #666;
+  line-height: 1.5;
+}
+
+.task-details {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 16px;
+}
+
+.detail-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 14px;
+  color: #666;
+}
+
+.detail-item mat-icon {
+  font-size: 16px;
+  width: 16px;
+  height: 16px;
+}
+
+.detail-item.overdue {
+  color: #f44336;
+}
+
+.delete-option {
+  color: #f44336;
+}
+
+/* Estilos para la sección de progreso */
+.progress-section {
+  margin: 16px 0;
+  padding: 12px;
+  background-color: #f8f9fa;
+  border-radius: 8px;
+  border: 1px solid #e9ecef;
+}
+
+.progress-label {
+  font-size: 0.875rem;
+  color: #495057;
+  margin-bottom: 8px;
+  font-weight: 500;
+}
+
+.progress-controls {
+  display: flex;
+  justify-content: center;
+  gap: 8px;
+  margin-top: 12px;
+}
+
+.progress-controls button {
+  width: 36px;
+  height: 36px;
+  min-width: 36px;
+}
+
+.progress-controls button mat-icon {
+  font-size: 20px;
+  width: 20px;
+  height: 20px;
+}
+
+.progress-controls button:disabled {
+  opacity: 0.5;
+}
+
+.task-card .mat-card-actions {
+  opacity: 0;
+  max-height: 0;
+  overflow: hidden;
+  transition: opacity 0.2s ease, max-height 0.2s ease;
+}
+
+.task-card:hover .mat-card-actions {
+  opacity: 1;
+  max-height: 200px;
 }
 
 .task-card.priority-alta {

@@ -130,6 +130,11 @@ import { NotificationService, Notification } from '../../services/notification.s
     </mat-menu>
   `,
   styles: [`
+.notification-bell mat-icon {
+  color: #fff !important;
+}
+
+
     .notification-bell {
       position: relative;
     }
@@ -177,7 +182,7 @@ import { NotificationService, Notification } from '../../services/notification.s
       flex-direction: column;
       align-items: center;
       padding: 32px 16px;
-      color: #666;
+      color: #ffffffff;
     }
 
     .no-notifications mat-icon {
@@ -279,7 +284,7 @@ export class NotificationBellComponent implements OnInit, OnDestroy {
   isNotificationPermissionGranted: boolean = false;
 
   private subscriptions: Subscription[] = [];
-  constructor(private router: Router, private notificationService: NotificationService) {}
+  constructor(private router: Router, private notificationService: NotificationService) { }
 
   ngOnInit(): void {
     // Subscribe to notifications

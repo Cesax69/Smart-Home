@@ -556,4 +556,36 @@ export class UploadController {
       res.status(500).json({ success: false, message: `Error eliminando carpeta: ${errorMessage}` });
     }
   }
+  
+  /**
+   * Renombrar carpeta de Google Drive
+   * PATCH /drive/folders/:folderId/rename
+   */
+  public static async renameDriveFolder(req: Request, res: Response): Promise<void> {
+    try {
+      const folderId = (req.params.folderId || '').toString().trim();
+      const newNameRaw = ((req.body?.newName || req.query?.newName || '') as string).toString().trim();
+      if (!folderId) {
+        res.status(400).json({ success: false, message: 'folderId requerido' });
+        return;
+      }
+      if (!newNameRaw) {
+        res.status(400).json({ success: false, message: 'newName requerido' });
+        return;
+      }
+      const safeName = newNameRaw.replace(/[\\/:*?"<>|]/g, '-');
+      console.log(`✏️ Intentando renombrar carpeta ${folderId} -> ${safeName}`);
+      const driveService = UploadController.initializeGoogleDrive();
+      const ok = await driveService.renameFolder(folderId, safeName);
+      if (!ok) {
+        res.status(500).json({ success: false, message: 'No se pudo renombrar la carpeta' });
+        return;
+      }
+      res.status(200).json({ success: true, folder: { id: folderId, name: safeName } });
+    } catch (error) {
+      console.error('❌ Error renombrando carpeta:', error);
+      const errorMessage = error instanceof Error ? error.message : 'Error desconocido';
+      res.status(500).json({ success: false, message: `Error renombrando carpeta: ${errorMessage}` });
+    }
+  }
 }
