@@ -57,6 +57,7 @@ services:
       - TASKS_SERVICE_URL=http://tasks-service:3002
       - NOTIFICATIONS_SERVICE_URL=http://notifications-service:3004
       - FILE_UPLOAD_SERVICE_URL=http://file-upload-service:3005
+      - AI_QUERY_SERVICE_URL=http://ai-query-service:3006
     depends_on:
       - users-service
       - tasks-service

@@ -207,6 +207,113 @@ class APIGateway {
       }
     });
 
+    // Alias conveniente: /api/connections -> AI Query Service
+    this.app.get('/api/connections', async (req: Request, res: Response) => {
+      const targetUrl = `${SERVICES.AI_QUERY.url}/api/ai-query/connections`;
+      try {
+        const url = new URL(targetUrl);
+        const options: http.RequestOptions = {
+          hostname: url.hostname,
+          port: url.port ? parseInt(url.port) : 80,
+          path: url.pathname + url.search,
+          method: 'GET',
+          headers: {
+            'Accept': 'application/json',
+            'Authorization': (req.headers['authorization'] as string) || ''
+          }
+        };
+
+        const result = await new Promise<{ status: number; headers: http.IncomingHttpHeaders; body: string }>((resolve, reject) => {
+          const proxyReq = http.request(options, (proxyRes) => {
+            const chunks: Buffer[] = [];
+            proxyRes.on('data', (chunk) => chunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk)));
+            proxyRes.on('end', () => {
+              const bodyStr = Buffer.concat(chunks).toString('utf-8');
+              resolve({ status: proxyRes.statusCode || 502, headers: proxyRes.headers, body: bodyStr });
+            });
+          });
+          proxyReq.on('error', reject);
+          proxyReq.setTimeout(30000, () => {
+            proxyReq.destroy(new Error('Upstream timeout'));
+          });
+          proxyReq.end();
+        });
+
+        // Intentar parsear y devolver JSON
+        try {
+          const json = JSON.parse(result.body);
+          res.status(result.status).json(json);
+        } catch {
+          res.status(result.status).type((result.headers['content-type'] as string) || 'application/json').send(result.body);
+        }
+      } catch (err) {
+        console.error('❌ [AI_QUERY CONNECTIONS FORWARD ERROR]:', (err as Error).message);
+        if (!res.headersSent) {
+          res.status(503).json({
+            success: false,
+            message: 'Servicio de IA no disponible temporalmente',
+            error: 'SERVICE_UNAVAILABLE',
+            timestamp: new Date().toISOString()
+          });
+        }
+      }
+    });
+
+    // Alias conveniente: /api/chat -> AI Query Service
+    this.app.post('/api/chat', async (req: Request, res: Response) => {
+      const targetUrl = `${SERVICES.AI_QUERY.url}/api/ai-query/chat`;
+      try {
+        const url = new URL(targetUrl);
+        const payload = JSON.stringify(req.body || {});
+        const options: http.RequestOptions = {
+          hostname: url.hostname,
+          port: url.port ? parseInt(url.port) : 80,
+          path: url.pathname + url.search,
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Accept': 'application/json',
+            'Content-Length': Buffer.byteLength(payload).toString(),
+            'Authorization': (req.headers['authorization'] as string) || ''
+          }
+        };
+
+        const result = await new Promise<{ status: number; headers: http.IncomingHttpHeaders; body: string }>((resolve, reject) => {
+          const proxyReq = http.request(options, (proxyRes) => {
+            const chunks: Buffer[] = [];
+            proxyRes.on('data', (chunk) => chunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk)));
+            proxyRes.on('end', () => {
+              const bodyStr = Buffer.concat(chunks).toString('utf-8');
+              resolve({ status: proxyRes.statusCode || 502, headers: proxyRes.headers, body: bodyStr });
+            });
+          });
+          proxyReq.on('error', reject);
+          proxyReq.setTimeout(30000, () => {
+            proxyReq.destroy(new Error('Upstream timeout'));
+          });
+          proxyReq.write(payload);
+          proxyReq.end();
+        });
+
+        try {
+          const json = JSON.parse(result.body);
+          res.status(result.status).json(json);
+        } catch {
+          res.status(result.status).type((result.headers['content-type'] as string) || 'application/json').send(result.body);
+        }
+      } catch (err) {
+        console.error('❌ [AI_QUERY CHAT FORWARD ERROR]:', (err as Error).message);
+        if (!res.headersSent) {
+          res.status(503).json({
+            success: false,
+            message: 'Servicio de IA no disponible temporalmente',
+            error: 'SERVICE_UNAVAILABLE',
+            timestamp: new Date().toISOString()
+          });
+        }
+      }
+    });
+
     // Enrutamiento a microservicios
     // Todas las rutas que empiecen con /api/* serán manejadas por el middleware de proxy
     this.app.use('/api/*', routingMiddleware);

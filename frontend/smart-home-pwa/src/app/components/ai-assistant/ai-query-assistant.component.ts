@@ -202,7 +202,7 @@ export class AiQueryAssistantComponent implements OnInit {
         this.pushSystem('Conectado. Seguridad de solo lectura habilitada.');
       },
       error: () => {
-        this.pushSystem('No hay conexiones configuradas. Configure AI_DB_CONNECTIONS en el backend.');
+        this.pushSystem('No hay conexiones configuradas. Consulte con el equipo de desarrollo.');
       }
     });
   }
@@ -224,7 +224,7 @@ export class AiQueryAssistantComponent implements OnInit {
         this.scrollToBottom();
       },
       error: (err) => {
-        const msg = err?.error?.error || 'No se pudo procesar la consulta. Verifique configuración de IA.';
+        const msg = err?.error?.error || 'No se pudo procesar la consulta. Esto esta fuera de mis capacidades, consulta con los desarrolladores.';
         this.pushAssistant(`<span style='color:#c62828'>${msg}</span>`);
         this.loading.set(false);
       }

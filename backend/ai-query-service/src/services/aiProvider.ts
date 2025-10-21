@@ -24,15 +24,15 @@ Respuesta en JSON:
 `;
 
   const payload = {
-    model: process.env.AI_MODEL || 'general-nl2sql',
+    model: (globalThis as any).process?.env?.AI_MODEL || 'general-nl2sql',
     messages: [
       { role: 'system', content: system },
       { role: 'user', content: `Esquema:\n${JSON.stringify(schema).slice(0, 8000)}\n\nPregunta:\n${message}\n` }
     ]
   };
 
-  const url = process.env.AI_API_URL;
-  const apiKey = process.env.AI_API_KEY;
+  const url = (globalThis as any).process?.env?.AI_API_URL;
+  const apiKey = (globalThis as any).process?.env?.AI_API_KEY;
 
   // Fallback local cuando no hay proveedor externo configurado
   if (!url || !apiKey) {
@@ -68,7 +68,7 @@ const inferMongoCollection = (schema: any, message: string): string => {
 // Resolver externo del userId usando users-service cuando la tabla users no está en la misma BD
 const resolveUserIdFromUsersService = async (userName?: string, email?: string): Promise<number | undefined> => {
   try {
-    const base = process.env.USERS_SERVICE_URL || 'http://localhost:3001/api';
+    const base = (globalThis as any).process?.env?.USERS_SERVICE_URL || 'http://localhost:3001/api';
     // No hay endpoint directo de búsqueda; obtenemos todos y filtramos.
     const { data } = await axios.get(`${base}/users`);
     const list = Array.isArray(data?.data) ? data.data : [];
@@ -104,6 +104,13 @@ const buildHeuristicQuery = async ({ message, schema, connection, userId, userRo
     return score;
   };
 
+  // Intento de conteo
+  const msgNorm = msg.normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+  const msgFolded = msgNorm.replace(/[^a-z0-9\s]/gi, '');
+  const isCountIntent = /(cuantos|cuántos|cuantas|cuántas|numero|número|total|cantidad)/i.test(msg)
+    || /(cuantos|cuantas|numero|total|cantidad)/i.test(msgNorm)
+    || /(cuantos|cuantas|cuntos|cuntas|numero|total|cantidad)/i.test(msgFolded);
+
   if (connection.type === 'mongo') {
     const collection = inferMongoCollection(schema, message);
     const filter: any = {};
@@ -114,8 +121,13 @@ const buildHeuristicQuery = async ({ message, schema, connection, userId, userRo
     return { mongo: { collection, filter }, notes: 'Consulta heurística local (sin IA externa).' };
   }
 
-  // Caso: consultas de usuario ("qué usuario soy", "mi usuario", "mi correo")
-  const isUserIntent = (
+  // Caso: consultas de usuario ("qué usuario soy", "mi usuario", "cuántos usuarios", etc.)
+  // Evitar activar modo usuario si el mensaje habla de tareas/asignaciones.
+  const mentionsTasks = (
+    msg.includes('tarea') || msg.includes('tareas') || msg.includes('asignadas') ||
+    msg.includes('pendiente') || msg.includes('pendientes') || msg.includes('completada') || msg.includes('completadas')
+  );
+  const isUserIntent = !mentionsTasks && (
     msg.includes('usuario') ||
     msg.includes('quien soy') || msg.includes('quién soy') ||
     msg.includes('mi usuario') || msg.includes('mi correo') || msg.includes('mi email') || msg.includes('mi rol') ||
@@ -138,6 +150,16 @@ const buildHeuristicQuery = async ({ message, schema, connection, userId, userRo
     const hasFamilyRoleId = userCols.includes('family_role_id');
     const roleNameCol = roleCols.includes('role_name') ? 'role_name' : (roleCols.includes('name') ? 'name' : undefined);
 
+    // Conteo de usuarios
+    if (isCountIntent) {
+      const sql = `SELECT COUNT(*) AS total FROM ${usersTable};`;
+      return { sql, notes: `Heurística: conteo de usuarios. debug: isCountIntent=${isCountIntent}` };
+    }
+
+    const safe = (v?: string) => (v || '').replace(/'/g, "''").toLowerCase();
+    const uEmail = safe(email);
+    const uName = safe(userName);
+
     if (typeof userId === 'number' && userId > 0) {
       const selectBase = `u.*`;
       const roleExpr = hasFamilyRoleId
@@ -154,6 +176,26 @@ const buildHeuristicQuery = async ({ message, schema, connection, userId, userRo
         LIMIT 1;
       `;
       return { sql, notes: 'Heurística: información del usuario actual.' };
+    } else if (uEmail || uName) {
+      const conds = [
+        uEmail ? `LOWER(u.email) = '${uEmail}'` : undefined,
+        uName ? `LOWER(u.username) = '${uName}'` : undefined
+      ].filter(Boolean).join(' OR ');
+      const selectBase = `u.*`;
+      const roleExpr = hasFamilyRoleId
+        ? (roleNameCol
+            ? `COALESCE(fr.${roleNameCol}, CASE WHEN u.family_role_id = 1 THEN 'head_of_household' ELSE 'family_member' END) AS role`
+            : `CASE WHEN u.family_role_id = 1 THEN 'head_of_household' ELSE 'family_member' END AS role`)
+        : `NULL AS role`;
+      const joinExpr = hasFamilyRoleId ? `LEFT JOIN ${rolesTable} fr ON fr.id = u.family_role_id` : '';
+      const sql = `
+        SELECT ${selectBase}, ${roleExpr}
+        FROM ${usersTable} u
+        ${joinExpr}
+        WHERE ${conds}
+        LIMIT 1;
+      `;
+      return { sql, notes: 'Heurística: identificar usuario por email/username.' };
     } else {
       const orderCol = userCols.includes('created_at') ? 'created_at' : 'id';
       const sql = `
@@ -162,7 +204,7 @@ const buildHeuristicQuery = async ({ message, schema, connection, userId, userRo
         ORDER BY ${orderCol} DESC
         LIMIT 10;
       `;
-      return { sql, notes: 'Heurística: listado de usuarios.' };
+      return { sql, notes: `Heurística: listado de usuarios. debug: isCountIntent=${isCountIntent} msg="${msg}" msgNorm="${msgNorm}"` };
     }
   }
 
@@ -208,21 +250,26 @@ const buildHeuristicQuery = async ({ message, schema, connection, userId, userRo
     clauses.push("(LOWER(status) = 'completed' OR LOWER(status) = 'completada')");
   }
 
-  // Filtro por usuario: solo si el mensaje implica intención de "mis/tengo".
-  // Ejemplos: "mis tareas", "qué tareas tengo", "para mí".
-  // Si el usuario es jefe del hogar, nunca filtramos por usuario.
+  // Filtro por usuario: si el mensaje implica intención de "mis/tengo/para mí/asignadas a mí".
+  // Ejemplos: "mis tareas", "qué tareas tengo", "para mí", "asignadas a mí".
+  const strip = (s: string) => s.normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+  const myTokens = [
+    'mis','mi','mío','mía','míos','mías',
+    'tengo','para mi','para mí','me asignaron',
+    'asignadas a mi','asignadas a mí','mis tareas','tareas mias','tareas mías'
+  ];
+  const myTokensNorm = myTokens.map(strip);
+  const myTokensFolded = myTokensNorm.map(t => t.replace(/[^a-z0-9\s]/gi, ''));
   const hasMyIntent = (
-    /\b(mi|mis|mio|mío|mía|mias|mías|míos)\b/.test(msg) ||
-    msg.includes('tengo') ||
-    msg.includes('para mi') ||
-    msg.includes('para mí') ||
-    msg.includes('me asignaron') ||
-    msg.includes('asignadas a mi') ||
-    msg.includes('asignadas a mí')
+    myTokens.some(t => msg.includes(t)) ||
+    myTokensNorm.some(t => msgNorm.includes(t)) ||
+    myTokensFolded.some(t => msgFolded.includes(t)) ||
+    /asignadas\s+a\s+m\b/i.test(msgFolded) ||
+    /para\s+m\b/i.test(msgFolded)
   );
 
-  // Si no es jefe del hogar y hay intención de "mis", limitamos a creadas por/asignadas al usuario.
-  if (userRole !== 'head_of_household' && hasMyIntent) {
+  // Si hay intención explícita de "mis/para mí/asignadas a mí", filtrar por el usuario sin importar el rol.
+  if (hasMyIntent || (email && email.length > 0)) {
     const safe = (v?: string) => (v || '').replace(/'/g, "''").toLowerCase();
     const uName = safe(userName);
     const uEmail = safe(email);
@@ -249,9 +296,12 @@ const buildHeuristicQuery = async ({ message, schema, connection, userId, userRo
     // 2) Además, intentamos resolver el ID vía users-service para cubrir bases separadas
     if (!hasUserId && (uName || uEmail)) {
       if (hasUsersTable) {
+        const userCols: string[] = (schema?.schema?.[usersTable] || []).map((c: any) => c.column?.toLowerCase?.());
+        const canUsername = userCols.includes('username');
+        const canEmail = userCols.includes('email');
         const subUserMatch = [
-          uName ? `LOWER(u.username) = '${uName}'` : undefined,
-          uEmail ? `LOWER(u.email) = '${uEmail}'` : undefined
+          (uName && canUsername) ? `LOWER(u.username) = '${uName}'` : undefined,
+          (uEmail && canEmail) ? `LOWER(u.email) = '${uEmail}'` : undefined
         ].filter(Boolean).join(' OR ');
         if (subUserMatch) {
           parts.push(`(${table}.user_id IN (SELECT u.id FROM ${usersTable} u WHERE ${subUserMatch}))`);
@@ -271,7 +321,14 @@ const buildHeuristicQuery = async ({ message, schema, connection, userId, userRo
   }
 
   const where = clauses.length ? `WHERE ${clauses.join(' AND ')}` : '';
-  const sql = `SELECT * FROM ${table} ${where} ORDER BY due_date DESC NULLS LAST LIMIT 100;`;
 
-  return { sql, notes: 'Consulta heurística local (con resolución de usuario si es necesario).' };
+  // Conteo de tareas
+  if (isCountIntent) {
+    const sql = `SELECT COUNT(*) AS total FROM ${table} ${where};`;
+    return { sql, notes: `Heurística: conteo de tareas. debug: hasMyIntent=${hasMyIntent} email="${email || ''}" msg="${msg}"` };
+  }
+
+  const sql = `SELECT * FROM ${table} ${where} ORDER BY due_date DESC NULLS LAST LIMIT 100;`
+
+  return { sql, notes: `Consulta heurística local (con resolución de usuario si es necesario). debug: hasMyIntent=${hasMyIntent} email="${email || ''}" msg="${msg}"` };
 };
