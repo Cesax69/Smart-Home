@@ -248,18 +248,6 @@ export class TaskActionsDialogComponent implements OnInit {
     if (url) window.open(url, '_blank');
   }
 
-  previewFile(file: any): void {
-    const mimeType = this.mime(file as TaskFile);
-    const url = file.fileUrl ?? file.file_url;
-    if (this.canPreviewFile(mimeType) && url) {
-      // Para imágenes, PDFs y archivos de texto, abrir en nueva ventana
-      window.open(url, '_blank');
-    } else {
-      // Para otros tipos de archivo, descargar
-      this.downloadFile(file);
-    }
-  }
-
   canPreviewFile(mimeType: string): boolean {
     if (!mimeType) return false;
     

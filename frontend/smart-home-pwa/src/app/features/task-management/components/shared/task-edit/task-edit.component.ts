@@ -15,7 +15,7 @@ import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
 import { AlertService } from '../../../../../services/alert.service';
 import { MAT_DIALOG_DATA, MatDialogRef } from '@angular/material/dialog';
 import { HttpClientModule, HttpClient } from '@angular/common/http';
-import { of } from 'rxjs';
+import { of, map } from 'rxjs';
 import { environment } from '../../../../../../environments/environment';
 import { TaskService } from '../../../services/task.service';
 import { AuthService } from '../../../../../services/auth.service';
@@ -453,7 +453,14 @@ export class TaskEditComponent implements OnInit {
     previews.forEach(p => formData.append('file', p.file));
     if (title) formData.append('taskTitle', title);
     const uploadUrl = `${environment.services.fileUpload}/upload`;
-    return this.http.post<any>(uploadUrl, formData);
+    return this.http.post<any>(uploadUrl, formData).pipe(
+      map((resp: any) => {
+        if (resp && resp.success === false) {
+          throw new Error(resp.message || 'Error subiendo archivo');
+        }
+        return resp;
+      })
+    );
   }
 
   onSubmit() {
@@ -523,8 +530,9 @@ export class TaskEditComponent implements OnInit {
                 proceedUpdate(url || undefined);
               },
               error: (err: any) => {
+                const msg = err?.error?.message || err?.error?.error || err?.message || 'No se pudo subir el nuevo archivo';
                 console.error('Error subiendo archivo nuevo:', err);
-                this.alerts.error('No se pudo subir el nuevo archivo', undefined, { duration: 3000 });
+                this.alerts.error(msg, undefined, { duration: 3000 });
                 this.isSubmitting.set(false);
               }
             });
@@ -538,8 +546,9 @@ export class TaskEditComponent implements OnInit {
                 proceedUpdate(url || undefined);
               },
               error: (err2: any) => {
+                const msg2 = err2?.error?.message || err2?.error?.error || err2?.message || 'No se pudo subir el nuevo archivo';
                 console.error('Error subiendo archivo nuevo:', err2);
-                this.alerts.error('No se pudo subir el nuevo archivo', undefined, { duration: 3000 });
+                this.alerts.error(msg2, undefined, { duration: 3000 });
                 this.isSubmitting.set(false);
               }
             });

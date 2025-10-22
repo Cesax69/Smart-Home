@@ -1,224 +1,202 @@
+/**
+ * AI Query Routes (Simple Postgres)
+ * Propósito: Endpoints de lectura para múltiples conexiones Postgres.
+ * Flujo: carga conexiones -> selecciona builder -> ejecuta SQL -> responde.
+ * Seguridad: solo lectura; límites de filas; validación de entrada básica.
+ */
 import { Router } from 'express';
-import { z } from 'zod';
-import { getConnectionById, listConnections, DbConnectionConfig } from '../config/connections';
-import { introspectSchema } from '../services/schemaIntrospector';
-import { buildQueryWithAI } from '../services/aiProvider';
-import { isReadOnlyQuery, isReadOnlyMongo } from '../utils/sqlGuard';
-import { executeReadQuery } from '../services/queryExecutor';
+import { Pool } from 'pg';
 
 const router = Router();
 
-router.get('/health', (_req: any, res: any) => {
+// === Soporte simple para múltiples conexiones (Postgres) ===
+// Modelo de conexión: describe una DB destino para consultas de solo lectura.
+// type: solo 'postgres' soportado en modo simple. readOnly: informativo.
+interface AiConnection {
+  id: string;
+  type: 'postgres';
+  name: string;
+  url: string;
+  readOnly?: boolean;
+}
+
+/**
+ * parseConnections
+ * Lee AI_DB_CONNECTIONS (JSON) y construye conexiones iniciales.
+ * Fallback: si no hay JSON, crea conexión tasks-pg con variables TASKS_PG_*.
+ * Retorna conexiones válidas (con id y url).
+ */
+const parseConnections = (): AiConnection[] => {
+  try {
+    const raw = process.env.AI_DB_CONNECTIONS;
+    if (raw) {
+      const parsed = JSON.parse(raw);
+      const list: AiConnection[] = (Array.isArray(parsed) ? parsed : []).filter(c => c && c.type === 'postgres' && c.id && c.url);
+      if (list.length) return list;
+    }
+  } catch {}
+
+  // Fallback a Tasks DB por variables simples
+  const PG_HOST = process.env.TASKS_PG_HOST || 'smart-home-postgres-tasks';
+  const PG_PORT = parseInt(process.env.TASKS_PG_PORT || '5432');
+  const PG_DB = process.env.TASKS_PG_DATABASE || 'tasks_db';
+  const PG_USER = process.env.TASKS_PG_USER || 'postgres';
+  const PG_PASSWORD = process.env.TASKS_PG_PASSWORD || 'linux';
+  const url = `postgresql://${PG_USER}:${PG_PASSWORD}@${PG_HOST}:${PG_PORT}/${PG_DB}`;
+  return [{ id: 'tasks-pg', type: 'postgres', name: 'Tasks DB (Postgres)', url, readOnly: true }];
+};
+
+const connections: AiConnection[] = parseConnections();
+const pools: Record<string, Pool> = {};
+for (const c of connections) {
+  pools[c.id] = new Pool({ connectionString: c.url });
+}
+
+// === Endpoints mínimos ===
+router.get('/health', (_req, res) => {
   res.json({ success: true, status: 'healthy', timestamp: new Date().toISOString() });
 });
 
-router.get('/ai-query/connections', (_req: any, res: any) => {
-  res.json({ success: true, connections: listConnections() });
+router.get('/ai-query/connections', (_req, res) => {
+  res.json({ success: true, connections: connections.map(({ id, type, name }) => ({ id, type, name })) });
 });
 
-const chatSchema = z.object({
-  message: z.string().min(3),
-  connectionId: z.string().optional(),
-  limit: z.number().min(1).max(500).optional(),
-  userId: z.number().int().positive().optional(),
-  userRole: z.string().optional(),
-  userName: z.string().optional(),
-  email: z.string().optional()
+// Permitir agregar conexiones en memoria (simple, no persistente)
+router.post('/ai-query/connections', async (req, res) => {
+  try {
+    const { id, type, name, url, readOnly } = req.body || {};
+    if (!id || !type || !name || !url) {
+      return res.status(400).json({ success: false, message: 'Faltan campos: id, type, name, url' });
+    }
+    if (type !== 'postgres') {
+      return res.status(400).json({ success: false, message: 'Solo se soporta type=postgres en modo simple' });
+    }
+    if (connections.find(c => c.id === id)) {
+      return res.status(409).json({ success: false, message: `La conexión '${id}' ya existe` });
+    }
+
+    const testPool = new Pool({ connectionString: url });
+    try {
+      await testPool.query('SELECT 1');
+    } catch (e: any) {
+      return res.status(400).json({ success: false, message: 'No se pudo conectar a la base de datos', detail: e?.message });
+    }
+
+    connections.push({ id, type: 'postgres', name, url, readOnly: !!readOnly });
+    pools[id] = testPool;
+
+    res.status(201).json({ success: true, connections: connections.map(({ id, type, name }) => ({ id, type, name })) });
+  } catch (error: any) {
+    console.error('❌ Error agregando conexión:', error);
+    res.status(500).json({ success: false, message: 'Error interno al agregar conexión', detail: error?.message });
+  }
 });
 
-// Helper: inferir conexión por el contenido del mensaje
-function inferConnectionIdFromMessage(message: string): string | undefined {
+// === Heurísticas simples ===
+function buildSimpleTasksQuery(message: string, limit: number = 100, userId?: number | string) {
   const msg = (message || '').toLowerCase();
-  const connections = listConnections();
-  const usersConn = connections.find(c => c.id.toLowerCase().includes('users') || c.name.toLowerCase().includes('users'));
-  const tasksConn = connections.find(c => c.id.toLowerCase().includes('tasks') || c.name.toLowerCase().includes('tasks'));
-  const mentionsUsers = (
-    msg.includes('usuario') || msg.includes('usuarios') || msg.includes('familia') || msg.includes('miembro') || msg.includes('quien soy') || msg.includes('quién soy') || msg.includes('correo') || msg.includes('email')
-  );
-  const mentionsTasks = (
-    msg.includes('tarea') || msg.includes('tareas') || msg.includes('pendiente') || msg.includes('pendientes') || msg.includes('completada') || msg.includes('completadas')
-  );
-  if (mentionsUsers && usersConn) return usersConn.id;
-  if (mentionsTasks && tasksConn) return tasksConn.id;
+  const msgNoAccent = msg.normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+  const conditions: string[] = [];
+  const params: any[] = [];
+
+  if (msg.includes('pendiente')) conditions.push("LOWER(status) = 'pending'");
+  else if (msg.includes('progreso') || msg.includes('in_progress')) conditions.push("LOWER(status) = 'in_progress'");
+  else if (msg.includes('complet')) conditions.push("LOWER(status) = 'completed'");
+
+  if (msg.includes('hoy')) conditions.push('(due_date::date = CURRENT_DATE)');
+  else if (msg.includes('mañana')) conditions.push("(due_date::date = (CURRENT_DATE + INTERVAL '1 day'))");
+  else if (msg.includes('semana')) conditions.push("(due_date::date BETWEEN CURRENT_DATE AND CURRENT_DATE + INTERVAL '7 days')");
+
+  if (typeof userId !== 'undefined' && userId !== null && `${userId}`.length > 0) {
+    params.push(Number(userId));
+    const idx = params.length;
+    conditions.push(`((tasks.user_id = $${idx}) OR EXISTS (SELECT 1 FROM task_assignments ta WHERE ta.task_id = tasks.id AND ta.user_id = $${idx}))`);
+  }
+
+  const where = conditions.length ? `WHERE ${conditions.join(' AND ')}` : '';
+  const tokens = msgNoAccent.replace(/[^a-z0-9\s]/g, ' ');
+  const words = tokens.split(/\s+/).filter(Boolean);
+  const isCount = words.some(w => ['cuantas','cuantos','numero','total','cantidad'].includes(w));
+
+  if (isCount) return { sql: `SELECT COUNT(*) AS total FROM tasks ${where};`, params, mode: 'count' as const };
+  const safeLimit = Math.max(1, Math.min(500, limit || 100));
+  return { sql: `SELECT id, title, status, priority, due_date, created_at FROM tasks ${where} ORDER BY created_at DESC LIMIT ${safeLimit};`, params, mode: 'list' as const };
+}
+
+function buildSimpleUsersQuery(message: string, limit: number = 100) {
+  const msg = (message || '').toLowerCase();
+  const msgNoAccent = msg.normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+  const conditions: string[] = [];
+
+  if (msg.includes('activo') || msg.includes('activos')) conditions.push('is_active = true');
+  if (msg.includes('inactivo') || msg.includes('inactivos')) conditions.push('is_active = false');
+  if (msg.includes('hoy')) conditions.push('(created_at::date = CURRENT_DATE)');
+  else if (msg.includes('semana')) conditions.push("(created_at::date BETWEEN CURRENT_DATE - INTERVAL '7 days' AND CURRENT_DATE)");
+
+  const where = conditions.length ? `WHERE ${conditions.join(' AND ')}` : '';
+  const tokens = msgNoAccent.replace(/[^a-z0-9\s]/g, ' ');
+  const words = tokens.split(/\s+/).filter(Boolean);
+  const isCount = words.some(w => ['cuantas','cuantos','numero','total','cantidad'].includes(w));
+
+  if (isCount) return { sql: `SELECT COUNT(*) AS total FROM users ${where};`, params: [], mode: 'count' as const };
+  const safeLimit = Math.max(1, Math.min(500, limit || 100));
+  return { sql: `SELECT id, username, email, first_name, last_name, is_active, created_at FROM users ${where} ORDER BY created_at DESC LIMIT ${safeLimit};`, params: [], mode: 'list' as const };
+}
+
+function isUsersConnection(c: AiConnection): boolean {
+  const s = `${c.id} ${c.name} ${c.url}`.toLowerCase();
+  return /user|usuario|usuarios/.test(s) || /users_db/.test(s);
+}
+function isTasksConnection(c: AiConnection): boolean {
+  const s = `${c.id} ${c.name} ${c.url}`.toLowerCase();
+  return /task|tarea|tasks/.test(s) || /tasks_db/.test(s);
+}
+function inferConnectionId(message: string): string | undefined {
+  const msg = (message || '').toLowerCase();
+  const preferUsers = /usuario|usuarios|email|correo|nombre|apellido/.test(msg);
+  if (preferUsers) {
+    const uc = connections.find(isUsersConnection);
+    if (uc) return uc.id;
+  }
+  const tc = connections.find(isTasksConnection);
+  if (tc) return tc.id;
   return connections[0]?.id;
 }
 
-// Helper: extraer email del mensaje (si está embebido)
-function extractEmailFromMessage(message: string): string | undefined {
-  const m = (message || '').match(/[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/);
-  return m ? m[0] : undefined;
-}
-
-// Helper: normalizar rol del mensaje a nuestro dominio
-function deriveRoleFromMessage(message: string): string | undefined {
-  const msg = (message || '').toLowerCase();
-  if (msg.includes('jefe del hogar') || msg.includes('jefe')) return 'head_of_household';
-  if (msg.includes('miembro')) return 'family_member';
-  return undefined;
-}
-
-router.post('/ai-query/chat', async (req: any, res: any) => {
+router.post('/ai-query/chat', async (req, res) => {
   try {
-    const parsed = chatSchema.safeParse(req.body);
-    if (!parsed.success) {
-      return res.status(400).json({ success: false, message: 'Parámetros inválidos', errors: parsed.error.issues });
-    }
+    const { message, connectionId, limit, userId } = req.body || {};
+    const targetId = (connectionId && connections.find(c => c.id === connectionId)) ? connectionId : inferConnectionId(message);
+    if (!targetId) return res.status(400).json({ success: false, message: 'No hay conexiones disponibles' });
 
-    const { message, connectionId, limit, userId, userRole, userName, email } = parsed.data;
-    const derivedEmail = email || extractEmailFromMessage(message);
-    const derivedRole = userRole || deriveRoleFromMessage(message);
+    const conn = connections.find(c => c.id === targetId);
+    const pool = pools[targetId];
+    if (!pool || !conn) return res.status(400).json({ success: false, message: `Conexión no soportada: ${targetId}` });
 
-    let conn = getConnectionById(connectionId);
-    if (!conn) {
-      const inferredId = inferConnectionIdFromMessage(message);
-      conn = inferredId ? getConnectionById(inferredId) : listConnections()[0];
-    }
-    if (!conn) {
-      return res.status(400).json({ success: false, message: 'Conexión no encontrada o no configurada' });
-    }
+    const useUsers = isUsersConnection(conn);
+    const builder = useUsers ? buildSimpleUsersQuery(message, limit) : buildSimpleTasksQuery(message, limit, userId);
+    const built = builder as any;
+    const result = await pool.query(built.sql, built.params || []);
 
-    const schema = await introspectSchema(conn);
-    const ai = await buildQueryWithAI({ message, schema, connection: conn, userId, userRole: derivedRole, userName, email: derivedEmail });
-
-    const debug = true;
-    if (debug) {
-      try {
-        const built = conn.type === 'mongo' ? ai.mongo : ai.sql;
-        console.log('[AI-Query][Built]', built);
-      } catch (e) {
-        // ignore logging errors
-      }
-    }
-
-    if (conn.type === 'mongo') {
-      if (!isReadOnlyMongo(ai.mongo)) {
-        return res.status(400).json({ success: false, message: 'Solo se permiten consultas de lectura (aggregate/find)' });
-      }
+    let summary = '';
+    if (built.mode === 'count') {
+      const total = Number(((result.rows?.[0] as any)?.total) ?? 0);
+      summary = useUsers ? `Existen ${total} usuarios` : `Existen ${total} tareas`;
     } else {
-      if (!isReadOnlyQuery(ai.sql)) {
-        return res.status(400).json({ success: false, message: 'Solo se permiten consultas SELECT' });
-      }
+      summary = useUsers ? `Encontré ${result.rows?.length || 0} usuarios` : `Encontré ${result.rows?.length || 0} tareas`;
     }
 
-    const result = await executeReadQuery(conn, ai);
-    const queryObj = conn.type === 'mongo' ? { mongo: ai.mongo } : { sql: ai.sql };
-
-    const summary = buildHumanSummary(parsed.data.message, result.rows, conn);
     res.json({
       success: true,
-      query: queryObj,
-      result: { rows: result.rows, meta: result.meta },
-      notes: ai.notes,
+      query: { sql: built.sql },
+      result: { rows: result.rows },
+      notes: `Conexión: ${targetId} (solo lectura). Modo simple.`,
       summary
     });
   } catch (error: any) {
-    console.error('❌ Error en /ai-query/chat:', error);
-    res.status(500).json({ success: false, message: 'Error procesando la consulta', detail: error?.message });
+    console.error('❌ Error en /ai-query/chat (simple multi):', error);
+    res.status(500).json({ success: false, message: 'Error procesando la consulta (simple)', detail: error?.message });
   }
 });
 
 export default router;
-
-function buildHumanSummary(message: string, rows: any[], conn: DbConnectionConfig): string {
-  const msg = (message || '').toLowerCase();
-  const count = rows?.length || 0;
-  const pickField = (...candidates: string[]): string | undefined => {
-    const keys = rows && rows.length ? Object.keys(rows[0]) : [];
-    const found = candidates.find(c => keys.includes(c));
-    return found;
-  };
-
-  // Atajo para conteos (COUNT(*), total)
-  const countField = pickField('count', 'total');
-  if (rows && rows.length === 1 && countField) {
-    const n = Number(rows[0][countField]) || 0;
-    // Priorizar contexto de tareas si ambos aparecen
-    if (msg.includes('tarea')) {
-      return `Existen ${n} tareas registradas.`;
-    }
-    if (msg.includes('usuario')) {
-      return `Hay ${n} usuarios en la base de datos.`;
-    }
-    return `Total: ${n}.`;
-  }
-
-  // Caso usuario: "qué usuario soy", "mi usuario"
-  const msgNorm = msg.normalize('NFD').replace(/[\u0300-\u036f]/g, '');
-  const msgFolded = msgNorm.replace(/[^a-z0-9\s]/gi, '');
-  const includes = (s: string, t: string) => s.includes(t);
-  const isIdentity = (
-    includes(msg, 'quien soy') || includes(msg, 'quién soy') ||
-    includes(msgNorm, 'quien soy') || includes(msgFolded, 'quien soy') ||
-    includes(msg, 'mi usuario') || includes(msgNorm, 'mi usuario') || includes(msgFolded, 'mi usuario') ||
-    includes(msg, 'mi correo') || includes(msgNorm, 'mi correo') ||
-    includes(msg, 'mi email') || includes(msgNorm, 'mi email') ||
-    includes(msg, ' para mi') || includes(msgNorm, ' para mi') ||
-    includes(msg, ' para mí') || includes(msgNorm, ' para mi') ||
-    includes(msg, ' mis ') || includes(msgNorm, ' mis ') ||
-    msg.startsWith('mi ') || msgNorm.startsWith('mi ') || msgFolded.startsWith('mi ') ||
-    includes(msg, 'eres ') || includes(msgNorm, 'eres ') || includes(msgFolded, 'eres ')
-  );
-  if (isIdentity) {
-    if (count === 0) return 'No se encontró información del usuario.';
-    const r = rows[0] || {};
-    const firstName = r['first_name'] || r['firstName'] || '';
-    const lastName = r['last_name'] || r['lastName'] || '';
-    const username = r['username'] || '';
-    const email = r['email'] || '';
-    const roleRaw = r['role'] || r['family_role'] || r['family_role_id'];
-    const roleText = typeof roleRaw === 'number' ? (roleRaw === 1 ? 'Jefe del hogar' : 'Miembro') : (String(roleRaw || '').trim());
-    const namePart = (firstName || lastName) ? `${firstName} ${lastName}`.trim() : username || 'Usuario';
-    const rolePart = roleText ? ` — rol: ${roleText}` : '';
-    const emailPart = email ? ` — email: ${email}` : '';
-    return `Eres ${namePart}${rolePart}${emailPart}`;
-  }
-
-  // Listado/Gestión de usuarios (no identidad)
-  if (msg.includes('usuario') || msg.includes('usuarios')) {
-    if (count === 0) return 'No se encontraron usuarios.';
-    const names = rows.slice(0, 5).map((r: any) => {
-      const fn = r['first_name'] || r['firstName'] || '';
-      const ln = r['last_name'] || r['lastName'] || '';
-      const un = r['username'] || '';
-      const em = r['email'] || '';
-      const name = (fn || ln) ? `${fn} ${ln}`.trim() : un;
-      return name || em || 'Usuario';
-    });
-    const head = `Encontré ${count} ${count === 1 ? 'usuario' : 'usuarios'}.`;
-    const lines = names.map((n, i) => `${i + 1}. ${n}`);
-    return `${head}${lines.length ? '\n' + lines.join('\n') : ''}`;
-  }
-
-  // Casos comunes: tareas
-  const isTareas = msg.includes('tarea');
-  const titleKey = pickField('title', 'name', 'descripcion', 'description');
-  const statusKey = pickField('status', 'estado');
-  const dueKey = pickField('due_date', 'fecha', 'fecha_limite');
-
-  if (isTareas) {
-    if (count === 0) {
-      if (msg.includes('hoy')) return 'No tienes tareas para hoy.';
-      if (msg.includes('mañana')) return 'No tienes tareas para mañana.';
-      return 'No se encontraron tareas para tu consulta.';
-    }
-    const head = `Encontré ${count} ${count === 1 ? 'tarea' : 'tareas'}${msg.includes('hoy') ? ' para hoy' : ''}.`;
-    const lines = rows.slice(0, 5).map((r: any, i: number) => {
-      const title = titleKey ? r[titleKey] : undefined;
-      const status = statusKey ? r[statusKey] : undefined;
-      const due = dueKey ? r[dueKey] : undefined;
-      const parts = [title, status, due].filter(Boolean);
-      return parts.length ? `${i + 1}. ${parts.join(' — ')}` : `${i + 1}. (sin detalles)`;
-    });
-    return `${head}${lines.length ? '\n' + lines.join('\n') : ''}`;
-  }
-
-  // Genérico
-  if (count === 0) return 'No se encontraron resultados para tu consulta.';
-  const lines = rows.slice(0, 5).map((r: any, i: number) => {
-    const keys = Object.keys(r);
-    const firstStrKey = keys.find(k => typeof r[k] === 'string');
-    const val = firstStrKey ? r[firstStrKey] : JSON.stringify(r);
-    return `${i + 1}. ${val}`;
-  });
-  return `Encontré ${count} resultados. ${lines.length ? '\n' + lines.join('\n') : ''}`;
-}

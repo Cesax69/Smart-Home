@@ -22,7 +22,7 @@ import { NotificationBellComponent } from '../notification-bell/notification-bel
     MatToolbarModule,
     MatMenuModule,
     MatDividerModule
-],
+  ],
   template: `
     <div class="dashboard-container">
       <!-- Main Content -->
@@ -34,7 +34,8 @@ import { NotificationBellComponent } from '../notification-bell/notification-bel
 
         <!-- Admin Features Grid -->
         <div class="features-grid">
-          <mat-card class="feature-card">
+          
+          <mat-card class="feature-card disabled-card">
             <mat-card-header>
               <mat-icon mat-card-avatar class="feature-icon">👥</mat-icon>
               <mat-card-title>Gestión de Usuarios</mat-card-title>
@@ -44,13 +45,13 @@ import { NotificationBellComponent } from '../notification-bell/notification-bel
               <p>Controla quién tiene acceso al sistema y gestiona los permisos de cada miembro de la familia.</p>
             </mat-card-content>
             <mat-card-actions>
-              <button mat-raised-button color="primary" (click)="navigateTo('/users')">
+              <button mat-raised-button color="primary" [disabled]="true" (click)="navigateTo('/users')">
                 Gestionar Usuarios
               </button>
             </mat-card-actions>
           </mat-card>
 
-          <mat-card class="feature-card">
+          <mat-card class="feature-card ">
             <mat-card-header>
               <mat-icon mat-card-avatar class="feature-icon">📋</mat-icon>
               <mat-card-title>Gestión de Tareas</mat-card-title>
@@ -66,7 +67,7 @@ import { NotificationBellComponent } from '../notification-bell/notification-bel
             </mat-card-actions>
           </mat-card>
 
-          <mat-card class="feature-card">
+          <mat-card class="feature-card disabled-card">
             <mat-card-header>
               <mat-icon mat-card-avatar class="feature-icon">🏡</mat-icon>
               <mat-card-title>Control del Hogar</mat-card-title>
@@ -76,13 +77,13 @@ import { NotificationBellComponent } from '../notification-bell/notification-bel
               <p>Controla luces, temperatura, seguridad y otros dispositivos conectados.</p>
             </mat-card-content>
             <mat-card-actions>
-              <button mat-raised-button color="primary" (click)="navigateTo('/devices')">
+              <button mat-raised-button color="primary" [disabled]="true" (click)="navigateTo('/devices')">
                 Ver Dispositivos
               </button>
             </mat-card-actions>
           </mat-card>
 
-          <mat-card class="feature-card">
+          <mat-card class="feature-card disabled-card">
             <mat-card-header>
               <mat-icon mat-card-avatar class="feature-icon">📊</mat-icon>
               <mat-card-title>Reportes</mat-card-title>
@@ -92,13 +93,13 @@ import { NotificationBellComponent } from '../notification-bell/notification-bel
               <p>Visualiza estadísticas de uso, consumo energético y actividad del hogar.</p>
             </mat-card-content>
             <mat-card-actions>
-              <button mat-raised-button color="primary" (click)="navigateTo('/reports')">
+              <button mat-raised-button color="primary" [disabled]="true" (click)="navigateTo('/reports')">
                 Ver Reportes
               </button>
             </mat-card-actions>
           </mat-card>
 
-          <mat-card class="feature-card">
+          <mat-card class="feature-card disabled-card">
             <mat-card-header>
               <mat-icon mat-card-avatar class="feature-icon">⚙️</mat-icon>
               <mat-card-title>Configuración</mat-card-title>
@@ -108,13 +109,13 @@ import { NotificationBellComponent } from '../notification-bell/notification-bel
               <p>Configura las preferencias del sistema y ajustes avanzados.</p>
             </mat-card-content>
             <mat-card-actions>
-              <button mat-raised-button color="primary" (click)="navigateTo('/settings')">
+              <button mat-raised-button color="primary" [disabled]="true" (click)="navigateTo('/settings')">
                 Configurar
               </button>
             </mat-card-actions>
           </mat-card>
 
-          <mat-card class="feature-card">
+          <mat-card class="feature-card disabled-card">
             <mat-card-header>
               <mat-icon mat-card-avatar class="feature-icon">📱</mat-icon>
               <mat-card-title>Centro de Notificaciones</mat-card-title>
@@ -124,13 +125,13 @@ import { NotificationBellComponent } from '../notification-bell/notification-bel
               <p>Revisa todas las notificaciones del sistema, tareas completadas y alertas importantes.</p>
             </mat-card-content>
             <mat-card-actions>
-              <button mat-raised-button color="primary" (click)="navigateTo('/notifications')">
+              <button mat-raised-button color="primary" [disabled]="true" (click)="navigateTo('/notifications')">
                 Ver Notificaciones
               </button>
             </mat-card-actions>
           </mat-card>
 
-          <mat-card class="feature-card">
+          <mat-card class="feature-card disabled-card">
             <mat-card-header>
               <mat-icon mat-card-avatar class="feature-icon">🔒</mat-icon>
               <mat-card-title>Seguridad</mat-card-title>
@@ -140,7 +141,7 @@ import { NotificationBellComponent } from '../notification-bell/notification-bel
               <p>Supervisa la seguridad del hogar y configura alertas automáticas.</p>
             </mat-card-content>
             <mat-card-actions>
-              <button mat-raised-button color="primary" (click)="navigateTo('/security')">
+              <button mat-raised-button color="primary" [disabled]="true" (click)="navigateTo('/security')">
                 Ver Seguridad
               </button>
             </mat-card-actions>
@@ -150,6 +151,37 @@ import { NotificationBellComponent } from '../notification-bell/notification-bel
     </div>
   `,
   styles: [`
+  .disabled-card {
+  filter: grayscale(100%) brightness(0.9) contrast(0.8);
+  opacity: 0.6;
+  pointer-events: none;
+  user-select: none;
+  transition: filter 0.3s ease, opacity 0.3s ease;
+}
+
+.disabled-card mat-card-title,
+.disabled-card mat-card-subtitle,
+.disabled-card mat-card-content p {
+  color: #555 !important;
+}
+
+.disabled-card .feature-icon {
+  background: #aaa !important;
+  color: #eee !important;
+}
+
+.disabled-card mat-card-actions button {
+  background: #ccc !important;
+  color: #888 !important;
+  box-shadow: none !important;
+}
+
+.disabled-card:hover {
+  transform: none !important;
+  box-shadow: none !important;
+  border-left-color: #ccc !important;
+}
+
     .dashboard-container {
       min-height: 100vh;
       background: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%);
@@ -298,7 +330,7 @@ export class DashboardAdminComponent implements OnInit {
   constructor(
     private authService: AuthService,
     private router: Router
-  ) {}
+  ) { }
 
   ngOnInit(): void {
     this.currentUser.set(this.authService.getCurrentUser());

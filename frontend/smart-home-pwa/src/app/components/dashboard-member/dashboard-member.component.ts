@@ -59,7 +59,7 @@ import { NotificationBellComponent } from '../notification-bell/notification-bel
             </mat-card-actions>
           </mat-card>
 
-          <mat-card class="feature-card">
+          <mat-card class="feature-card disabled-card">
             <mat-card-header>
               <mat-icon mat-card-avatar class="feature-icon">🏡</mat-icon>
               <mat-card-title>Control Básico</mat-card-title>
@@ -69,13 +69,13 @@ import { NotificationBellComponent } from '../notification-bell/notification-bel
               <p>Controla los dispositivos que tienes permitido usar.</p>
             </mat-card-content>
             <mat-card-actions>
-              <button mat-raised-button color="primary" (click)="navigateTo('/my-devices')">
+              <button mat-raised-button color="primary" [disabled]="true" (click)="navigateTo('/my-devices')">
                 Mis Dispositivos
               </button>
             </mat-card-actions>
           </mat-card>
 
-          <mat-card class="feature-card">
+          <mat-card class="feature-card disabled-card">
             <mat-card-header>
               <mat-icon mat-card-avatar class="feature-icon">👤</mat-icon>
               <mat-card-title>Mi Perfil</mat-card-title>
@@ -85,13 +85,13 @@ import { NotificationBellComponent } from '../notification-bell/notification-bel
               <p>Actualiza tu información personal y preferencias.</p>
             </mat-card-content>
             <mat-card-actions>
-              <button mat-raised-button color="primary" (click)="navigateTo('/profile')">
+              <button mat-raised-button color="primary" [disabled]="true" (click)="navigateTo('/profile')">
                 Ver Perfil
               </button>
             </mat-card-actions>
           </mat-card>
 
-          <mat-card class="feature-card">
+          <mat-card class="feature-card disabled-card">
             <mat-card-header>
               <mat-icon mat-card-avatar class="feature-icon">📊</mat-icon>
               <mat-card-title>Mi Actividad</mat-card-title>
@@ -101,7 +101,7 @@ import { NotificationBellComponent } from '../notification-bell/notification-bel
               <p>Revisa tu historial de tareas completadas y actividad.</p>
             </mat-card-content>
             <mat-card-actions>
-              <button mat-raised-button color="primary" (click)="navigateTo('/my-activity')">
+              <button mat-raised-button color="primary" [disabled]="true" (click)="navigateTo('/my-activity')">
                 Ver Actividad
               </button>
             </mat-card-actions>
@@ -111,6 +111,37 @@ import { NotificationBellComponent } from '../notification-bell/notification-bel
     </div>
   `,
   styles: [`
+  .disabled-card {
+  filter: grayscale(100%) brightness(0.9) contrast(0.8);
+  opacity: 0.6;
+  pointer-events: none;
+  user-select: none;
+  transition: filter 0.3s ease, opacity 0.3s ease;
+}
+
+.disabled-card mat-card-title,
+.disabled-card mat-card-subtitle,
+.disabled-card mat-card-content p {
+  color: #555 !important;
+}
+
+.disabled-card .feature-icon {
+  background: #aaa !important;
+  color: #eee !important;
+}
+
+.disabled-card mat-card-actions button {
+  background: #ccc !important;
+  color: #888 !important;
+  box-shadow: none !important;
+}
+
+.disabled-card:hover {
+  transform: none !important;
+  box-shadow: none !important;
+  border-left-color: #ccc !important;
+}
+
     .dashboard-container {
       min-height: 100vh;
       background-color: #f5f5f5;

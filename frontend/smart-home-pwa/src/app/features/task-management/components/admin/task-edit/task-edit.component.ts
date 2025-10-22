@@ -27,6 +27,7 @@ import { FormValidators } from '../../../../../shared/validators/form-validators
 import { AlertService } from '../../../../../services/alert.service';
 import { FileUploadService } from '../../../../../services/file-upload.service';
 import { NotificationService } from '../../../../../services/notification.service';
+import { map } from 'rxjs';
 
 interface FilePreview {
   file: File;
@@ -96,7 +97,6 @@ export class AdminTaskEditComponent implements OnInit {
       dueDate: [null, [FormValidators.futureDateValidator()]],
       assignedUserIds: [[], Validators.required],
       estimatedTime: ['', [Validators.min(1), Validators.max(480)]], // minutos
-      estimatedTimeDuration: [''], // HH:MM
       isRecurring: [false],
       recurrenceInterval: ['']
     }, {
@@ -151,7 +151,6 @@ export class AdminTaskEditComponent implements OnInit {
             ? t.assignedUserIds
             : (t.assignedTo ? [t.assignedTo] : []),
           estimatedTime: t.estimatedTime || '',
-          estimatedTimeDuration: this.formatMinutesToHHMM(t.estimatedTime || 0),
           isRecurring: !!t.isRecurring,
           recurrenceInterval: t.recurrenceInterval || ''
         });
@@ -266,6 +265,10 @@ export class AdminTaskEditComponent implements OnInit {
         errors.push(`Demasiado grande: ${file.name}`);
         continue;
       }
+      if (!this.fileUploadService.isValidFileType(file)) {
+        errors.push(`Tipo no permitido: ${file.name}`);
+        continue;
+      }
       const isImage = file.type.startsWith('image/');
       const preview: FilePreview = {
         file,
@@ -278,7 +281,7 @@ export class AdminTaskEditComponent implements OnInit {
       remaining--;
     }
     if (errors.length > 0) {
-      this.alertService.warning('Algunos archivos no se agregaron', errors.map(e => `• ${e}`).join('\n'), { duration: 5000, dismissible: true });
+      this.alertService.warning('Formato del archivo inválido', errors.map(e => `• ${e}`).join('\n'), { duration: 5000, dismissible: true });
     }
   }
 
@@ -291,7 +294,6 @@ export class AdminTaskEditComponent implements OnInit {
       dueDate: 'Fecha límite',
       assignedUserIds: 'Asignados',
       estimatedTime: 'Tiempo estimado',
-      estimatedTimeDuration: 'Tiempo estimado',
       recurrenceInterval: 'Periodo de recurrencia'
     };
     return map[field] ?? field;
@@ -357,6 +359,11 @@ export class AdminTaskEditComponent implements OnInit {
       this.alertService.warning('Archivo demasiado grande', 'Máximo permitido: 10MB', { duration: 4000, dismissible: true });
       return;
     }
+    if (!this.fileUploadService.isValidFileType(selected)) {
+      this.alertService.warning('Tipo de archivo no permitido', 'Solo se permiten: JPG, PNG, GIF, WebP, PDF, TXT, DOC, DOCX', { duration: 4000, dismissible: true });
+      input.value = '';
+      return;
+    }
 
     const formData = new FormData();
     formData.append('file', selected);
@@ -409,8 +416,9 @@ export class AdminTaskEditComponent implements OnInit {
           }
         });
       },
-      error: () => {
-        this.alertService.update(alertId, { type: 'error', title: 'Error subiendo archivo', message: 'No se pudo subir el archivo de reemplazo', loading: false, dismissible: true, duration: 5000 });
+      error: (httpErr) => {
+        const backendMsg = httpErr?.error?.message || httpErr?.error?.error || 'No se pudo subir el archivo de reemplazo';
+        this.alertService.update(alertId, { type: 'error', title: 'Error subiendo archivo', message: backendMsg, loading: false, dismissible: true, duration: 5000 });
       }
     });
     if (deleteUrl) {
@@ -475,44 +483,6 @@ export class AdminTaskEditComponent implements OnInit {
     return `${mb.toFixed(1)} MB`;
   }
 
-  // ====== Duración estimada ======
-  setPresetDuration(minutes: number): void {
-    this.taskForm.patchValue({
-      estimatedTime: minutes,
-      estimatedTimeDuration: this.formatMinutesToHHMM(minutes)
-    });
-    this.taskForm.get('estimatedTime')?.markAsDirty();
-  }
-
-  onDurationChange(): void {
-    const value = this.taskForm.get('estimatedTimeDuration')?.value as string;
-    const minutes = this.parseDurationToMinutes(value || null);
-    if (minutes != null) {
-      this.taskForm.get('estimatedTime')?.setValue(minutes);
-      this.taskForm.get('estimatedTime')?.markAsDirty();
-    }
-  }
-
-  private parseDurationToMinutes(hhmm?: string | null): number | null {
-    if (!hhmm) return null;
-    const trimmed = hhmm.trim();
-    if (!trimmed) return null;
-    const m = trimmed.match(/^([0-9]{1,2}):([0-9]{2})$/);
-    if (!m) return null;
-    const hours = Number(m[1]);
-    const mins = Number(m[2]);
-    if (Number.isNaN(hours) || Number.isNaN(mins)) return null;
-    return hours * 60 + mins;
-  }
-
-  private formatMinutesToHHMM(minutes?: number | null): string {
-    const m = typeof minutes === 'number' && minutes > 0 ? minutes : 0;
-    const h = Math.floor(m / 60);
-    const mm = m % 60;
-    const hhStr = (h < 10 ? '0' : '') + h;
-    const mmStr = (mm < 10 ? '0' : '') + mm;
-    return `${hhStr}:${mmStr}`;
-  }
 
   getSelectedMembers(): User[] {
     const ids: number[] = this.taskForm.get('assignedUserIds')?.value || [];
@@ -542,12 +512,10 @@ export class AdminTaskEditComponent implements OnInit {
       recurrenceInterval: v.recurrenceInterval || undefined
     } as any;
 
-    // Asegurar estimatedTime en minutos
+    // Asegurar estimatedTime en minutos (solo minutos)
     let minutes: number | null = null;
     if (v.estimatedTime) {
       minutes = Number(v.estimatedTime);
-    } else if (v.estimatedTimeDuration) {
-      minutes = this.parseDurationToMinutes(v.estimatedTimeDuration || null);
     }
     if (minutes && minutes > 0) {
       (updates as any).estimatedTime = minutes;
@@ -610,7 +578,11 @@ export class AdminTaskEditComponent implements OnInit {
             error: () => this.finalizeUpdate(updates, undefined, progressId)
           });
         },
-        error: () => this.finalizeUpdate(updates, undefined, progressId)
+        error: (httpErr) => {
+          const backendMsg = httpErr?.error?.message || httpErr?.error?.error || httpErr?.message || 'No se pudo subir el archivo';
+          this.alertService.error('Error subiendo archivo', backendMsg, { dismissible: true, duration: 5000 });
+          this.finalizeUpdate(updates, undefined, progressId);
+        }
       });
     } else {
       this.finalizeUpdate(updates, undefined, progressId);
@@ -662,7 +634,15 @@ export class AdminTaskEditComponent implements OnInit {
     const folderId = this.existingFiles[0]?.folderId;
     if (folderId) formData.append('folderId', folderId);
     const uploadUrl = `${environment.services.fileUpload}/upload`;
-    return this.http.post<any>(uploadUrl, formData);
+    return this.http.post<any>(uploadUrl, formData).pipe(
+      // Si el backend devuelve success=false en 200, lanzar error para flujo uniforme
+      map((resp: any) => {
+        if (resp && resp.success === false) {
+          throw new Error(resp.message || 'Error subiendo archivo');
+        }
+        return resp;
+      })
+    );
   }
 
   close(): void {

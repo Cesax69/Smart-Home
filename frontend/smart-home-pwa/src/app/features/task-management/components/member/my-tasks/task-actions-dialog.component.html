@@ -117,12 +117,7 @@
                   </div>
                 </div>
                 <div class="file-actions">
-                  <button mat-icon-button 
-                          (click)="previewFile(file)" 
-                          [matTooltip]="canPreviewFile(mime(file)) ? 'Vista previa' : 'Descargar'"
-                          color="primary">
-                    <mat-icon>{{ canPreviewFile(mime(file)) ? 'visibility' : 'download' }}</mat-icon>
-                  </button>
+
                   <button mat-icon-button 
                           (click)="downloadFile(file)" 
                           matTooltip="Descargar"

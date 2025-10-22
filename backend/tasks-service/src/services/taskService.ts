@@ -253,9 +253,9 @@ export class TaskService {
       const client = await databaseService.getConnection();
       try {
         const insertTaskQuery = `
-          INSERT INTO tasks (user_id, title, description, status, priority, category, due_date)
-          VALUES ($1, $2, $3, $4, $5, $6, $7)
-          RETURNING id, user_id AS created_by_id, title, description, category, priority, status, due_date, completed_at, created_at, updated_at
+          INSERT INTO tasks (user_id, title, description, status, priority, category, due_date, estimated_time)
+          VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+          RETURNING id, user_id AS created_by_id, title, description, category, priority, status, due_date, estimated_time, completed_at, created_at, updated_at
         `;
         const insertTaskParams = [
           taskData.createdById,
@@ -264,7 +264,8 @@ export class TaskService {
           this.mapAppStatusToDb(status),
           priority,
           taskData.category,
-          taskData.dueDate || null
+          taskData.dueDate || null,
+          (typeof taskData.estimatedTime === 'number' ? taskData.estimatedTime : null)
         ];
 
         const { rows: taskRows } = await client.query(insertTaskQuery, insertTaskParams);
@@ -330,6 +331,7 @@ export class TaskService {
             t.priority,
             t.status,
             t.due_date,
+            t.estimated_time,
             t.completed_at,
             t.created_at,
             t.updated_at,
@@ -402,6 +404,7 @@ export class TaskService {
             t.priority,
             t.status,
             t.due_date,
+            t.estimated_time,
             t.completed_at,
             t.created_at,
             t.updated_at,
@@ -463,6 +466,7 @@ export class TaskService {
             t.priority,
             t.status,
             t.due_date,
+            t.estimated_time,
             t.completed_at,
             t.created_at,
             t.updated_at,
@@ -522,6 +526,7 @@ export class TaskService {
             t.priority,
             t.status,
             t.due_date,
+            t.estimated_time,
             t.completed_at,
             t.created_at,
             t.updated_at,
@@ -580,6 +585,7 @@ export class TaskService {
             t.priority,
             t.status,
             t.due_date,
+            t.estimated_time,
             t.completed_at,
             t.created_at,
             t.updated_at,
@@ -720,6 +726,7 @@ export class TaskService {
         if (updateData.priority !== undefined) { fields.push(`priority = $${idx++}`); params.push(updateData.priority); }
         if (updateData.status !== undefined) { fields.push(`status = $${idx++}`); params.push(this.mapAppStatusToDb(updateData.status)); }
         if (updateData.dueDate !== undefined) { fields.push(`due_date = $${idx++}`); params.push(updateData.dueDate || null); }
+        if (updateData.estimatedTime !== undefined) { fields.push(`estimated_time = $${idx++}`); params.push(updateData.estimatedTime || null); }
         if (updateData.completedAt !== undefined) { fields.push(`completed_at = $${idx++}`); params.push(updateData.completedAt || null); }
         if (updateData.progress !== undefined) {
           const p = Math.max(0, Math.min(100, Number(updateData.progress)));
@@ -729,7 +736,7 @@ export class TaskService {
 
         fields.push(`updated_at = NOW()`);
 
-        const updateQuery = `UPDATE tasks SET ${fields.join(', ')} WHERE id = $${idx} RETURNING id, user_id AS created_by_id, title, description, category, priority, status, due_date, completed_at, created_at, updated_at, progress`;
+        const updateQuery = `UPDATE tasks SET ${fields.join(', ')} WHERE id = $${idx} RETURNING id, user_id AS created_by_id, title, description, category, priority, status, due_date, estimated_time, completed_at, created_at, updated_at, progress`;
         params.push(id);
 
         // LOGS DE DEPURACIÓN PARA EL PROGRESO
@@ -810,7 +817,7 @@ export class TaskService {
       }
       const client = await databaseService.getConnection();
       try {
-        const { rows } = await client.query(`SELECT id, user_id AS created_by_id, title, description, category, priority, status, due_date, completed_at, created_at, updated_at FROM tasks WHERE id = $1`, [id]);
+        const { rows } = await client.query(`SELECT id, user_id AS created_by_id, title, description, category, priority, status, due_date, estimated_time, completed_at, created_at, updated_at FROM tasks WHERE id = $1`, [id]);
         if (!rows.length) return false;
         const dbTaskBefore: DatabaseTask = rows[0] as any;
 
@@ -1174,6 +1181,7 @@ export class TaskService {
             t.priority,
             t.status,
             t.due_date,
+            t.estimated_time,
             t.completed_at,
             t.created_at,
             t.updated_at,
@@ -1228,6 +1236,7 @@ export class TaskService {
             t.priority,
             t.status,
             t.due_date,
+            t.estimated_time,
             t.completed_at,
             t.created_at,
             t.updated_at,

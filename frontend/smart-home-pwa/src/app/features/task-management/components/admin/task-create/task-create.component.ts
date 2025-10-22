@@ -23,7 +23,7 @@ import { AuthService } from '../../../../../services/auth.service';
 import { TaskService } from '../../../services/task.service';
 import { User } from '../../../../../models/user.model';
 import { Task, CreateTaskRequest } from '../../../models/task.model';
-import { forkJoin, of, switchMap, catchError } from 'rxjs';
+import { forkJoin, of, switchMap, catchError, map } from 'rxjs';
 import { HttpClient, HttpClientModule } from '@angular/common/http';
 import { environment } from '../../../../../../environments/environment';
 import { FormValidators } from '../../../../../shared/validators/form-validators';
@@ -125,7 +125,6 @@ export class TaskCreateComponent implements OnInit {
         FormValidators.futureDateValidator()
       ]],
       estimatedTime: ['', [Validators.min(1), Validators.max(480)]], // minutos
-      estimatedTimeDuration: [''], // HH:MM para el selector de tiempo
       reward: [''],
       isRecurring: [false],
       recurrenceInterval: [''],
@@ -312,41 +311,15 @@ export class TaskCreateComponent implements OnInit {
       'startDate': 'La fecha de inicio',
       'dueDate': 'La fecha límite',
       'estimatedTime': 'El tiempo estimado',
-      'estimatedTimeDuration': 'El tiempo estimado',
       'reward': 'La recompensa',
       'recurrenceInterval': 'El intervalo de recurrencia'
     };
     return fieldNames[field] || field;
   }
 
-  onDurationChange(): void {
-    const value = this.taskForm.get('estimatedTimeDuration')?.value as string;
-    const minutes = this.parseDurationToMinutes(value);
-    if (minutes != null) {
-      this.taskForm.get('estimatedTime')?.setValue(minutes);
-      this.taskForm.get('estimatedTime')?.markAsDirty();
-    }
-  }
 
-  private parseDurationToMinutes(value: string | null): number | null {
-    if (!value) return null;
-    const [hh, mm] = value.split(':').map(v => parseInt(v, 10));
-    if (isNaN(hh) || isNaN(mm)) return null;
-    return hh * 60 + mm;
-  }
 
-  setPresetDuration(minutes: number): void {
-    this.taskForm.get('estimatedTime')?.setValue(minutes);
-    this.taskForm.get('estimatedTime')?.markAsDirty();
-    const hhmm = this.formatMinutesToHHMM(minutes);
-    this.taskForm.get('estimatedTimeDuration')?.setValue(hhmm);
-  }
 
-  private formatMinutesToHHMM(minutes: number): string {
-    const hh = Math.floor(minutes / 60).toString().padStart(2, '0');
-    const mm = (minutes % 60).toString().padStart(2, '0');
-    return `${hh}:${mm}`;
-  }
 
   onSubmit(): void {
     if (this.taskForm.valid && !this.isSubmitting()) {
@@ -366,10 +339,6 @@ export class TaskCreateComponent implements OnInit {
         ? formValue.assignedTo
         : (formValue.assignedTo != null ? [formValue.assignedTo] : []);
 
-      // Asegurar que estimatedTime esté en minutos si se usó HH:MM
-      if (!formValue.estimatedTime && formValue.estimatedTimeDuration) {
-        formValue.estimatedTime = this.parseDurationToMinutes(formValue.estimatedTimeDuration) || '';
-      }
 
       this.uploadSelectedFiles()
         .pipe(
@@ -407,8 +376,9 @@ export class TaskCreateComponent implements OnInit {
             );
           }),
           catchError((error: any) => {
+            const backendMsg = error?.error?.message || error?.error?.error || error?.message || 'No se pudo subir el archivo.';
             console.error('Error subiendo archivo:', error);
-            this.alertService.update(progressId, { type: 'error', loading: false, title: 'Error subiendo archivo', message: 'No se pudo subir el archivo. La tarea no se creó.', duration: 5000 });
+            this.alertService.update(progressId, { type: 'error', loading: false, title: 'Error subiendo archivo', message: backendMsg, duration: 5000, dismissible: true });
             this.isSubmitting.set(false);
             throw error;
           })
@@ -452,7 +422,14 @@ export class TaskCreateComponent implements OnInit {
     formData.append('title', title);
 
     const uploadUrl = `${environment.services.fileUpload}/upload`;
-    return this.http.post<any>(uploadUrl, formData);
+    return this.http.post<any>(uploadUrl, formData).pipe(
+      map((resp: any) => {
+        if (resp && resp.success === false) {
+          throw new Error(resp.message || 'Error subiendo archivo');
+        }
+        return resp;
+      })
+    );
   }
 
   onCancel(): void {
@@ -508,7 +485,6 @@ export class TaskCreateComponent implements OnInit {
       startDate: null,
       dueDate: null,
       estimatedTime: '',
-      estimatedTimeDuration: '',
       reward: '',
       isRecurring: false,
       recurrenceInterval: '',
