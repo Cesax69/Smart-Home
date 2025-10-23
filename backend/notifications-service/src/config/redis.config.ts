@@ -10,10 +10,11 @@ export interface RedisConfig {
 }
 
 export const redisConfig: RedisConfig = {
-  host: process.env.REDIS_HOST || 'redis-notifications',
-  port: parseInt(process.env.REDIS_PORT || '6379'),
-  password: process.env.REDIS_PASSWORD || 'smartHomeRedis2024',
-  db: 0,
+  // Prefer localhost as safe default for dev; override via env in Docker
+  host: process.env.REDIS_HOST ?? 'localhost',
+  port: parseInt(process.env.REDIS_PORT ?? '6379'),
+  password: process.env.REDIS_PASSWORD ?? 'smartHomeRedis2024',
+  db: parseInt(process.env.REDIS_DB ?? '0'),
   retryDelayOnFailover: 100,
   maxRetriesPerRequest: 3,
 };
@@ -25,7 +26,18 @@ let redisSubscriber: Redis | null = null;
 
 export const getRedisInstance = (): Redis => {
   if (!redisInstance) {
-    redisInstance = new Redis(redisConfig);
+    const redisOptions: any = {
+      host: redisConfig.host,
+      port: redisConfig.port,
+      password: redisConfig.password,
+      db: redisConfig.db,
+      maxRetriesPerRequest: redisConfig.maxRetriesPerRequest,
+      enableOfflineQueue: false,
+      connectTimeout: 3000,
+      retryStrategy: (times: number) => Math.min(times * 200, 2000)
+    };
+
+    redisInstance = new Redis(redisOptions);
     
     redisInstance.on('connect', () => {
       console.log('✅ Redis instance connected successfully');
@@ -41,7 +53,18 @@ export const getRedisInstance = (): Redis => {
 
 export const getRedisPublisher = (): Redis => {
   if (!redisPublisher) {
-    redisPublisher = new Redis(redisConfig);
+    const redisOptions: any = {
+      host: redisConfig.host,
+      port: redisConfig.port,
+      password: redisConfig.password,
+      db: redisConfig.db,
+      maxRetriesPerRequest: redisConfig.maxRetriesPerRequest,
+      enableOfflineQueue: false,
+      connectTimeout: 3000,
+      retryStrategy: (times: number) => Math.min(times * 200, 2000)
+    };
+
+    redisPublisher = new Redis(redisOptions);
     
     redisPublisher.on('connect', () => {
       console.log('✅ Redis publisher connected successfully');
@@ -57,7 +80,18 @@ export const getRedisPublisher = (): Redis => {
 
 export const getRedisSubscriber = (): Redis => {
   if (!redisSubscriber) {
-    redisSubscriber = new Redis(redisConfig);
+    const redisOptions: any = {
+      host: redisConfig.host,
+      port: redisConfig.port,
+      password: redisConfig.password,
+      db: redisConfig.db,
+      maxRetriesPerRequest: redisConfig.maxRetriesPerRequest,
+      enableOfflineQueue: false,
+      connectTimeout: 3000,
+      retryStrategy: (times: number) => Math.min(times * 200, 2000)
+    };
+
+    redisSubscriber = new Redis(redisOptions);
     
     redisSubscriber.on('connect', () => {
       console.log('✅ Redis subscriber connected successfully');

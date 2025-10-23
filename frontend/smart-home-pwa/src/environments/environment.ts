@@ -5,10 +5,10 @@ export const environment = {
   services: {
     auth: 'http://localhost:3000/api',
     tasks: 'http://localhost:3000/api',
-    notifications: 'http://localhost:3000/api',
+    notifications: 'http://localhost:3004',
     fileUpload: 'http://localhost:3000/api/files',
     aiQuery: 'http://localhost:3006/api/ai-query'
   },
-  // Conectar Socket.IO a través del API Gateway (usa polling si WebSocket no está proxyado)
-  notificationsSocketUrl: 'http://localhost:3000'
+  // Conectar Socket.IO directamente al microservicio de notificaciones en desarrollo
+  notificationsSocketUrl: 'http://localhost:3004'
 };

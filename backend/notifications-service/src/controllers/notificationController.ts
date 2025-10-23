@@ -49,6 +49,7 @@ export class NotificationController {
         markAllRead: "PUT /notifications/user/:userId/read-all",
         unreadCount: "GET /notifications/:userId/unread-count",
         deleteNotification: "DELETE /notifications/:notificationId",
+        deleteAllByUser: "DELETE /notifications/user/:userId",
         health: "GET /health",
         info: "GET /"
       },
@@ -258,6 +259,38 @@ export class NotificationController {
 
     } catch (error) {
       console.error('❌ Error eliminando notificación:', error);
+      res.status(500).json({
+        success: false,
+        message: "Error interno del servidor",
+        timestamp: new Date().toISOString()
+      });
+    }
+  }
+
+  static async deleteAllNotificationsForUser(req: Request, res: Response): Promise<void> {
+    try {
+      const userId = parseInt(req.params.userId || '0');
+
+      if (isNaN(userId)) {
+        res.status(400).json({
+          success: false,
+          message: "ID de usuario inválido",
+          timestamp: new Date().toISOString()
+        });
+        return;
+      }
+
+      const affected = await notificationPersistenceService.deleteAllForUser(userId);
+
+      res.status(200).json({
+        success: true,
+        message: `${affected} notificaciones eliminadas para el usuario`,
+        data: { affectedCount: affected },
+        timestamp: new Date().toISOString()
+      });
+
+    } catch (error) {
+      console.error('❌ Error eliminando todas las notificaciones del usuario:', error);
       res.status(500).json({
         success: false,
         message: "Error interno del servidor",

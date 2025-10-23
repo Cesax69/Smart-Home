@@ -130,11 +130,12 @@ export class TaskListComponent implements OnInit {
     let filtered = this.tasks();
 
     if (this.searchTerm) {
-      const term = this.searchTerm.toLowerCase();
-      filtered = filtered.filter(task => 
-        task.title.toLowerCase().includes(term) || 
-        task.description.toLowerCase().includes(term)
-      );
+      const term = (this.searchTerm || '').toLowerCase();
+      filtered = filtered.filter(task => {
+        const title = (task.title ?? '').toLowerCase();
+        const description = (task.description ?? '').toLowerCase();
+        return title.includes(term) || description.includes(term);
+      });
     }
 
     if (this.statusFilter) {
@@ -425,9 +426,6 @@ export class TaskListComponent implements OnInit {
       if (result) {
         // Si se creó una tarea, recargar la lista
         this.loadTasks();
-        this.alerts.success('Tarea creada exitosamente', undefined, { 
-          duration: 3000
-        });
       }
     });
   }

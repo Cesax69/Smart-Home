@@ -1,4 +1,4 @@
-import { Injectable, Inject, PLATFORM_ID } from '@angular/core';
+import { Injectable, Inject, PLATFORM_ID, NgZone } from '@angular/core';
 import { isPlatformBrowser } from '@angular/common';
 import { BehaviorSubject, Observable } from 'rxjs';
 import { io, Socket } from 'socket.io-client';
@@ -8,7 +8,7 @@ import { User } from '../models/user.model';
 
 export interface Notification {
   id: string;
-  type: 'task_completed' | 'task_assigned' | 'task_reminder' | 'system_alert' | 'comment_added';
+  type: 'task_completed' | 'task_assigned' | 'task_reminder' | 'system_alert' | 'comment_added' | 'task_updated';
   title: string;
   message: string;
   timestamp: Date;
@@ -36,10 +36,11 @@ export class NotificationService {
 
   constructor(
     @Inject(PLATFORM_ID) private platformId: Object,
-    private authService: AuthService
+    private authService: AuthService,
+    private ngZone: NgZone
   ) {
     console.log('🚀 NotificationService initialized');
-    
+
     // Only initialize if we're in the browser
     if (isPlatformBrowser(this.platformId)) {
       this.initializeService();
@@ -49,27 +50,49 @@ export class NotificationService {
   private initializeService(): void {
     this.currentUserId = this.getCurrentUserId();
     console.log('👤 Current user ID:', this.currentUserId);
-    
+
+    // Suscribir SIEMPRE a cambios de autenticación (login/logout/cambio de usuario)
+    this.authService.currentUser$.subscribe((user: User | null) => {
+      const newUserId = user?.id ? user.id.toString() : null;
+
+      if (!newUserId) {
+        // Logout: desconectar y limpiar estado
+        if (this.currentUserId !== null) {
+          console.log('👤 User logged out, disconnecting and clearing notifications');
+        }
+        this.currentUserId = null;
+        this.disconnect();
+        this.notificationsSubject.next([]);
+        this.updateUnreadCount();
+        return;
+      }
+
+      if (this.currentUserId !== newUserId) {
+        // Cambio de usuario o primer login: limpiar y reconectar
+        console.log('👤 Switching user, reconnecting notifications:', newUserId);
+        this.currentUserId = newUserId;
+        // Evitar mezcla de notificaciones entre sesiones
+        this.notificationsSubject.next([]);
+        this.updateUnreadCount();
+        // Reunirse a la sala correcta
+        this.disconnect();
+        this.connectToNotificationService();
+        this.loadNotificationsFromBackend().catch(err => console.error('❌ Error loading notifications after switch:', err));
+      } else {
+        // Mismo usuario: asegurar conexión y cargar si fuese necesario
+        if (!this.isConnected()) {
+          this.connectToNotificationService();
+          this.loadNotificationsFromBackend().catch(err => console.error('❌ Error loading notifications after reconnect:', err));
+        }
+      }
+    });
+
+    // Si ya hay usuario al iniciar el servicio, conectar y cargar inmediatamente
     if (this.currentUserId) {
       this.connectToNotificationService();
-      // Load notifications from backend for the current user
       this.loadNotificationsFromBackend().catch(err => console.error('❌ Error initial loading notifications:', err));
     } else {
-      console.warn('⚠️ No user ID found, notifications will not work');
-      // Subscribe to auth changes to connect when user logs in
-      this.authService.currentUser$.subscribe((user: User | null) => {
-        if (user && user.id) {
-          this.currentUserId = user.id.toString();
-          console.log('👤 User logged in, connecting to notifications:', this.currentUserId);
-          this.connectToNotificationService();
-          this.loadNotificationsFromBackend().catch(err => console.error('❌ Error loading notifications after login:', err));
-        } else if (!user) {
-          console.log('👤 User logged out, disconnecting from notifications');
-          this.disconnect();
-          this.notificationsSubject.next([]);
-          this.updateUnreadCount();
-        }
-      });
+      console.warn('⚠️ No user ID found at init; waiting for login to connect');
     }
   }
 
@@ -110,7 +133,7 @@ export class NotificationService {
   private connectToNotificationService(): void {
     try {
       console.log('🔌 Attempting to connect to notifications service at:', this.SOCKET_URL);
-      
+
       this.socket = io(this.SOCKET_URL, {
         transports: ['websocket', 'polling'],
         timeout: 10000,
@@ -122,23 +145,25 @@ export class NotificationService {
 
       this.socket.on('connect', () => {
         console.log('✅ Connected to notifications service');
-        this.connectionStatusSubject.next(true);
-        
-        // Join user-specific room for notifications
-        if (this.currentUserId) {
-          this.socket?.emit('join_user_room', { userId: this.currentUserId });
-          console.log(`👤 Joined user room for user ${this.currentUserId}`);
-        }
+        this.ngZone.run(() => {
+          this.connectionStatusSubject.next(true);
+
+          // Join user-specific room for notifications
+          if (this.currentUserId) {
+            this.socket?.emit('join_user_room', { userId: this.currentUserId });
+            console.log(`👤 Joined user room for user ${this.currentUserId}`);
+          }
+        });
       });
 
       this.socket.on('disconnect', (reason) => {
         console.log('❌ Disconnected from notifications service. Reason:', reason);
-        this.connectionStatusSubject.next(false);
+        this.ngZone.run(() => this.connectionStatusSubject.next(false));
       });
 
       this.socket.on('connect_error', (error) => {
         console.error('❌ Connection error:', error);
-        this.connectionStatusSubject.next(false);
+        this.ngZone.run(() => this.connectionStatusSubject.next(false));
       });
 
       this.socket.on('connection_confirmed', (data) => {
@@ -148,15 +173,14 @@ export class NotificationService {
       // Listen for new notifications
       this.socket.on('new_notification', (notification: any) => {
         console.log('📱 New notification received:', notification);
-        this.addNotification(notification);
+        this.ngZone.run(() => this.addNotification(notification));
       });
 
       // Listen for notification updates
       this.socket.on('notification_update', (data: any) => {
         console.log('🔄 Notification update received:', data);
-        this.updateNotification(data.notificationId, data.updates);
+        this.ngZone.run(() => this.updateNotification(data.notificationId, data.updates));
       });
-
     } catch (error) {
       console.error('❌ Error connecting to notifications service:', error);
       this.connectionStatusSubject.next(false);
@@ -180,17 +204,19 @@ export class NotificationService {
 
     const currentNotifications = this.notificationsSubject.value;
     const updatedNotifications = [notification, ...currentNotifications];
-    
+
     // Keep only the last 50 notifications
     if (updatedNotifications.length > 50) {
       updatedNotifications.splice(50);
     }
 
-    this.notificationsSubject.next(updatedNotifications);
-    this.updateUnreadCount();
+    this.ngZone.run(() => {
+      this.notificationsSubject.next(updatedNotifications);
+      this.updateUnreadCount();
 
-    // Show browser notification if permission is granted
-    this.showBrowserNotification(notification);
+      // Show browser notification if permission is granted
+      this.showBrowserNotification(notification);
+    });
   }
 
   /**
@@ -198,14 +224,16 @@ export class NotificationService {
    */
   private updateNotification(notificationId: string, updates: Partial<Notification>): void {
     const currentNotifications = this.notificationsSubject.value;
-    const updatedNotifications = currentNotifications.map(notification => 
-      notification.id === notificationId 
+    const updatedNotifications = currentNotifications.map(notification =>
+      notification.id === notificationId
         ? { ...notification, ...updates }
         : notification
     );
 
-    this.notificationsSubject.next(updatedNotifications);
-    this.updateUnreadCount();
+    this.ngZone.run(() => {
+      this.notificationsSubject.next(updatedNotifications);
+      this.updateUnreadCount();
+    });
   }
 
   /**
@@ -213,8 +241,8 @@ export class NotificationService {
    */
   markAsRead(notificationId: string): void {
     const currentNotifications = this.notificationsSubject.value;
-    const updatedNotifications = currentNotifications.map(notification => 
-      notification.id === notificationId 
+    const updatedNotifications = currentNotifications.map(notification =>
+      notification.id === notificationId
         ? { ...notification, read: true }
         : notification
     );
@@ -231,7 +259,7 @@ export class NotificationService {
    */
   markAllAsRead(): void {
     const currentNotifications = this.notificationsSubject.value;
-    const updatedNotifications = currentNotifications.map(notification => 
+    const updatedNotifications = currentNotifications.map(notification =>
       ({ ...notification, read: true })
     );
 
@@ -271,7 +299,7 @@ export class NotificationService {
       const response = await fetch(`${this.API_BASE}/notifications/${this.currentUserId}?limit=${limit}&offset=${offset}`, {
         headers: this.getAuthHeaders()
       });
-      
+
       if (response.ok) {
         const result = await response.json();
         if (result.success && result.data) {
@@ -280,19 +308,21 @@ export class NotificationService {
             type: notif.type,
             title: notif.title,
             message: notif.message,
-            timestamp: new Date(notif.created_at),
-            read: notif.is_read,
-            userId: notif.user_id.toString(),
+            timestamp: new Date(notif.created_at || notif.timestamp || Date.now()),
+            read: Array.isArray(notif.readBy) ? notif.readBy.includes(parseInt(this.currentUserId || '0')) : false,
+            userId: (notif.user_id ?? parseInt(this.currentUserId || '0')).toString(),
             metadata: notif.metadata
           }));
 
           // Merge with existing notifications, avoiding duplicates
           const currentNotifications = this.notificationsSubject.value;
           const mergedNotifications = this.mergeNotifications(currentNotifications, backendNotifications);
-          
-          this.notificationsSubject.next(mergedNotifications);
-          this.updateUnreadCount();
-          
+
+          this.ngZone.run(() => {
+            this.notificationsSubject.next(mergedNotifications);
+            this.updateUnreadCount();
+          });
+
           console.log(`📋 Loaded ${backendNotifications.length} notifications from backend`);
         }
       }
@@ -374,7 +404,7 @@ export class NotificationService {
       const response = await fetch(`${this.API_BASE}/notifications/${this.currentUserId}/unread-count`, {
         headers: this.getAuthHeaders()
       });
-      
+
       if (response.ok) {
         const result = await response.json();
         if (result.success && result.data) {
@@ -384,7 +414,7 @@ export class NotificationService {
     } catch (error) {
       console.error('❌ Error getting unread count from backend:', error);
     }
-    
+
     return 0;
   }
 
@@ -393,7 +423,7 @@ export class NotificationService {
    */
   private mergeNotifications(current: Notification[], backend: Notification[]): Notification[] {
     const merged = [...current];
-    
+
     backend.forEach(backendNotif => {
       const exists = merged.find(notif => notif.id === backendNotif.id);
       if (!exists) {
@@ -407,10 +437,24 @@ export class NotificationService {
       .slice(0, 50);
   }
 
-  /**
-   * Clear all notifications
-   */
-  clearAllNotifications(): void {
+  async clearAllNotifications(): Promise<void> {
+    if (this.currentUserId) {
+      try {
+        const response = await fetch(`${this.API_BASE}/notifications/user/${this.currentUserId}`, {
+          method: 'DELETE',
+          headers: this.getAuthHeaders(true)
+        });
+        if (response.ok) {
+          const result = await response.json().catch(() => null);
+          console.log(`✅ Notificaciones eliminadas en backend para usuario ${this.currentUserId}`, result?.data || {});
+        } else {
+          const text = await response.text().catch(() => '');
+          console.warn('❌ Error borrando todas las notificaciones en backend:', text);
+        }
+      } catch (error) {
+        console.error('❌ Error sincronizando borrado masivo con backend:', error);
+      }
+    }
     this.notificationsSubject.next([]);
     this.unreadCountSubject.next(0);
   }
@@ -483,7 +527,7 @@ export class NotificationService {
    */
   setCurrentUserId(userId: string): void {
     this.currentUserId = userId;
-    
+
     // Rejoin user room if socket is connected
     if (this.socket?.connected && this.currentUserId) {
       this.socket.emit('join_user_room', { userId: this.currentUserId });
@@ -545,12 +589,47 @@ export class NotificationService {
         const errorText = await response.text().catch(() => '');
         console.warn('Notificación no encolada correctamente:', errorText);
       }
-      
+
       // No espejar localmente: la entrega vendrá por Socket.IO
       return ok;
     } catch (error) {
       console.error('❌ Error creando notificación en cola Redis:', error);
       // No agregar a estado local: evitar desincronización; confiar en Redis/WebSocket
+      return false;
+    }
+  }
+
+  // Nuevo: enviar notificación de prueba a /test del microservicio
+  public async sendTestNotification(message: string = '🔔 Notificación de prueba desde el cliente'): Promise<boolean> {
+    if (!this.currentUserId) {
+      console.warn('⚠️ No hay usuario actual para enviar prueba');
+      return false;
+    }
+
+    const payload = {
+      userId: this.currentUserId,
+      recipients: [this.currentUserId],
+      type: 'system_alert',
+      message
+    };
+
+    try {
+      const response = await fetch(`${this.API_BASE}/test`, {
+        method: 'POST',
+        headers: this.getAuthHeaders(true),
+        body: JSON.stringify(payload)
+      });
+
+      if (!response.ok) {
+        const text = await response.text().catch(() => '');
+        console.warn('❌ Error enviando notificación de prueba:', text);
+        return false;
+      }
+
+      console.log('✅ Notificación de prueba encolada');
+      return true;
+    } catch (error) {
+      console.error('❌ Excepción enviando notificación de prueba:', error);
       return false;
     }
   }

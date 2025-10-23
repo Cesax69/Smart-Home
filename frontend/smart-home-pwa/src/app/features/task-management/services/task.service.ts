@@ -85,9 +85,11 @@ export class TaskService {
           return {
             tasks: tasks.map(task => ({
               ...task,
+              title: (task as any).title ?? '',
+              description: (task as any).description ?? '',
               status: this.mapStatusFromBackend(task.status),
               priority: this.mapPriorityFromBackend((task as any).priority),
-              assignedTo: (task as any).assignedUserId || task.assignedTo // Mapear assignedUserId a assignedTo
+              assignedTo: (task as any).assignedUserId || task.assignedTo
             })),
             total: response.total || tasks.length
           };
@@ -308,9 +310,11 @@ export class TaskService {
           const tasks = response.data || [];
           return tasks.map(task => ({
             ...task,
+            title: (task as any).title ?? '',
+            description: (task as any).description ?? '',
             status: this.mapStatusFromBackend(task.status),
             priority: this.mapPriorityFromBackend((task as any).priority),
-            assignedTo: (task as any).assignedUserId || task.assignedTo // Mapear assignedUserId a assignedTo
+            assignedTo: (task as any).assignedUserId || task.assignedTo
           }));
         }),
         catchError((error) => {

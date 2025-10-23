@@ -103,9 +103,9 @@ export class TaskService {
           message = `Evento de tarea: ${eventType}`;
       }
 
-      // Destinatarios: todos los asignados, o el asignado único si existe
+      // Destinatarios: únicos (sin duplicados) de los asignados, o el asignado único si existe
       const recipients: string[] = Array.isArray(taskData.assignedUserIds) && taskData.assignedUserIds.length > 0
-        ? taskData.assignedUserIds.filter(Boolean).map(id => id.toString())
+        ? Array.from(new Set(taskData.assignedUserIds.filter(Boolean))).map(id => id.toString())
         : (taskData.assignedUserId ? [taskData.assignedUserId.toString()] : []);
 
       const queuePayload = {
@@ -792,11 +792,8 @@ export class TaskService {
         } as any;
 
         const updatedTask = this.mapDatabaseTaskToTask(dbTask);
-        const notificationUserId = (updateData as any).userId || updatedTask.createdById;
-
--        this.publishEvent('TareaActualizada', updatedTask, notificationUserId).catch(err => console.warn('Fallo al publicar evento TareaActualizada:', err));
         const actorUserId = (updateData as any).userId || updatedTask.createdById;
-+        this.publishEvent('TareaActualizada', updatedTask, actorUserId).catch(err => console.warn('Fallo al publicar evento TareaActualizada:', err));
+        // Eliminado para evitar doble notificación: el controlador enviará 'task_edited'
         return updatedTask;
       } finally {
         client.release();

@@ -326,6 +326,17 @@ export class TaskController {
         return;
       }
 
+      // Determinar transición a 'completada' comparando estado previo
+      const previousTask = await this.taskService.getTaskById(taskId);
+      const wasCompleted = previousTask?.status === 'completada';
+      const isTransitionToCompleted = updateData.status === 'completada' && !wasCompleted;
+
+      // Solo establecer completedAt/progress si hay transición real
+      if (isTransitionToCompleted) {
+        (updateData as any).completedAt = new Date();
+        (updateData as any).progress = 100;
+      }
+
       const updatedTask = await this.taskService.updateTask(taskId, updateData);
 
       if (!updatedTask) {
@@ -336,18 +347,29 @@ export class TaskController {
         return;
       }
 
-      // Disparar notificación de actualización de tarea (edición de información)
-      try {
-        const actorUserId = Number((req.body as any)?.userId ?? updatedTask.createdById);
-        await this.notificationService.sendTaskUpdatedNotification(updatedTask, actorUserId, { change: 'task_edited' });
-      } catch (notificationError) {
-        console.warn('⚠️ Failed to send task updated notification:', notificationError);
+      // Enviar notificación SOLO si hubo transición a 'completada'
+      const transitionedToCompleted = !wasCompleted && updatedTask.status === 'completada';
+      if (transitionedToCompleted) {
+        try {
+          const completedByUserId = Number((req.body as any)?.userId ?? updatedTask.assignedUserId ?? updatedTask.createdById);
+          await this.notificationService.sendTaskCompletedNotification(updatedTask, completedByUserId);
+        } catch (notificationError) {
+          console.warn('⚠️ Failed to send task completion notification from updateTask:', notificationError);
+        }
+      } else {
+        // Enviar notificación de edición general
+        try {
+          const actorUserId = Number((req.body as any)?.userId ?? updatedTask.assignedUserId ?? updatedTask.createdById);
+          await this.notificationService.sendTaskUpdatedNotification(updatedTask, actorUserId, { change: 'task_edited' });
+        } catch (notificationError) {
+          console.warn('⚠️ Failed to send task updated notification from updateTask:', notificationError);
+        }
       }
 
       res.status(200).json({
         success: true,
         data: updatedTask,
-        message: 'Tarea actualizada exitosamente'
+        message: (transitionedToCompleted ? 'Tarea marcada como completada' : 'Tarea actualizada exitosamente')
       } as TaskResponse);
 
     } catch (error) {
@@ -750,11 +772,15 @@ export class TaskController {
         return;
       }
 
-      const updatedTask = await this.taskService.updateTask(id, { 
-        status: 'completada',
-        completedAt: new Date(),
-        progress: 100
-      });
+      // Evaluar estado previo para evitar re-notificar
+      const previousTask = await this.taskService.getTaskById(id);
+      const wasCompleted = previousTask?.status === 'completada';
+
+      const updatePayload: UpdateTaskRequest = wasCompleted
+        ? { status: 'completada' }
+        : { status: 'completada', completedAt: new Date(), progress: 100 };
+
+      const updatedTask = await this.taskService.updateTask(id, updatePayload);
 
       if (!updatedTask) {
         res.status(404).json({
@@ -764,28 +790,26 @@ export class TaskController {
         return;
       }
 
-      console.log('✅ Task updated successfully:', {
-        id: updatedTask.id,
-        title: updatedTask.title,
-        status: updatedTask.status,
-        assignedUserId: updatedTask.assignedUserId
-      });
-
-      // Send notification for task completion
-      try {
-        // Get user ID from request body or default to the assigned user
-        const completedByUserId = req.body.userId || updatedTask.assignedUserId?.toString() || '1'; // Default to '1' if not available
-        
-        console.log('📧 Sending notification with:');
-        console.log('  - completedByUserId:', completedByUserId);
-        console.log('  - req.body.userId:', req.body.userId);
-        console.log('  - updatedTask.assignedUserId:', updatedTask.assignedUserId);
-        
-        await this.notificationService.sendTaskCompletedNotification(updatedTask, completedByUserId);
-        console.log('✅ Notification sent successfully');
-      } catch (notificationError) {
-        console.warn('⚠️ Failed to send task completion notification:', notificationError);
-        // Continue with the response even if notification fails
+      // Enviar notificación solo si hubo transición a 'completada'
+      const transitionedToCompleted = !wasCompleted && updatedTask.status === 'completada';
+      if (transitionedToCompleted) {
+        try {
+          // Get user ID from request body or default to the assigned user (numeric)
+          const completedByUserId = Number(req.body.userId ?? updatedTask.assignedUserId ?? 1);
+          
+          console.log('📧 Sending completion notification with:');
+          console.log('  - completedByUserId:', completedByUserId);
+          console.log('  - req.body.userId:', req.body.userId);
+          console.log('  - updatedTask.assignedUserId:', updatedTask.assignedUserId);
+          
+          await this.notificationService.sendTaskCompletedNotification(updatedTask, completedByUserId);
+          console.log('✅ Notification sent successfully');
+        } catch (notificationError) {
+          console.warn('⚠️ Failed to send task completion notification:', notificationError);
+          // Continue with the response even if notification fails
+        }
+      } else {
+        console.log('ℹ️ No completion notification sent (no status transition).');
       }
 
       res.status(200).json({

@@ -2,20 +2,21 @@ import { RedisService } from './redis.service';
 import { NotificationJob } from './notification.queue.service';
 
 export interface NotificationRecord {
-  id?: number;
+  id?: number | undefined;
   notification_id: string;
   user_id: number;
   type: string;
   title: string;
   message: string;
   metadata: any;
-  created_at?: Date | string;
-  updated_at?: Date | string;
-  expires_at?: Date | string;
+  created_at?: Date | string | undefined;
+  updated_at?: Date | string | undefined;
+  expires_at?: Date | string | undefined;
   // nuevos campos para esquema de una sola colección
-  recipients?: number[];
-  readBy?: number[];
-  timestamp?: Date | string;
+  recipients?: number[] | undefined;
+  readBy?: number[] | undefined;
+  timestamp?: Date | string | undefined;
+  deletedBy?: number[] | undefined;
 }
 
 export interface NotificationHistoryRecord {
@@ -38,9 +39,8 @@ export class NotificationPersistenceService {
     try {
       const userId = parseInt(notification.data.userId);
 
-      // construir recipients con userId principal y opcionales
+      // construir recipients SOLO desde data.recipients y bossUserId (no incluir al autor por defecto)
       const recipients: number[] = [];
-      if (!isNaN(userId)) recipients.push(userId);
       if (Array.isArray(notification.data.recipients)) {
         for (const r of notification.data.recipients) {
           const rid = parseInt(r as any);
@@ -61,8 +61,10 @@ export class NotificationPersistenceService {
         metadata: notification.data.metadata || {},
         created_at: notification.createdAt,
         timestamp: notification.createdAt,
-        recipients,
-        readBy: []
+        // Importante: si no hay recipients explícitos, dejar undefined para que el filtro use user_id
+        recipients: recipients.length ? recipients : undefined,
+        readBy: [],
+        deletedBy: []
       };
       if (notification.scheduledFor) {
         record.expires_at = notification.scheduledFor;
@@ -91,7 +93,8 @@ export class NotificationPersistenceService {
         const exp = rec.expires_at ? new Date(rec.expires_at as any).getTime() : Number.MAX_SAFE_INTEGER;
         const isRecipient = Array.isArray(rec.recipients) ? rec.recipients.includes(userId) : rec.user_id === userId;
         const isUnread = unreadOnly ? !(rec.readBy || []).includes(userId) : true;
-        return isRecipient && exp > now && isUnread;
+        const isDeletedForUser = (rec.deletedBy || []).includes(userId);
+        return isRecipient && exp > now && isUnread && !isDeletedForUser;
       });
       // Ordenar por fecha de creación descendente
       list.sort((a, b) => new Date(b.created_at as any).getTime() - new Date(a.created_at as any).getTime());
@@ -151,10 +154,23 @@ export class NotificationPersistenceService {
     try {
       const rec = await this.redisService.hashGet<NotificationRecord>('notification', notificationId);
       if (!rec) return false;
-      const canDelete = rec.user_id === userId || (rec.recipients || []).includes(userId);
+      const recipients = Array.isArray(rec.recipients) && rec.recipients.length > 0 ? rec.recipients : [rec.user_id];
+      const canDelete = recipients.includes(userId);
       if (!canDelete) return false;
-      await this.redisService.hashDelete('notification', notificationId);
-      console.log(`✅ Notificación eliminada (Redis Hash): ${notificationId}`);
+
+      const deletedBy = new Set(rec.deletedBy || []);
+      deletedBy.add(userId);
+      rec.deletedBy = Array.from(deletedBy);
+      rec.updated_at = new Date().toISOString();
+
+      const allRecipientsDeleted = recipients.every(rid => (rec.deletedBy || []).includes(rid));
+      if (allRecipientsDeleted) {
+        await this.redisService.hashDelete('notification', notificationId);
+        console.log(`✅ Notificación eliminada globalmente (Redis Hash): ${notificationId}`);
+      } else {
+        await this.redisService.hashSet('notification', notificationId, rec);
+        console.log(`✅ Notificación ocultada para usuario ${userId} (Redis Hash): ${notificationId}`);
+      }
       return true;
     } catch (error) {
       console.error('❌ Error eliminando notificación (Redis Hash):', error);
@@ -162,6 +178,33 @@ export class NotificationPersistenceService {
     }
   }
 
+  async deleteAllForUser(userId: number): Promise<number> {
+    try {
+      const all = await this.redisService.hashGetAll<NotificationRecord>('notification');
+      let affected = 0;
+      for (const [id, rec] of Object.entries(all)) {
+        const recipients = Array.isArray(rec.recipients) && rec.recipients.length > 0 ? rec.recipients : [rec.user_id];
+        if (!recipients.includes(userId)) continue;
+        const deletedBy = new Set(rec.deletedBy || []);
+        const beforeSize = deletedBy.size;
+        deletedBy.add(userId);
+        rec.deletedBy = Array.from(deletedBy);
+        rec.updated_at = new Date().toISOString();
+        const allRecipientsDeleted = recipients.every(rid => (rec.deletedBy || []).includes(rid));
+        if (allRecipientsDeleted) {
+          await this.redisService.hashDelete('notification', id);
+        } else {
+          await this.redisService.hashSet('notification', id, rec);
+        }
+        if (deletedBy.size !== beforeSize) affected++;
+      }
+      console.log(`🗑️ Borrado masivo: ${affected} notificaciones afectadas para usuario ${userId}`);
+      return affected;
+    } catch (error) {
+      console.error('❌ Error en borrado masivo por usuario (Redis Hash):', error);
+      return 0;
+    }
+  }
   async getUnreadCount(userId: number): Promise<number> {
     try {
       const all = await this.redisService.hashGetAll<NotificationRecord>('notification');
@@ -175,26 +218,6 @@ export class NotificationPersistenceService {
       return count;
     } catch (error) {
       console.error('❌ Error obteniendo conteo no leídas (Redis Hash):', error);
-      return 0;
-    }
-  }
-
-  async cleanupExpiredNotifications(): Promise<number> {
-    try {
-      const all = await this.redisService.hashGetAll<NotificationRecord>('notification');
-      let removed = 0;
-      const now = Date.now();
-      for (const [id, rec] of Object.entries(all)) {
-        const exp = rec.expires_at ? new Date(rec.expires_at as any).getTime() : Number.MAX_SAFE_INTEGER;
-        if (exp <= now) {
-          await this.redisService.hashDelete('notification', id);
-          removed++;
-        }
-      }
-      console.log(`🧹 Limpieza expirados: ${removed} eliminadas`);
-      return removed;
-    } catch (error) {
-      console.log('🧹 Limpieza expirados falló:', error);
       return 0;
     }
   }

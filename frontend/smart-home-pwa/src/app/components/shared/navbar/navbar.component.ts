@@ -40,12 +40,9 @@ export class NavbarComponent implements OnInit {
 
   ngOnInit(): void {
     this.currentUser.set(this.authService.getCurrentUser());
-    
-    // Load unread notifications count only for household heads
-    if (this.isHouseholdHead()) {
-      this.loadUnreadNotificationsCount();
-      this.subscribeToConnectionStatus();
-    }
+    // Mostrar notificaciones para todos los usuarios
+    this.loadUnreadNotificationsCount();
+    this.subscribeToConnectionStatus();
   }
 
   private subscribeToConnectionStatus(): void {

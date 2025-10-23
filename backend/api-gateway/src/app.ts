@@ -93,6 +93,24 @@ class APIGateway {
       logLevel: 'warn'
     });
     this.app.use(this.wsProxy);
+
+    // Proxy HTTP dedicado para Notifications Service
+    this.app.use('/api/notifications', createProxyMiddleware({
+      target: SERVICES.NOTIFICATIONS.url,
+      changeOrigin: true,
+      logLevel: 'warn',
+      pathRewrite: { '^/api/notifications': '' },
+      onProxyReq: (proxyReq: any, req: Request, res: Response) => {
+        // Reinyectar cuerpo JSON si fue parseado por body-parser
+        if (req.body && Object.keys(req.body).length > 0) {
+          const bodyData = JSON.stringify(req.body);
+          proxyReq.setHeader('Content-Type', 'application/json');
+          proxyReq.setHeader('Accept', 'application/json');
+          proxyReq.setHeader('Content-Length', Buffer.byteLength(bodyData));
+          proxyReq.write(bodyData);
+        }
+      }
+    }));
   }
 
   /**

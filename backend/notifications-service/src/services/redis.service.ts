@@ -50,6 +50,22 @@ export class RedisService {
     }
   }
 
+  // Non-blocking pop for faster processing cycles
+  async popQueue(queueName: string): Promise<QueueJob | null> {
+    try {
+      const result = await this.redis.rpop(`queue:${queueName}`);
+      if (result) {
+        const job: QueueJob = JSON.parse(result);
+        console.log(`✅ Popped job from ${queueName} queue:`, job.id);
+        return job;
+      }
+      return null;
+    } catch (error) {
+      console.error(`❌ Error popping job from queue ${queueName}:`, error);
+      return null;
+    }
+  }
+
   async getQueueLength(queueName: string): Promise<number> {
     try {
       return await this.redis.llen(`queue:${queueName}`);

@@ -287,28 +287,22 @@ export class NotificationBellComponent implements OnInit, OnDestroy {
   constructor(private router: Router, private notificationService: NotificationService) { }
 
   ngOnInit(): void {
-    // Subscribe to notifications
-    this.subscriptions.push(
-      this.notificationService.notifications$.subscribe(notifications => {
-        this.notifications = notifications;
-      })
-    );
-
-    // Subscribe to unread count
-    this.subscriptions.push(
-      this.notificationService.unreadCount$.subscribe(count => {
-        this.unreadCount = count;
-      })
-    );
-
-    // Subscribe to connection status
+    // Suscribirse a cambios de conexión
     this.subscriptions.push(
       this.notificationService.connectionStatus$.subscribe(status => {
         this.isConnected = status;
       })
     );
 
-    // Check notification permission
+    // Suscribirse a la lista de notificaciones
+    this.subscriptions.push(
+      this.notificationService.notifications$.subscribe(items => {
+        this.notifications = items;
+        this.unreadCount = items.filter(n => !n.read).length;
+      })
+    );
+
+    // Revisar permiso de notificaciones del navegador
     this.checkNotificationPermission();
   }
 
@@ -366,22 +360,17 @@ export class NotificationBellComponent implements OnInit, OnDestroy {
     }
   }
 
-  getRelativeTime(timestamp: Date): string {
-    const now = new Date();
-    const diff = now.getTime() - new Date(timestamp).getTime();
-    const minutes = Math.floor(diff / 60000);
-    const hours = Math.floor(diff / 3600000);
-    const days = Math.floor(diff / 86400000);
-
-    if (minutes < 1) {
-      return 'Ahora';
-    } else if (minutes < 60) {
-      return `${minutes}m`;
-    } else if (hours < 24) {
-      return `${hours}h`;
-    } else {
-      return `${days}d`;
-    }
+  getRelativeTime(timestamp: number | Date): string {
+    // Simple relative time helper compatible con number o Date
+    const tsMs = typeof timestamp === 'number' ? timestamp : new Date(timestamp).getTime();
+    const diffMs = Date.now() - tsMs;
+    const minutes = Math.floor(diffMs / 60000);
+    if (minutes < 1) return 'justo ahora';
+    if (minutes < 60) return `${minutes} min`;
+    const hours = Math.floor(minutes / 60);
+    if (hours < 24) return `${hours} h`;
+    const days = Math.floor(hours / 24);
+    return `${days} d`;
   }
 
   goToAllNotifications(): void {

@@ -24,6 +24,7 @@ export class NotificationQueueService {
   private redisService: RedisService;
   private isProcessing: boolean = false;
   private processingInterval: NodeJS.Timeout | null = null;
+  private memoryQueue: QueueJob[] = [];
 
   constructor() {
     this.redisService = new RedisService();
@@ -31,32 +32,31 @@ export class NotificationQueueService {
 
   // Add notification to queue
   async addNotification(notification: Omit<NotificationJob, 'id' | 'createdAt'>): Promise<string> {
+    const notificationJob: NotificationJob = {
+      ...notification,
+      id: uuidv4(),
+      createdAt: new Date()
+    };
+
+    const queueJob: QueueJob = {
+      id: notificationJob.id,
+      type: 'notification',
+      data: notificationJob,
+      createdAt: notificationJob.createdAt,
+      attempts: 0,
+      maxAttempts: 3
+    };
+
     try {
-      const notificationJob: NotificationJob = {
-        ...notification,
-        id: uuidv4(),
-        createdAt: new Date()
-      };
-
-      const queueJob: QueueJob = {
-        id: notificationJob.id,
-        type: 'notification',
-        data: notificationJob,
-        createdAt: notificationJob.createdAt,
-        attempts: 0,
-        maxAttempts: 3
-      };
-
       await this.redisService.addToQueue('notification', queueJob);
-      
-      // Also publish to real-time channel for immediate processing
-      await this.redisService.publish('notification:new', notificationJob);
-      
       console.log(`✅ Notification queued: ${notificationJob.id} - ${notificationJob.type}`);
       return notificationJob.id;
     } catch (error) {
       console.error('❌ Error adding notification to queue:', error);
-      throw error;
+      // Fallback a cola en memoria para no perder notificaciones
+      this.memoryQueue.push(queueJob);
+      console.warn(`⚠️ Using memory queue for notification: ${notificationJob.id}`);
+      return notificationJob.id;
     }
   }
 
@@ -70,20 +70,14 @@ export class NotificationQueueService {
     this.isProcessing = true;
     console.log('🚀 Starting notification queue processing...');
 
-    // Process notifications every 1 second (cola única)
+    // Ciclo más rápido y no bloqueante
     this.processingInterval = setInterval(async () => {
       try {
         await this.processNextNotification();
       } catch (error) {
         console.error('❌ Error in notification processing cycle:', error);
       }
-    }, 1000);
-
-    // Subscribe to real-time notifications (global channel)
-    await this.redisService.subscribe('notification:new', async (notification: NotificationJob) => {
-      console.log(`📨 Real-time notification received: ${notification.id}`);
-      await this.executeNotification(notification);
-    });
+    }, 100);
   }
 
   // Stop processing notifications
@@ -105,7 +99,14 @@ export class NotificationQueueService {
   // Process next notification from queue
   private async processNextNotification(): Promise<void> {
     try {
-      const job = await this.redisService.processQueue('notification');
+      let job: QueueJob | null = await this.redisService.popQueue('notification');
+      
+      if (!job && this.memoryQueue.length > 0) {
+        job = this.memoryQueue.shift() || null;
+        if (job) {
+          console.log(`🔄 Processing job from memory queue: ${job.id}`);
+        }
+      }
       
       if (job && job.data) {
         const notification: NotificationJob = job.data;
@@ -113,7 +114,7 @@ export class NotificationQueueService {
         // Check if notification is scheduled for future
         if (notification.scheduledFor && new Date(notification.scheduledFor) > new Date()) {
           // Re-queue for later processing
-          await this.redisService.addToQueue('notifications', job);
+          await this.redisService.addToQueue('notification', job);
           return;
         }
         
@@ -140,6 +141,9 @@ export class NotificationQueueService {
         }
       }
       
+      // Emitir a canal realtime después de procesar (evita doble ejecución)
+      await this.redisService.publish('notification:new', notification);
+      
       console.log(`✅ Notification executed: ${notification.id}`);
     } catch (error) {
       console.error(`❌ Error executing notification ${notification.id}:`, error);
@@ -161,10 +165,7 @@ export class NotificationQueueService {
         metadata: notification.data.metadata
       };
 
-      // En estructura simplificada no usamos canales por usuario/familia;
-      // La entrega se hará desde app.ts suscrito a 'notification:new'.
-      // Aquí no publicamos nada adicional.
-      
+      // En estructura simplificada: la entrega se hará desde app.ts suscrito a 'notification:new'.
       console.log(`📱 App notification prepared for delivery to recipients`);
     } catch (error) {
       console.error('❌ Error sending app notification:', error);
@@ -182,9 +183,6 @@ export class NotificationQueueService {
       throw error;
     }
   }
-
-  // Save notification history
-  // Historial omitido en estructura simplificada
 
   // Helper methods
   private getNotificationTitle(notification: NotificationJob): string {
@@ -204,8 +202,6 @@ export class NotificationQueueService {
     }
   }
 
-  // Email notification placeholder (not implemented yet)
-
   // Get queue statistics
   async getQueueStats(): Promise<any> {
     try {
@@ -215,7 +211,8 @@ export class NotificationQueueService {
         isProcessing: this.isProcessing,
         queues: {
           notifications: totalCount,
-          total: totalCount
+          memoryFallback: this.memoryQueue.length,
+          total: totalCount + this.memoryQueue.length
         },
         timestamp: new Date().toISOString()
       };
@@ -223,7 +220,7 @@ export class NotificationQueueService {
       console.error('❌ Error getting queue stats:', error);
       return {
         isProcessing: this.isProcessing,
-        queues: { notifications: 0, total: 0 },
+        queues: { notifications: 0, memoryFallback: this.memoryQueue.length, total: this.memoryQueue.length },
         error: (error as Error).message,
         timestamp: new Date().toISOString()
       };

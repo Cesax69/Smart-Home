@@ -152,9 +152,12 @@ export class MyTasksComponent implements OnInit {
   private filterTasks(tasks: Task[]): Task[] {
     return tasks.filter(task => {
       // Filtro de búsqueda
+      const searchLc = (this.searchTerm || '').toLowerCase();
+      const titleLc = (task.title ?? '').toLowerCase();
+      const descLc = (task.description ?? '').toLowerCase();
       const matchesSearch = !this.searchTerm || 
-        task.title.toLowerCase().includes(this.searchTerm.toLowerCase()) ||
-        (task.description && task.description.toLowerCase().includes(this.searchTerm.toLowerCase()));
+        titleLc.includes(searchLc) ||
+        descLc.includes(searchLc);
 
       // Filtro de prioridad
       const matchesPriority = !this.priorityFilter || task.priority === this.priorityFilter;

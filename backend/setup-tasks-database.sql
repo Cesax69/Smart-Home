@@ -18,6 +18,7 @@ CREATE TABLE IF NOT EXISTS tasks (
     due_date TIMESTAMP,
     estimated_time INTEGER,
     completed_at TIMESTAMP,
+    progress INTEGER DEFAULT 0, -- progreso en porcentaje (0-100)
     -- Campos para manejo de períodos y repeticiones
     is_recurring BOOLEAN DEFAULT false,
     recurrence_type VARCHAR(20), -- 'daily', 'weekly', 'monthly', 'yearly'

@@ -1,7 +1,7 @@
 import axios from 'axios';
 import { Task } from '../types/Task';
 
-const HTTP_TIMEOUT = Number(process.env.HTTP_TIMEOUT || 1500);
+const HTTP_TIMEOUT = Number(process.env.HTTP_TIMEOUT || 5000);
 
 interface UserInfo {
   id: number;
@@ -19,8 +19,11 @@ interface NotificationEvent {
 export class NotificationService {
   private async sendNotification(event: NotificationEvent): Promise<void> {
     try {
-      const notificationServiceUrl = process.env.NOTIFICATIONS_SERVICE_URL || process.env.NOTIFICATION_SERVICE_URL || 'http://localhost:3004';
-      await axios.post(`${notificationServiceUrl}/notify/queue`, event, { timeout: HTTP_TIMEOUT });
+      const gatewayUrl = process.env.API_GATEWAY_URL;
+      const base = gatewayUrl
+        ? `${gatewayUrl.replace(/\/+$/, '')}/api/notifications`
+        : (process.env.NOTIFICATIONS_SERVICE_URL || process.env.NOTIFICATION_SERVICE_URL || 'http://localhost:3004');
+      await axios.post(`${base.replace(/\/+$/, '')}/notify/queue`, event, { timeout: HTTP_TIMEOUT });
     } catch (error) {
       console.warn('NotificationService.sendNotification failed:', (error as any)?.message || error);
       throw error;
@@ -73,12 +76,25 @@ export class NotificationService {
   }
 
   /**
-   * Enviar notificación de tarea completada a los jefes del hogar
+   * Enviar notificación de tarea completada a jefes del hogar y asignados
    */
   async sendTaskCompletedNotification(task: Task, completedByUserId: number): Promise<void> {
     try {
       const headIds = (await this.getHouseholdHeads()) || [];
-      if (!headIds.length) return;
+
+      // Agregar asignados de la tarea (soporta uno o varios)
+      const assigneeIds = Array.isArray(task.assignedUserIds) && task.assignedUserIds.length
+        ? task.assignedUserIds
+        : (task.assignedUserId ? [task.assignedUserId] : []);
+
+      // Unificar destinatarios: jefes + asignados, excluyendo a quien completó
+      const recipientIds = Array.from(new Set([ ...headIds, ...assigneeIds ].filter(id => !!id)))
+        .filter(id => id !== completedByUserId);
+
+      if (!recipientIds.length) {
+        console.warn('⚠️ No hay destinatarios para notificación de tarea completada');
+        return;
+      }
 
       const completedByUser = await this.getUser(completedByUserId);
       const taskComments = await this.getTaskComments(task.id);
@@ -86,13 +102,16 @@ export class NotificationService {
 
       const message = `La tarea "${task.title}" fue completada${completedByUser ? ` por ${completedByUser.firstName} ${completedByUser.lastName}` : ''}. ✅`;
 
+      // Identificar un jefe del hogar para metadata si existe
+      const bossHeadId = headIds.find(id => id !== completedByUserId);
+
       const event: NotificationEvent = {
         type: 'task_completed',
         channels: ['app'],
         data: {
-          userId: completedByUserId,
-          recipients: headIds.map(id => id.toString()),
-          bossUserId: headIds[0]?.toString(),
+          userId: completedByUserId.toString(),
+          recipients: recipientIds.map(id => id.toString()),
+          bossUserId: bossHeadId?.toString(),
           familyId: 'family_1',
           taskId: task.id?.toString(),
           taskTitle: task.title,
@@ -108,7 +127,8 @@ export class NotificationService {
               completedAt: new Date().toISOString(),
               completedByUserId,
               completedByUserName: completedByUser ? `${completedByUser.firstName} ${completedByUser.lastName}` : undefined,
-              originalAssignee: task.assignedUserId
+              originalAssignee: task.assignedUserId,
+              assignedUserIds: task.assignedUserIds
             },
             commentsCount: taskComments.length,
             filesCount: taskFiles.length,
@@ -120,7 +140,7 @@ export class NotificationService {
       };
 
       await this.sendNotification(event);
-      console.log(`✅ Task completion notification queued for heads: ${JSON.stringify(headIds)}`);
+      console.log(`✅ Task completion notification queued for recipients: ${JSON.stringify(recipientIds)}`);
     } catch (error) {
       console.error('❌ Error sending task completion notification:', error);
     }
@@ -195,7 +215,7 @@ export class NotificationService {
 
       let message = `La tarea "${task.title}" fue actualizada.`;
       if (info?.change === 'files_added') {
-        message = `${actor ? `${actor.firstName} ${actor.lastName}` : 'Se'} agregó${(info?.count || 0) > 1 ? 'ron' : ''} ${info?.count || 1} archivo${(info?.count || 1) > 1 ? 's' : ''} a la tarea "${task.title}"`;
+        message = `${actor ? `${actor.firstName} ${actor.lastName}` : 'Se'} agregó${(info?.count || 0) > 1 ? 'ron' : ''} ${(info?.count || 1)} archivo${(info?.count || 1) > 1 ? 's' : ''} a la tarea "${task.title}"`;
       } else if (info?.change === 'file_updated') {
         message = `${actor ? `${actor.firstName} ${actor.lastName}` : 'Se'} actualizó el archivo "${info?.fileName || ''}" en la tarea "${task.title}"`;
       } else if (info?.change === 'file_deleted') {
