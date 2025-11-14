@@ -1,4 +1,4 @@
-import { Injectable, Inject, PLATFORM_ID } from '@angular/core';
+import { Injectable, Inject, PLATFORM_ID, NgZone } from '@angular/core';
 import { isPlatformBrowser } from '@angular/common';
 import { BehaviorSubject, Observable } from 'rxjs';
 import { io, Socket } from 'socket.io-client';
@@ -8,7 +8,7 @@ import { User } from '../models/user.model';
 
 export interface Notification {
   id: string;
-  type: 'task_completed' | 'task_assigned' | 'task_reminder' | 'system_alert' | 'comment_added';
+  type: 'task_completed' | 'task_assigned' | 'task_reminder' | 'system_alert' | 'comment_added' | 'task_updated';
   title: string;
   message: string;
   timestamp: Date;
@@ -36,10 +36,11 @@ export class NotificationService {
 
   constructor(
     @Inject(PLATFORM_ID) private platformId: Object,
-    private authService: AuthService
+    private authService: AuthService,
+    private ngZone: NgZone
   ) {
     console.log('🚀 NotificationService initialized');
-    
+
     // Only initialize if we're in the browser
     if (isPlatformBrowser(this.platformId)) {
       this.initializeService();
@@ -49,54 +50,81 @@ export class NotificationService {
   private initializeService(): void {
     this.currentUserId = this.getCurrentUserId();
     console.log('👤 Current user ID:', this.currentUserId);
-    
+
+    // Suscribir SIEMPRE a cambios de autenticación (login/logout/cambio de usuario)
+    this.authService.currentUser$.subscribe((user: User | null) => {
+      const newUserId = user?.id ? user.id.toString() : null;
+
+      if (!newUserId) {
+        // Logout: desconectar y limpiar estado
+        if (this.currentUserId !== null) {
+          console.log('👤 User logged out, disconnecting and clearing notifications');
+        }
+        this.currentUserId = null;
+        this.disconnect();
+        this.notificationsSubject.next([]);
+        this.updateUnreadCount();
+        return;
+      }
+
+      if (this.currentUserId !== newUserId) {
+        // Cambio de usuario o primer login: limpiar y reconectar
+        console.log('👤 Switching user, reconnecting notifications:', newUserId);
+        this.currentUserId = newUserId;
+        // Evitar mezcla de notificaciones entre sesiones
+        this.notificationsSubject.next([]);
+        this.updateUnreadCount();
+        // Reunirse a la sala correcta
+        this.disconnect();
+        this.connectToNotificationService();
+        this.loadNotificationsFromBackend().catch(err => console.error('❌ Error loading notifications after switch:', err));
+      } else {
+        // Mismo usuario: asegurar conexión y cargar si fuese necesario
+        if (!this.isConnected()) {
+          this.connectToNotificationService();
+          this.loadNotificationsFromBackend().catch(err => console.error('❌ Error loading notifications after reconnect:', err));
+        }
+      }
+    });
+
+    // Si ya hay usuario al iniciar el servicio, conectar y cargar inmediatamente
     if (this.currentUserId) {
       this.connectToNotificationService();
+      this.loadNotificationsFromBackend().catch(err => console.error('❌ Error initial loading notifications:', err));
     } else {
-      console.warn('⚠️ No user ID found, notifications will not work');
-      // Subscribe to auth changes to connect when user logs in
-      this.authService.currentUser$.subscribe((user: User | null) => {
-        if (user && user.id) {
-          this.currentUserId = user.id.toString();
-          console.log('👤 User logged in, connecting to notifications:', this.currentUserId);
-          this.connectToNotificationService();
-        } else if (!user) {
-          console.log('👤 User logged out, disconnecting from notifications');
-          this.disconnect();
-        }
-      });
+      console.warn('⚠️ No user ID found at init; waiting for login to connect');
     }
-    
-    // Load stored notifications from localStorage FIRST
-    this.loadStoredNotifications();
   }
 
   /**
-   * Get current user ID from localStorage or auth service
+   * Get current user ID from auth service
    */
   private getCurrentUserId(): string | null {
     try {
-      // First try to get from auth service
+      // Get from auth service only
       const currentUser = this.authService.getCurrentUser();
       if (currentUser && currentUser.id) {
         console.log('📱 User from AuthService:', currentUser);
         return currentUser.id.toString();
       }
-      
-      // Fallback: try to get from localStorage with correct key
-      const storedUser = localStorage.getItem('smart_home_user');
-      if (storedUser) {
-        const user = JSON.parse(storedUser);
-        console.log('📱 User from localStorage:', user);
-        return user.id ? user.id.toString() : null;
-      }
-      
-      console.log('⚠️ No user found in AuthService or localStorage');
+      console.log('⚠️ No user found in AuthService');
       return null;
     } catch (error) {
       console.error('❌ Error getting current user ID:', error);
       return null;
     }
+  }
+
+  private getAuthHeaders(contentTypeJson: boolean = false): Record<string, string> {
+    const headers: Record<string, string> = {};
+    const token = this.authService.getToken();
+    if (token) {
+      headers['Authorization'] = `Bearer ${token}`;
+    }
+    if (contentTypeJson) {
+      headers['Content-Type'] = 'application/json';
+    }
+    return headers;
   }
 
   /**
@@ -105,7 +133,7 @@ export class NotificationService {
   private connectToNotificationService(): void {
     try {
       console.log('🔌 Attempting to connect to notifications service at:', this.SOCKET_URL);
-      
+
       this.socket = io(this.SOCKET_URL, {
         transports: ['websocket', 'polling'],
         timeout: 10000,
@@ -117,23 +145,25 @@ export class NotificationService {
 
       this.socket.on('connect', () => {
         console.log('✅ Connected to notifications service');
-        this.connectionStatusSubject.next(true);
-        
-        // Join user-specific room for notifications
-        if (this.currentUserId) {
-          this.socket?.emit('join_user_room', { userId: this.currentUserId });
-          console.log(`👤 Joined user room for user ${this.currentUserId}`);
-        }
+        this.ngZone.run(() => {
+          this.connectionStatusSubject.next(true);
+
+          // Join user-specific room for notifications
+          if (this.currentUserId) {
+            this.socket?.emit('join_user_room', { userId: this.currentUserId });
+            console.log(`👤 Joined user room for user ${this.currentUserId}`);
+          }
+        });
       });
 
       this.socket.on('disconnect', (reason) => {
         console.log('❌ Disconnected from notifications service. Reason:', reason);
-        this.connectionStatusSubject.next(false);
+        this.ngZone.run(() => this.connectionStatusSubject.next(false));
       });
 
       this.socket.on('connect_error', (error) => {
         console.error('❌ Connection error:', error);
-        this.connectionStatusSubject.next(false);
+        this.ngZone.run(() => this.connectionStatusSubject.next(false));
       });
 
       this.socket.on('connection_confirmed', (data) => {
@@ -143,15 +173,14 @@ export class NotificationService {
       // Listen for new notifications
       this.socket.on('new_notification', (notification: any) => {
         console.log('📱 New notification received:', notification);
-        this.addNotification(notification);
+        this.ngZone.run(() => this.addNotification(notification));
       });
 
       // Listen for notification updates
       this.socket.on('notification_update', (data: any) => {
         console.log('🔄 Notification update received:', data);
-        this.updateNotification(data.notificationId, data.updates);
+        this.ngZone.run(() => this.updateNotification(data.notificationId, data.updates));
       });
-
     } catch (error) {
       console.error('❌ Error connecting to notifications service:', error);
       this.connectionStatusSubject.next(false);
@@ -175,18 +204,19 @@ export class NotificationService {
 
     const currentNotifications = this.notificationsSubject.value;
     const updatedNotifications = [notification, ...currentNotifications];
-    
+
     // Keep only the last 50 notifications
     if (updatedNotifications.length > 50) {
       updatedNotifications.splice(50);
     }
 
-    this.notificationsSubject.next(updatedNotifications);
-    this.updateUnreadCount();
-    this.saveNotificationsToStorage();
+    this.ngZone.run(() => {
+      this.notificationsSubject.next(updatedNotifications);
+      this.updateUnreadCount();
 
-    // Show browser notification if permission is granted
-    this.showBrowserNotification(notification);
+      // Show browser notification if permission is granted
+      this.showBrowserNotification(notification);
+    });
   }
 
   /**
@@ -194,15 +224,16 @@ export class NotificationService {
    */
   private updateNotification(notificationId: string, updates: Partial<Notification>): void {
     const currentNotifications = this.notificationsSubject.value;
-    const updatedNotifications = currentNotifications.map(notification => 
-      notification.id === notificationId 
+    const updatedNotifications = currentNotifications.map(notification =>
+      notification.id === notificationId
         ? { ...notification, ...updates }
         : notification
     );
 
-    this.notificationsSubject.next(updatedNotifications);
-    this.updateUnreadCount();
-    this.saveNotificationsToStorage();
+    this.ngZone.run(() => {
+      this.notificationsSubject.next(updatedNotifications);
+      this.updateUnreadCount();
+    });
   }
 
   /**
@@ -210,15 +241,14 @@ export class NotificationService {
    */
   markAsRead(notificationId: string): void {
     const currentNotifications = this.notificationsSubject.value;
-    const updatedNotifications = currentNotifications.map(notification => 
-      notification.id === notificationId 
+    const updatedNotifications = currentNotifications.map(notification =>
+      notification.id === notificationId
         ? { ...notification, read: true }
         : notification
     );
 
     this.notificationsSubject.next(updatedNotifications);
     this.updateUnreadCount();
-    this.saveNotificationsToStorage();
 
     // Sync with backend database
     this.syncMarkAsReadWithBackend(notificationId);
@@ -229,13 +259,12 @@ export class NotificationService {
    */
   markAllAsRead(): void {
     const currentNotifications = this.notificationsSubject.value;
-    const updatedNotifications = currentNotifications.map(notification => 
+    const updatedNotifications = currentNotifications.map(notification =>
       ({ ...notification, read: true })
     );
 
     this.notificationsSubject.next(updatedNotifications);
     this.updateUnreadCount();
-    this.saveNotificationsToStorage();
 
     // Sync with backend database
     this.syncMarkAllAsReadWithBackend();
@@ -252,7 +281,6 @@ export class NotificationService {
 
     this.notificationsSubject.next(updatedNotifications);
     this.updateUnreadCount();
-    this.saveNotificationsToStorage();
 
     // Sync with backend database
     this.syncDeleteWithBackend(notificationId);
@@ -268,8 +296,10 @@ export class NotificationService {
     }
 
     try {
-      const response = await fetch(`${this.API_BASE}/notifications/${this.currentUserId}?limit=${limit}&offset=${offset}`);
-      
+      const response = await fetch(`${this.API_BASE}/notifications/${this.currentUserId}?limit=${limit}&offset=${offset}`, {
+        headers: this.getAuthHeaders()
+      });
+
       if (response.ok) {
         const result = await response.json();
         if (result.success && result.data) {
@@ -278,20 +308,21 @@ export class NotificationService {
             type: notif.type,
             title: notif.title,
             message: notif.message,
-            timestamp: new Date(notif.created_at),
-            read: notif.is_read,
-            userId: notif.user_id.toString(),
+            timestamp: new Date(notif.created_at || notif.timestamp || Date.now()),
+            read: Array.isArray(notif.readBy) ? notif.readBy.includes(parseInt(this.currentUserId || '0')) : false,
+            userId: (notif.user_id ?? parseInt(this.currentUserId || '0')).toString(),
             metadata: notif.metadata
           }));
 
           // Merge with existing notifications, avoiding duplicates
           const currentNotifications = this.notificationsSubject.value;
           const mergedNotifications = this.mergeNotifications(currentNotifications, backendNotifications);
-          
-          this.notificationsSubject.next(mergedNotifications);
-          this.updateUnreadCount();
-          this.saveNotificationsToStorage();
-          
+
+          this.ngZone.run(() => {
+            this.notificationsSubject.next(mergedNotifications);
+            this.updateUnreadCount();
+          });
+
           console.log(`📋 Loaded ${backendNotifications.length} notifications from backend`);
         }
       }
@@ -309,9 +340,7 @@ export class NotificationService {
     try {
       const response = await fetch(`${this.API_BASE}/notifications/${notificationId}/read`, {
         method: 'PUT',
-        headers: {
-          'Content-Type': 'application/json'
-        },
+        headers: this.getAuthHeaders(true),
         body: JSON.stringify({ userId: parseInt(this.currentUserId) })
       });
 
@@ -332,9 +361,7 @@ export class NotificationService {
     try {
       const response = await fetch(`${this.API_BASE}/notifications/user/${this.currentUserId}/read-all`, {
         method: 'PUT',
-        headers: {
-          'Content-Type': 'application/json'
-        }
+        headers: this.getAuthHeaders(true)
       });
 
       if (response.ok) {
@@ -355,9 +382,7 @@ export class NotificationService {
     try {
       const response = await fetch(`${this.API_BASE}/notifications/${notificationId}`, {
         method: 'DELETE',
-        headers: {
-          'Content-Type': 'application/json'
-        },
+        headers: this.getAuthHeaders(true),
         body: JSON.stringify({ userId: parseInt(this.currentUserId) })
       });
 
@@ -376,8 +401,10 @@ export class NotificationService {
     if (!this.currentUserId) return 0;
 
     try {
-      const response = await fetch(`${this.API_BASE}/notifications/${this.currentUserId}/unread-count`);
-      
+      const response = await fetch(`${this.API_BASE}/notifications/${this.currentUserId}/unread-count`, {
+        headers: this.getAuthHeaders()
+      });
+
       if (response.ok) {
         const result = await response.json();
         if (result.success && result.data) {
@@ -387,7 +414,7 @@ export class NotificationService {
     } catch (error) {
       console.error('❌ Error getting unread count from backend:', error);
     }
-    
+
     return 0;
   }
 
@@ -396,7 +423,7 @@ export class NotificationService {
    */
   private mergeNotifications(current: Notification[], backend: Notification[]): Notification[] {
     const merged = [...current];
-    
+
     backend.forEach(backendNotif => {
       const exists = merged.find(notif => notif.id === backendNotif.id);
       if (!exists) {
@@ -410,13 +437,26 @@ export class NotificationService {
       .slice(0, 50);
   }
 
-  /**
-   * Clear all notifications
-   */
-  clearAllNotifications(): void {
+  async clearAllNotifications(): Promise<void> {
+    if (this.currentUserId) {
+      try {
+        const response = await fetch(`${this.API_BASE}/notifications/user/${this.currentUserId}`, {
+          method: 'DELETE',
+          headers: this.getAuthHeaders(true)
+        });
+        if (response.ok) {
+          const result = await response.json().catch(() => null);
+          console.log(`✅ Notificaciones eliminadas en backend para usuario ${this.currentUserId}`, result?.data || {});
+        } else {
+          const text = await response.text().catch(() => '');
+          console.warn('❌ Error borrando todas las notificaciones en backend:', text);
+        }
+      } catch (error) {
+        console.error('❌ Error sincronizando borrado masivo con backend:', error);
+      }
+    }
     this.notificationsSubject.next([]);
     this.unreadCountSubject.next(0);
-    this.saveNotificationsToStorage();
   }
 
   /**
@@ -476,40 +516,6 @@ export class NotificationService {
   }
 
   /**
-   * Save notifications to localStorage
-   */
-  private saveNotificationsToStorage(): void {
-    try {
-      const notifications = this.notificationsSubject.value;
-      localStorage.setItem('smart_home_notifications', JSON.stringify(notifications));
-    } catch (error) {
-      console.error('Error saving notifications to storage:', error);
-    }
-  }
-
-  /**
-   * Load notifications from localStorage
-   */
-  private loadStoredNotifications(): void {
-    try {
-      const stored = localStorage.getItem('smart_home_notifications');
-      if (stored) {
-        const notifications: Notification[] = JSON.parse(stored);
-        // Convert timestamp strings back to Date objects
-        const processedNotifications = notifications.map(n => ({
-          ...n,
-          timestamp: new Date(n.timestamp)
-        }));
-        
-        this.notificationsSubject.next(processedNotifications);
-        this.updateUnreadCount();
-      }
-    } catch (error) {
-      console.error('Error loading notifications from storage:', error);
-    }
-  }
-
-  /**
    * Generate unique ID
    */
   private generateId(): string {
@@ -521,7 +527,7 @@ export class NotificationService {
    */
   setCurrentUserId(userId: string): void {
     this.currentUserId = userId;
-    
+
     // Rejoin user room if socket is connected
     if (this.socket?.connected && this.currentUserId) {
       this.socket.emit('join_user_room', { userId: this.currentUserId });
@@ -558,7 +564,7 @@ export class NotificationService {
 
   public async createNotification(payload: { userId: number; title: string; message: string; type?: string; metadata?: any }): Promise<boolean> {
     try {
-      // Prefer using the notification queue to deliver app-only notifications
+      // Enviar SIEMPRE a la cola Redis para entrega centralizada
       const queuePayload = {
         type: payload.type || 'system_alert',
         channels: ['app'],
@@ -574,40 +580,56 @@ export class NotificationService {
 
       const response = await fetch(`${this.API_BASE}/notify/queue`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: this.getAuthHeaders(true),
         body: JSON.stringify(queuePayload),
       });
 
       const ok = response.ok;
-      let id: string | undefined;
-      if (ok) {
-        const result = await response.json();
-        id = result?.id || this.generateId();
+      if (!ok) {
+        const errorText = await response.text().catch(() => '');
+        console.warn('Notificación no encolada correctamente:', errorText);
       }
 
-      // Mirror to local state so it shows up instantly (even if backend fails)
-      this.addNotification({
-        id: id,
-        type: payload.type || 'system_alert',
-        title: payload.title,
-        message: payload.message,
-        timestamp: Date.now(),
-        userId: payload.userId,
-        metadata: payload.metadata,
-      });
-
+      // No espejar localmente: la entrega vendrá por Socket.IO
       return ok;
     } catch (error) {
-      console.error('❌ Error creating notification in backend:', error);
-      // Fallback: still add to local state so user sees it
-      this.addNotification({
-        type: payload.type || 'system_alert',
-        title: payload.title,
-        message: payload.message,
-        timestamp: Date.now(),
-        userId: payload.userId,
-        metadata: payload.metadata,
+      console.error('❌ Error creando notificación en cola Redis:', error);
+      // No agregar a estado local: evitar desincronización; confiar en Redis/WebSocket
+      return false;
+    }
+  }
+
+  // Nuevo: enviar notificación de prueba a /test del microservicio
+  public async sendTestNotification(message: string = '🔔 Notificación de prueba desde el cliente'): Promise<boolean> {
+    if (!this.currentUserId) {
+      console.warn('⚠️ No hay usuario actual para enviar prueba');
+      return false;
+    }
+
+    const payload = {
+      userId: this.currentUserId,
+      recipients: [this.currentUserId],
+      type: 'system_alert',
+      message
+    };
+
+    try {
+      const response = await fetch(`${this.API_BASE}/test`, {
+        method: 'POST',
+        headers: this.getAuthHeaders(true),
+        body: JSON.stringify(payload)
       });
+
+      if (!response.ok) {
+        const text = await response.text().catch(() => '');
+        console.warn('❌ Error enviando notificación de prueba:', text);
+        return false;
+      }
+
+      console.log('✅ Notificación de prueba encolada');
+      return true;
+    } catch (error) {
+      console.error('❌ Excepción enviando notificación de prueba:', error);
       return false;
     }
   }

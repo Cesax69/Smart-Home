@@ -50,6 +50,22 @@ export class RedisService {
     }
   }
 
+  // Non-blocking pop for faster processing cycles
+  async popQueue(queueName: string): Promise<QueueJob | null> {
+    try {
+      const result = await this.redis.rpop(`queue:${queueName}`);
+      if (result) {
+        const job: QueueJob = JSON.parse(result);
+        console.log(`✅ Popped job from ${queueName} queue:`, job.id);
+        return job;
+      }
+      return null;
+    } catch (error) {
+      console.error(`❌ Error popping job from queue ${queueName}:`, error);
+      return null;
+    }
+  }
+
   async getQueueLength(queueName: string): Promise<number> {
     try {
       return await this.redis.llen(`queue:${queueName}`);
@@ -166,6 +182,69 @@ export class RedisService {
       return false;
     }
   }
+
+  // ---------- Hash helpers for single-key collections ----------
+  async hashSet(key: string, field: string, value: any): Promise<void> {
+    try {
+      const valueData = JSON.stringify(value);
+      await this.redis.hset(key, field, valueData);
+      console.log(`✅ Hash set: ${key}[${field}]`);
+    } catch (error) {
+      console.error(`❌ Error setting hash ${key}[${field}]:`, error);
+      throw error;
+    }
+  }
+
+  async hashGet<T = any>(key: string, field: string): Promise<T | null> {
+    try {
+      const raw = await this.redis.hget(key, field);
+      return raw ? (JSON.parse(raw) as T) : null;
+    } catch (error) {
+      console.error(`❌ Error getting hash ${key}[${field}]:`, error);
+      return null;
+    }
+  }
+
+  async hashGetAll<T = any>(key: string): Promise<Record<string, T>> {
+    try {
+      const raw = await this.redis.hgetall(key);
+      const result: Record<string, T> = {};
+      for (const field in raw) {
+        try {
+          const fieldValue = raw[field];
+          if (fieldValue !== undefined) {
+            result[field] = JSON.parse(fieldValue);
+          }
+        } catch {
+          // ignore malformed entries
+        }
+      }
+      return result;
+    } catch (error) {
+      console.error(`❌ Error getting all hash fields for ${key}:`, error);
+      return {} as Record<string, T>;
+    }
+  }
+
+  async hashDelete(key: string, field: string): Promise<void> {
+    try {
+      await this.redis.hdel(key, field);
+      console.log(`✅ Hash field deleted: ${key}[${field}]`);
+    } catch (error) {
+      console.error(`❌ Error deleting hash field ${key}[${field}]:`, error);
+      throw error;
+    }
+  }
+
+  async hashLen(key: string): Promise<number> {
+    try {
+      return await this.redis.hlen(key);
+    } catch (error) {
+      console.error(`❌ Error getting hash length for ${key}:`, error);
+      return 0;
+    }
+  }
+
 
   // Health Check
   async ping(): Promise<boolean> {

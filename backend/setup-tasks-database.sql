@@ -18,6 +18,7 @@ CREATE TABLE IF NOT EXISTS tasks (
     due_date TIMESTAMP,
     estimated_time INTEGER,
     completed_at TIMESTAMP,
+    progress INTEGER DEFAULT 0, -- progreso en porcentaje (0-100)
     -- Campos para manejo de períodos y repeticiones
     is_recurring BOOLEAN DEFAULT false,
     recurrence_type VARCHAR(20), -- 'daily', 'weekly', 'monthly', 'yearly'
@@ -71,11 +72,8 @@ CREATE TABLE IF NOT EXISTS task_comments (
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
-<<<<<<< HEAD
 -- Índices para comentarios de tareas
-=======
 -- Índices para optimización de comentarios
->>>>>>> cegg
 CREATE INDEX IF NOT EXISTS idx_task_comments_task_id ON task_comments(task_id);
 CREATE INDEX IF NOT EXISTS idx_task_comments_created_by ON task_comments(created_by);
 CREATE INDEX IF NOT EXISTS idx_task_comments_created_at ON task_comments(created_at);

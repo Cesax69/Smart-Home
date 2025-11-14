@@ -1,5 +1,5 @@
 # Usar imagen oficial de Node.js LTS
-FROM node:18-alpine
+FROM mirror.gcr.io/library/node:18
 
 # Establecer directorio de trabajo
 WORKDIR /app
@@ -19,13 +19,8 @@ RUN npm run build
 # Limpiar devDependencies después del build
 RUN npm prune --production
 
-# Crear usuario no-root para seguridad
-RUN addgroup -g 1001 -S nodejs
-RUN adduser -S aiqueryservice -u 1001
-
-# Cambiar propietario de archivos
-RUN chown -R aiqueryservice:nodejs /app
-USER aiqueryservice
+# Ejecutar como usuario por defecto en la imagen base
+# (Se elimina la creación de usuario por compatibilidad de la base image)
 
 # Exponer puerto
 EXPOSE 3006

@@ -22,6 +22,9 @@ class App {
   public port: number;
   private redisService: RedisService;
   private notificationQueueService: NotificationQueueService;
+  // Añadido: flags y temporizador para reintentos de inicialización
+  private subscriptionsInitialized: boolean = false;
+  private redisRetryInterval: NodeJS.Timeout | null = null;
 
   constructor() {
     this.app = express();
@@ -136,9 +139,51 @@ class App {
         });
       }
     });
+
+    // Start queue processing endpoint
+    this.app.post('/queue/start', async (req, res) => {
+      try {
+        await this.notificationQueueService.startProcessing();
+        const stats = await this.notificationQueueService.getQueueStats();
+        res.json({
+          success: true,
+          started: true,
+          queue: stats,
+          timestamp: new Date().toISOString()
+        });
+      } catch (error) {
+        res.status(500).json({
+          success: false,
+          message: 'Failed to start queue processing',
+          error: (error as Error).message,
+          timestamp: new Date().toISOString()
+        });
+      }
+    });
+
+    // Stop queue processing endpoint
+    this.app.post('/queue/stop', async (req, res) => {
+      try {
+        await this.notificationQueueService.stopProcessing();
+        const stats = await this.notificationQueueService.getQueueStats();
+        res.json({
+          success: true,
+          started: false,
+          queue: stats,
+          timestamp: new Date().toISOString()
+        });
+      } catch (error) {
+        res.status(500).json({
+          success: false,
+          message: 'Failed to stop queue processing',
+          error: (error as Error).message,
+          timestamp: new Date().toISOString()
+        });
+      }
+    });
     
     // Notification queue endpoint
-    this.app.post('/notify/queue', async (req, res) => {
+    this.app.post('/notify/queue', (req, res) => {
       try {
         const notificationData = req.body;
         
@@ -149,12 +194,20 @@ class App {
           });
         }
 
-        // Add notification to queue
-        await this.notificationQueueService.addNotification(notificationData);
+        // Add notification to queue asynchronously for fast response
+        this.notificationQueueService.addNotification(notificationData)
+          .then((id) => {
+            console.log(`✅ Notification queued async: ${id}`);
+          })
+          .catch((error) => {
+            console.error('❌ Error adding notification to queue (async):', error);
+          });
         
-        return res.status(200).json({
+        return res.status(202).json({
           success: true,
-          message: 'Notification added to queue successfully'
+          message: 'Notification accepted for processing',
+          queued: true,
+          delivered: false
         });
       } catch (error) {
         console.error('Error adding notification to queue:', error);
@@ -162,6 +215,41 @@ class App {
           success: false,
           message: 'Failed to add notification to queue'
         });
+      }
+    });
+
+    // Test notification endpoint (for end-to-end validation via API Gateway)
+    this.app.post('/test', async (req, res) => {
+      try {
+        const { userId, recipients, bossUserId, type, message, taskId, taskTitle, metadata } = req.body || {};
+        const uid = (userId ?? '1').toString();
+        const recips: string[] = Array.isArray(recipients) && recipients.length
+          ? recipients.map((r: any) => r.toString())
+          : [uid];
+        const boss = bossUserId ? bossUserId.toString() : undefined;
+        const tId = taskId ? taskId.toString() : undefined;
+        const tTitle = taskTitle || 'Demo';
+        const msg = message || '🔔 Notificación de prueba desde /test';
+        const payload = {
+          type: (type || 'system_alert') as any,
+          channels: ['app'],
+          data: {
+            userId: uid,
+            recipients: recips,
+            bossUserId: boss,
+            taskId: tId,
+            taskTitle: tTitle,
+            message: msg,
+            metadata: metadata || { source: 'test-endpoint' }
+          }
+        };
+
+        const id = await this.notificationQueueService.addNotification(payload as any);
+        console.log(`🧪 Test notification queued: ${id}`);
+        return res.status(202).json({ success: true, id, payload });
+      } catch (error) {
+        console.error('❌ Error in /test endpoint:', error);
+        return res.status(500).json({ success: false, message: 'Failed to queue test notification', error: (error as Error).message });
       }
     });
   }
@@ -188,12 +276,37 @@ class App {
       // Subscribe to user notification channels for real-time WebSocket delivery
       console.log('🔄 About to setup real-time notification subscriptions...');
       await this.setupRealtimeNotificationSubscriptions();
+      this.subscriptionsInitialized = true;
       console.log('✅ Real-time notification subscriptions completed');
       
     } catch (error: any) {
       console.error('❌ Error initializing Redis services:', error.message);
       console.error('Stack trace:', error.stack);
       console.warn('⚠️ Service will continue without Redis functionality');
+
+      // Añadido: reintento automático para iniciar cola y suscripciones cuando Redis esté listo
+      if (!this.redisRetryInterval) {
+        console.log('🔁 Scheduling Redis initialization retry...');
+        this.redisRetryInterval = setInterval(async () => {
+          try {
+            const healthy = await this.redisService.ping();
+            if (healthy) {
+              console.log('✅ Redis became healthy, initializing real-time pipeline...');
+              await this.notificationQueueService.startProcessing();
+              if (!this.subscriptionsInitialized) {
+                await this.setupRealtimeNotificationSubscriptions();
+                this.subscriptionsInitialized = true;
+              }
+              if (this.redisRetryInterval) {
+                clearInterval(this.redisRetryInterval);
+                this.redisRetryInterval = null;
+              }
+            }
+          } catch (err) {
+            // keep retrying silently
+          }
+        }, 2500);
+      }
     }
   }
 
@@ -210,9 +323,10 @@ class App {
           console.log(`📨 Received notification from channel notification:new:`, notification);
 
           // Destinatarios: usar lista recipients. Si no existe, usar userId.
-          const recipients: string[] = Array.isArray(notification?.data?.recipients)
+          let recipients: string[] = Array.isArray(notification?.data?.recipients)
             ? notification.data.recipients
             : (notification?.data?.userId ? [notification.data.userId] : []);
+          recipients = Array.from(new Set(recipients.filter(Boolean)));
 
           // Incluir jefe del hogar si está presente y no duplicado
           if (notification?.data?.bossUserId) {
@@ -259,6 +373,8 @@ class App {
         return '✅ Tarea Completada';
       case 'task_assigned':
         return '📋 Nueva Tarea Asignada';
+      case 'task_updated':
+        return '📝 Tarea Actualizada';
       case 'task_reminder':
         return '⏰ Recordatorio de Tarea';
       case 'system_alert':

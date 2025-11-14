@@ -39,6 +39,7 @@ router.get('/notifications/:userId/unread-count', NotificationController.getUnre
  * Responde: Confirmación de eliminación
  */
 router.delete('/notifications/:notificationId', NotificationController.deleteNotification);
+router.delete('/notifications/user/:userId', NotificationController.deleteAllNotificationsForUser);
 
 /**
  * GET /health - Health check del servicio

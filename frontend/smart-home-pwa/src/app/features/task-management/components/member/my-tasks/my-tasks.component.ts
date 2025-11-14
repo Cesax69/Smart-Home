@@ -21,6 +21,7 @@ import { AlertService } from '../../../../../services/alert.service';
 import { Task } from '../../../models/task.model';
 import { ConfirmDialogComponent } from '../../../../../components/confirm-dialog/confirm-dialog.component';
 import { TaskActionsDialogComponent } from './task-actions-dialog.component';
+import { NotificationService } from '../../../../../services/notification.service';
 
 @Component({
   selector: 'app-my-tasks',
@@ -69,6 +70,7 @@ export class MyTasksComponent implements OnInit {
   private router = inject(Router);
   private alerts = inject(AlertService);
   private dialog = inject(MatDialog);
+  private notificationService = inject(NotificationService);
 
   ngOnInit(): void {
     const currentUser = this.authService.getCurrentUser();
@@ -150,9 +152,12 @@ export class MyTasksComponent implements OnInit {
   private filterTasks(tasks: Task[]): Task[] {
     return tasks.filter(task => {
       // Filtro de búsqueda
+      const searchLc = (this.searchTerm || '').toLowerCase();
+      const titleLc = (task.title ?? '').toLowerCase();
+      const descLc = (task.description ?? '').toLowerCase();
       const matchesSearch = !this.searchTerm || 
-        task.title.toLowerCase().includes(this.searchTerm.toLowerCase()) ||
-        (task.description && task.description.toLowerCase().includes(this.searchTerm.toLowerCase()));
+        titleLc.includes(searchLc) ||
+        descLc.includes(searchLc);
 
       // Filtro de prioridad
       const matchesPriority = !this.priorityFilter || task.priority === this.priorityFilter;
@@ -252,6 +257,7 @@ export class MyTasksComponent implements OnInit {
               console.log('📋 Completed tasks after update:', this.completedTasks().length);
               console.log('📋 All completed tasks:', this.completedTasks().map(t => ({ id: t.id, status: t.status })));
             }
+
             
             this.alerts.success(`Tarea ${this.getStatusLabel(newStatus)}`);
           },
@@ -446,7 +452,6 @@ export class MyTasksComponent implements OnInit {
         // Actualizar con la respuesta del servidor para sincronizar
         this.updateTaskInLists(serverUpdatedTask);
         
-        this.alerts.success(`Progreso actualizado a ${newProgress}%`);
       },
       error: (error: any) => {
         console.error('Error updating progress:', error);

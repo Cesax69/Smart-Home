@@ -12,10 +12,10 @@ import { MatChipsModule } from '@angular/material/chips';
 import { MatDatepickerModule } from '@angular/material/datepicker';
 import { MatNativeDateModule } from '@angular/material/core';
 import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
-import { MatSnackBar, MatSnackBarModule } from '@angular/material/snack-bar';
+import { AlertService } from '../../../../../services/alert.service';
 import { MAT_DIALOG_DATA, MatDialogRef } from '@angular/material/dialog';
 import { HttpClientModule, HttpClient } from '@angular/common/http';
-import { of } from 'rxjs';
+import { of, map } from 'rxjs';
 import { environment } from '../../../../../../environments/environment';
 import { TaskService } from '../../../services/task.service';
 import { AuthService } from '../../../../../services/auth.service';
@@ -38,8 +38,7 @@ import { User } from '../../../../../models/user.model';
     MatChipsModule,
     MatDatepickerModule,
     MatNativeDateModule,
-    MatProgressSpinnerModule,
-    MatSnackBarModule
+    MatProgressSpinnerModule
   ],
   template: `
     <div class="edit-task-container">
@@ -347,7 +346,7 @@ export class TaskEditComponent implements OnInit {
     private route: ActivatedRoute,
     private taskService: TaskService,
     private authService: AuthService,
-    private snackBar: MatSnackBar,
+    private alerts: AlertService,
     private http: HttpClient,
     private dialogRef?: MatDialogRef<TaskEditComponent>,
     @Inject(MAT_DIALOG_DATA) public data?: any
@@ -388,10 +387,7 @@ export class TaskEditComponent implements OnInit {
       },
       error: (error: any) => {
         console.error('Error loading task:', error);
-        this.snackBar.open('Error al cargar la tarea 😞', 'Cerrar', {
-          duration: 3000,
-          panelClass: ['error-snackbar']
-        });
+        this.alerts.error('Error al cargar la tarea 😞', undefined, { duration: 3000 });
         this.isLoading.set(false);
       }
     });
@@ -446,7 +442,7 @@ export class TaskEditComponent implements OnInit {
   private deleteExistingFileIfAny(url: string | undefined) {
     const fileId = this.extractDriveFileId(url);
     if (!fileId) return null;
-    const deleteUrl = `${environment.services.fileUpload}/files/drive/files/${fileId}`;
+    const deleteUrl = `${environment.services.fileUpload}/drive/files/${fileId}`;
     return this.http.delete<any>(deleteUrl);
   }
 
@@ -456,8 +452,15 @@ export class TaskEditComponent implements OnInit {
     const formData = new FormData();
     previews.forEach(p => formData.append('file', p.file));
     if (title) formData.append('taskTitle', title);
-    const uploadUrl = `${environment.services.fileUpload}/files/upload`;
-    return this.http.post<any>(uploadUrl, formData);
+    const uploadUrl = `${environment.services.fileUpload}/upload`;
+    return this.http.post<any>(uploadUrl, formData).pipe(
+      map((resp: any) => {
+        if (resp && resp.success === false) {
+          throw new Error(resp.message || 'Error subiendo archivo');
+        }
+        return resp;
+      })
+    );
   }
 
   onSubmit() {
@@ -501,10 +504,7 @@ export class TaskEditComponent implements OnInit {
         }
         this.taskService.updateTask(this.taskId!, updateRequest).subscribe({
           next: (updatedTask: any) => {
-            this.snackBar.open('Tarea actualizada exitosamente 🎉', 'Cerrar', {
-              duration: 3000,
-              panelClass: ['success-snackbar']
-            });
+            this.alerts.success('Tarea actualizada exitosamente 🎉', undefined, { duration: 3000 });
             // Si está en modal, cerrar. Si no, navegar atrás
             if (this.dialogRef) {
               this.dialogRef.close(updatedTask);
@@ -514,10 +514,7 @@ export class TaskEditComponent implements OnInit {
           },
           error: (error: any) => {
             console.error('Error updating task:', error);
-            this.snackBar.open('Error al actualizar la tarea 😞', 'Cerrar', {
-              duration: 3000,
-              panelClass: ['error-snackbar']
-            });
+            this.alerts.error('Error al actualizar la tarea 😞', undefined, { duration: 3000 });
             this.isSubmitting.set(false);
           }
         });
@@ -533,8 +530,9 @@ export class TaskEditComponent implements OnInit {
                 proceedUpdate(url || undefined);
               },
               error: (err: any) => {
+                const msg = err?.error?.message || err?.error?.error || err?.message || 'No se pudo subir el nuevo archivo';
                 console.error('Error subiendo archivo nuevo:', err);
-                this.snackBar.open('No se pudo subir el nuevo archivo', 'Cerrar', { duration: 3000, panelClass: ['error-snackbar'] });
+                this.alerts.error(msg, undefined, { duration: 3000 });
                 this.isSubmitting.set(false);
               }
             });
@@ -548,8 +546,9 @@ export class TaskEditComponent implements OnInit {
                 proceedUpdate(url || undefined);
               },
               error: (err2: any) => {
+                const msg2 = err2?.error?.message || err2?.error?.error || err2?.message || 'No se pudo subir el nuevo archivo';
                 console.error('Error subiendo archivo nuevo:', err2);
-                this.snackBar.open('No se pudo subir el nuevo archivo', 'Cerrar', { duration: 3000, panelClass: ['error-snackbar'] });
+                this.alerts.error(msg2, undefined, { duration: 3000 });
                 this.isSubmitting.set(false);
               }
             });

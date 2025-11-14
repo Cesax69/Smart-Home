@@ -47,14 +47,6 @@
                   <mat-error>{{ getErrorMessage('password') }}</mat-error>
                 }
               </mat-form-field>
-
-              <!-- Checkbox recordar sesión -->
-              <div class="remember-section">
-                <mat-checkbox formControlName="rememberMe" color="primary">
-                  Recordar sesión
-                </mat-checkbox>
-              </div>
-
               <!-- Mensaje de error -->
               @if (errorMessage()) {
                 <div class="error-message">

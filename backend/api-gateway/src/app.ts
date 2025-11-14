@@ -4,11 +4,12 @@ import cors from 'cors';
 import morgan from 'morgan';
 import helmet from 'helmet';
 import dotenv from 'dotenv';
+import { createProxyMiddleware } from 'http-proxy-middleware';
 
 // Importar configuraciones y middlewares
 import { routingMiddleware } from './middleware';
 import routes from './routes';
-import { SERVICES } from './config/services';
+import { SERVICES, PROXY_CONFIG } from './config/services';
 
 // Cargar variables de entorno
 dotenv.config();
@@ -19,6 +20,7 @@ dotenv.config();
 class APIGateway {
   public app: Application;
   private port: number;
+  private wsProxy: any;
 
   constructor() {
     this.app = express();
@@ -57,7 +59,24 @@ class APIGateway {
     const logFormat = process.env.LOG_FORMAT || 'combined';
     this.app.use(morgan(logFormat));
 
-    // No parseamos el cuerpo en el Gateway; el proxy gestionará JSON/multipart
+    // Parsear JSON y URL-encoded para handlers específicos (auth)
+    // Evitar parsear cuerpo para rutas `/api/files/*` para no interferir con streaming hacia File Upload Service
+    const jsonParser = express.json({ limit: PROXY_CONFIG.limit });
+    const urlencodedParser = express.urlencoded({ extended: true, limit: PROXY_CONFIG.limit });
+    this.app.use((req: Request, res: Response, next: NextFunction) => {
+      const path = req.originalUrl || req.url || '';
+      if (path.startsWith('/api/files')) {
+        return next();
+      }
+      return jsonParser(req, res, next);
+    });
+    this.app.use((req: Request, res: Response, next: NextFunction) => {
+      const path = req.originalUrl || req.url || '';
+      if (path.startsWith('/api/files')) {
+        return next();
+      }
+      return urlencodedParser(req, res, next);
+    });
 
     // Headers personalizados
     this.app.use((req: Request, res: Response, next: NextFunction) => {
@@ -65,6 +84,33 @@ class APIGateway {
       res.setHeader('X-Gateway-Version', '1.0.0');
       next();
     });
+
+    // Proxy WebSocket específico para Socket.IO del Notifications Service
+    this.wsProxy = createProxyMiddleware('/socket.io', {
+      target: SERVICES.NOTIFICATIONS.url,
+      ws: true,
+      changeOrigin: true,
+      logLevel: 'warn'
+    });
+    this.app.use(this.wsProxy);
+
+    // Proxy HTTP dedicado para Notifications Service
+    this.app.use('/api/notifications', createProxyMiddleware({
+      target: SERVICES.NOTIFICATIONS.url,
+      changeOrigin: true,
+      logLevel: 'warn',
+      pathRewrite: { '^/api/notifications': '' },
+      onProxyReq: (proxyReq: any, req: Request, res: Response) => {
+        // Reinyectar cuerpo JSON si fue parseado por body-parser
+        if (req.body && Object.keys(req.body).length > 0) {
+          const bodyData = JSON.stringify(req.body);
+          proxyReq.setHeader('Content-Type', 'application/json');
+          proxyReq.setHeader('Accept', 'application/json');
+          proxyReq.setHeader('Content-Length', Buffer.byteLength(bodyData));
+          proxyReq.write(bodyData);
+        }
+      }
+    }));
   }
 
   /**
@@ -179,6 +225,113 @@ class APIGateway {
       }
     });
 
+    // Alias conveniente: /api/connections -> AI Query Service
+    this.app.get('/api/connections', async (req: Request, res: Response) => {
+      const targetUrl = `${SERVICES.AI_QUERY.url}/api/ai-query/connections`;
+      try {
+        const url = new URL(targetUrl);
+        const options: http.RequestOptions = {
+          hostname: url.hostname,
+          port: url.port ? parseInt(url.port) : 80,
+          path: url.pathname + url.search,
+          method: 'GET',
+          headers: {
+            'Accept': 'application/json',
+            'Authorization': (req.headers['authorization'] as string) || ''
+          }
+        };
+
+        const result = await new Promise<{ status: number; headers: http.IncomingHttpHeaders; body: string }>((resolve, reject) => {
+          const proxyReq = http.request(options, (proxyRes) => {
+            const chunks: Buffer[] = [];
+            proxyRes.on('data', (chunk) => chunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk)));
+            proxyRes.on('end', () => {
+              const bodyStr = Buffer.concat(chunks).toString('utf-8');
+              resolve({ status: proxyRes.statusCode || 502, headers: proxyRes.headers, body: bodyStr });
+            });
+          });
+          proxyReq.on('error', reject);
+          proxyReq.setTimeout(30000, () => {
+            proxyReq.destroy(new Error('Upstream timeout'));
+          });
+          proxyReq.end();
+        });
+
+        // Intentar parsear y devolver JSON
+        try {
+          const json = JSON.parse(result.body);
+          res.status(result.status).json(json);
+        } catch {
+          res.status(result.status).type((result.headers['content-type'] as string) || 'application/json').send(result.body);
+        }
+      } catch (err) {
+        console.error('❌ [AI_QUERY CONNECTIONS FORWARD ERROR]:', (err as Error).message);
+        if (!res.headersSent) {
+          res.status(503).json({
+            success: false,
+            message: 'Servicio de IA no disponible temporalmente',
+            error: 'SERVICE_UNAVAILABLE',
+            timestamp: new Date().toISOString()
+          });
+        }
+      }
+    });
+
+    // Alias conveniente: /api/chat -> AI Query Service
+    this.app.post('/api/chat', async (req: Request, res: Response) => {
+      const targetUrl = `${SERVICES.AI_QUERY.url}/api/ai-query/chat`;
+      try {
+        const url = new URL(targetUrl);
+        const payload = JSON.stringify(req.body || {});
+        const options: http.RequestOptions = {
+          hostname: url.hostname,
+          port: url.port ? parseInt(url.port) : 80,
+          path: url.pathname + url.search,
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Accept': 'application/json',
+            'Content-Length': Buffer.byteLength(payload).toString(),
+            'Authorization': (req.headers['authorization'] as string) || ''
+          }
+        };
+
+        const result = await new Promise<{ status: number; headers: http.IncomingHttpHeaders; body: string }>((resolve, reject) => {
+          const proxyReq = http.request(options, (proxyRes) => {
+            const chunks: Buffer[] = [];
+            proxyRes.on('data', (chunk) => chunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk)));
+            proxyRes.on('end', () => {
+              const bodyStr = Buffer.concat(chunks).toString('utf-8');
+              resolve({ status: proxyRes.statusCode || 502, headers: proxyRes.headers, body: bodyStr });
+            });
+          });
+          proxyReq.on('error', reject);
+          proxyReq.setTimeout(30000, () => {
+            proxyReq.destroy(new Error('Upstream timeout'));
+          });
+          proxyReq.write(payload);
+          proxyReq.end();
+        });
+
+        try {
+          const json = JSON.parse(result.body);
+          res.status(result.status).json(json);
+        } catch {
+          res.status(result.status).type((result.headers['content-type'] as string) || 'application/json').send(result.body);
+        }
+      } catch (err) {
+        console.error('❌ [AI_QUERY CHAT FORWARD ERROR]:', (err as Error).message);
+        if (!res.headersSent) {
+          res.status(503).json({
+            success: false,
+            message: 'Servicio de IA no disponible temporalmente',
+            error: 'SERVICE_UNAVAILABLE',
+            timestamp: new Date().toISOString()
+          });
+        }
+      }
+    });
+
     // Enrutamiento a microservicios
     // Todas las rutas que empiecen con /api/* serán manejadas por el middleware de proxy
     this.app.use('/api/*', routingMiddleware);
@@ -238,7 +391,22 @@ class APIGateway {
    * Iniciar el servidor
    */
   public listen(): void {
-    this.app.listen(this.port, () => {
+    const server = http.createServer(this.app);
+
+    // Encajar upgrades WebSocket de Socket.IO hacia notifications-service
+    server.on('upgrade', (req: any, socket: any, head: any) => {
+      const url = req?.url || '';
+      if (url.startsWith('/socket.io')) {
+        try {
+          this.wsProxy?.upgrade?.(req, socket, head);
+        } catch (err) {
+          console.error('❌ [WS UPGRADE ERROR]:', (err as Error).message);
+          socket.destroy();
+        }
+      }
+    });
+
+    server.listen(this.port, () => {
       console.log('\n🚀 ===== SMART HOME API GATEWAY =====');
       console.log(`🌐 Servidor corriendo en: http://localhost:${this.port}`);
       console.log(`📊 Entorno: ${process.env.NODE_ENV || 'development'}`);

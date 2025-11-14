@@ -10,13 +10,14 @@ import { MatTooltipModule } from '@angular/material/tooltip';
 import { MatToolbarModule } from '@angular/material/toolbar';
 import { MatChipsModule } from '@angular/material/chips';
 import { MatMenuModule } from '@angular/material/menu';
-import { MatSnackBar, MatSnackBarModule } from '@angular/material/snack-bar';
+
 import { Subscription } from 'rxjs';
 import { NotificationService, Notification } from '../../services/notification.service';
 import { AuthService } from '../../services/auth.service';
 import { User } from '../../models/user.model';
 import { Router } from '@angular/router';
 import { TaskService } from '../../features/task-management/services/task.service';
+import { AlertService } from '../../services/alert.service';
 
 @Component({
   selector: 'app-notifications-list',
@@ -32,8 +33,7 @@ import { TaskService } from '../../features/task-management/services/task.servic
     MatTooltipModule,
     MatToolbarModule,
     MatChipsModule,
-    MatMenuModule,
-    MatSnackBarModule
+    MatMenuModule
   ],
   template: `
     <div class="notifications-container">
@@ -158,11 +158,6 @@ import { TaskService } from '../../features/task-management/services/task.servic
             </div>
           </div>
 
-            <div class="notification-summary" *ngIf="!showDetails[notification.id]">
-              <h4 class="summary-title">{{ notification.title }}</h4>
-              <p class="summary-message">{{ notification.message }}</p>
-            </div>
-
             <div class="notification-body" *ngIf="showDetails[notification.id]">
               <h4 class="notification-title">{{ notification.title }}</h4>
               <p class="notification-message">{{ notification.message }}</p>
@@ -279,24 +274,6 @@ import { TaskService } from '../../features/task-management/services/task.servic
               matTooltip="Marcar como leída">
               <mat-icon>done</mat-icon>
               <span>Marcar Leída</span>
-            </button>
-            
-            <button 
-              *ngIf="notification.metadata?.taskData?.taskId"
-              class="notification-btn view-task"
-              (click)="$event.stopPropagation(); viewTask(notification.metadata.taskData.taskId)"
-              matTooltip="Ver tarea">
-              <mat-icon>visibility</mat-icon>
-              <span>Ver Tarea</span>
-            </button>
-            
-            <button 
-              *ngIf="notification.type === 'comment_added' && notification.metadata?.taskData?.taskId"
-              class="notification-btn reply-btn"
-              (click)="$event.stopPropagation(); replyToNotification(notification)"
-              matTooltip="Responder">
-              <mat-icon>reply</mat-icon>
-              <span>Responder</span>
             </button>
             
             <button 
@@ -612,7 +589,6 @@ import { TaskService } from '../../features/task-management/services/task.servic
       border: 1px solid rgba(0, 0, 0, 0.05);
       transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
       position: relative;
-      overflow: hidden;
     }
 
     .stat-card::before {
@@ -703,6 +679,13 @@ import { TaskService } from '../../features/task-management/services/task.servic
       margin: 0 auto;
     }
 
+    /* Notifications List - add desktop padding and centering */
+    .notifications-list {
+      padding: 0 32px 40px;
+      max-width: 1200px;
+      margin: 0 auto;
+    }
+
     /* Empty State - Enhanced */
     .empty-state {
       background: white;
@@ -713,7 +696,6 @@ import { TaskService } from '../../features/task-management/services/task.servic
       border: 1px solid rgba(0, 0, 0, 0.05);
       margin-top: 40px;
       position: relative;
-      overflow: hidden;
     }
 
     .empty-state::before {
@@ -792,19 +774,12 @@ import { TaskService } from '../../features/task-management/services/task.servic
       background: white;
       border-radius: 20px;
       margin-bottom: 24px;
-      border: 1px solid rgba(0, 0, 0, 0.05);
-      box-shadow: 0 8px 32px rgba(0, 0, 0, 0.08);
-      transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+      box-shadow: 0 8px 24px rgba(0, 0, 0, 0.05);
+      border: 1px solid #e2e8f0;
+      transition: all 0.4s cubic-bezier(0.25, 0.8, 0.25, 1);
+      animation: fadeIn 0.5s ease-out;
       position: relative;
-      overflow: hidden;
-      animation: slideInFromBottom 0.6s ease-out calc(0.1s + var(--card-delay, 0s)) both;
     }
-
-    .notification-card:nth-child(1) { --card-delay: 0s; }
-    .notification-card:nth-child(2) { --card-delay: 0.1s; }
-    .notification-card:nth-child(3) { --card-delay: 0.2s; }
-    .notification-card:nth-child(4) { --card-delay: 0.3s; }
-    .notification-card:nth-child(5) { --card-delay: 0.4s; }
 
     .notification-card:hover {
       transform: translateY(-8px);
@@ -914,7 +889,12 @@ import { TaskService } from '../../features/task-management/services/task.servic
       color: #4a5568;
       line-height: 1.6;
       margin: 0 0 20px 0;
+      white-space: normal;
+      word-wrap: break-word;
+      overflow-wrap: anywhere;
     }
+
+
 
     /* Member Info Section */
     .member-info {
@@ -1271,7 +1251,7 @@ export class NotificationsListComponent implements OnInit, OnDestroy {
     private authService: AuthService,
     private router: Router,
     private taskService: TaskService,
-    private snackBar: MatSnackBar
+    private alerts: AlertService
   ) {}
 
   ngOnInit(): void {
@@ -1485,11 +1465,11 @@ export class NotificationsListComponent implements OnInit, OnDestroy {
     if (reply && reply.trim()) {
       this.taskService.addComment(taskId, reply.trim()).subscribe({
         next: () => {
-          this.snackBar.open('Respuesta publicada', 'Cerrar', { duration: 3000 });
+          this.alerts.success('Respuesta publicada', undefined, { duration: 3000 });
         },
         error: (error) => {
           console.error('Error al responder:', error);
-          this.snackBar.open('Error al publicar respuesta', 'Cerrar', { duration: 3000 });
+          this.alerts.error('Error al publicar respuesta', undefined, { duration: 3000 });
         }
       });
     }

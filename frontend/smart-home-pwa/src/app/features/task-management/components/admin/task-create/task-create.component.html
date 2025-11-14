@@ -213,33 +213,6 @@
             }
           </mat-form-field>
 
-          <!-- Tiempo estimado y chips de asignados -->
-          <div class="additional-fields-row">
-            <div class="time-field-group">
-              <mat-form-field appearance="outline" class="time-field">
-                <mat-label>Tiempo estimado (HH:MM)</mat-label>
-                <input matInput type="text" inputmode="numeric" formControlName="estimatedTimeDuration" placeholder="HH:MM" (input)="onDurationChange()">
-                <mat-hint>Formato 24h, ej: 01:30</mat-hint>
-                <mat-icon matSuffix>schedule</mat-icon>
-                @if (taskForm.get('estimatedTime')?.invalid && taskForm.get('estimatedTime')?.touched) {
-                  <mat-error>{{ getErrorMessage('estimatedTime') }}</mat-error>
-                }
-              </mat-form-field>
-
-              <div class="time-presets">
-                <span class="presets-label">Rápido:</span>
-                <mat-button-toggle-group (change)="setPresetDuration($event.value)">
-                  <mat-button-toggle [value]="15">15m</mat-button-toggle>
-                  <mat-button-toggle [value]="30">30m</mat-button-toggle>
-                  <mat-button-toggle [value]="45">45m</mat-button-toggle>
-                  <mat-button-toggle [value]="60">1h</mat-button-toggle>
-                  <mat-button-toggle [value]="90">1h 30</mat-button-toggle>
-                  <mat-button-toggle [value]="120">2h</mat-button-toggle>
-                </mat-button-toggle-group>
-              </div>
-            </div>
-
-          </div>
 
           <!-- Recurrencia -->
           <div class="recurrence-section">
