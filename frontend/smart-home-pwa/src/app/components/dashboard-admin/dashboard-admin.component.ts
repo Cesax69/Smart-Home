@@ -83,21 +83,7 @@ import { NotificationBellComponent } from '../notification-bell/notification-bel
             </mat-card-actions>
           </mat-card>
 
-          <mat-card class="feature-card disabled-card">
-            <mat-card-header>
-              <mat-icon mat-card-avatar class="feature-icon">📊</mat-icon>
-              <mat-card-title>Reportes</mat-card-title>
-              <mat-card-subtitle>Estadísticas del hogar</mat-card-subtitle>
-            </mat-card-header>
-            <mat-card-content>
-              <p>Visualiza estadísticas de uso, consumo energético y actividad del hogar.</p>
-            </mat-card-content>
-            <mat-card-actions>
-              <button mat-raised-button color="primary" [disabled]="true" (click)="navigateTo('/reports')">
-                Ver Reportes
-              </button>
-            </mat-card-actions>
-          </mat-card>
+          
 
           <mat-card class="feature-card disabled-card">
             <mat-card-header>
