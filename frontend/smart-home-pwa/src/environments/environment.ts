@@ -7,7 +7,8 @@ export const environment = {
     tasks: 'http://localhost:3000/api',
     notifications: 'http://localhost:3004',
     fileUpload: 'http://localhost:3000/api/files',
-    aiQuery: 'http://localhost:3006/api/ai-query'
+    aiQuery: 'http://localhost:3006/api/ai-query',
+    finance: 'http://localhost:3000/api/finance'
   },
   // Conectar Socket.IO directamente al microservicio de notificaciones en desarrollo
   notificationsSocketUrl: 'http://localhost:3004'
