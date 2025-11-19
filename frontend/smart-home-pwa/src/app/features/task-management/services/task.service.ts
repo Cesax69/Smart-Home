@@ -332,6 +332,14 @@ export class TaskService {
     );
   }
 
+  // Obtener métricas agregadas de tareas para gráficas
+  getTaskMetrics(query: import('../../../core/builders/task-metrics-query.builder').TaskMetricsQuery): Observable<any> {
+    return this.http.post<any>(`${this.API_URL}/tasks/metrics`, query).pipe(
+      map((res: any) => res?.data ?? res),
+      catchError(this.handleError<any>('obtener métricas de tareas'))
+    );
+  }
+
   // Obtener tareas por usuario (solo para jefe de hogar)
   getTasksByUser(userId: number): Observable<Task[]> {
     return this.http.get<Task[]>(`${this.API_URL}/tasks/user/${userId}`)

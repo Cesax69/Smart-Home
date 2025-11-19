@@ -62,6 +62,14 @@ export const SERVICES: Record<string, ServiceConfig> = {
     description: 'Servicio de consultas con IA (solo lectura) para SQL/NoSQL',
     healthEndpoint: '/api/health'
   }
+  ,
+  FINANCE: {
+    name: 'Finance Service',
+    url: process.env.FINANCE_SERVICE_URL || 'http://localhost:3007',
+    path: '/api/finance',
+    description: 'Servicio de gestión financiera (ingresos, gastos, reportes)',
+    healthEndpoint: '/health'
+  }
 };
 
 /**

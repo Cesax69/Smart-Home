@@ -28,6 +28,10 @@
       <mat-icon>person_pin</mat-icon>
       <span>Mis Tareas</span>
     </button>
+    <button mat-raised-button class="nav-button primary-nav" (click)="navigate('/finance/dashboard')">
+      <mat-icon>account_balance</mat-icon>
+      <span>Finanzas</span>
+    </button>
   </div>
 
   <span class="toolbar-spacer"></span>
@@ -79,6 +83,10 @@
       <button mat-menu-item (click)="navigate('/tasks/my-tasks')">
         <mat-icon>person_pin</mat-icon>
         <span>Mis Tareas</span>
+      </button>
+      <button mat-menu-item (click)="navigate('/finance/dashboard')">
+        <mat-icon>account_balance</mat-icon>
+        <span>Finanzas</span>
       </button>
             
       <mat-divider></mat-divider>

@@ -1,0 +1,37 @@
+{
+  "name": "finance-service",
+  "version": "1.0.0",
+  "description": "Microservicio de gestión financiera para Smart Home con PostgreSQL",
+  "main": "dist/app.js",
+  "scripts": {
+    "start": "node dist/app.js",
+    "dev": "nodemon src/app.ts",
+    "build": "tsc",
+    "db:init": "node init-database.js"
+  },
+  "keywords": [
+    "microservice",
+    "finance",
+    "smart-home",
+    "nodejs",
+    "typescript",
+    "postgresql"
+  ],
+  "author": "Smart Home Team",
+  "license": "MIT",
+  "dependencies": {
+    "cors": "^2.8.5",
+    "dotenv": "^16.3.1",
+    "express": "^4.18.2",
+    "pg": "^8.11.3"
+  },
+  "devDependencies": {
+    "@types/cors": "^2.8.13",
+    "@types/express": "^4.17.17",
+    "@types/node": "^24.7.0",
+    "@types/pg": "^8.10.2",
+    "nodemon": "^3.0.1",
+    "ts-node": "^10.9.1",
+    "typescript": "^5.1.6"
+  }
+}

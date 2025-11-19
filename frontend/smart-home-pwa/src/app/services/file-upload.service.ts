@@ -33,10 +33,6 @@ export class FileUploadService {
   uploadFile(file: File, opts?: { taskTitle?: string; title?: string; folderId?: string; subfolder?: string }): Observable<any> {
     const formData = new FormData();
     formData.append('file', file);
-    if (taskTitle && taskTitle.trim().length > 0) {
-      formData.append('taskTitle', taskTitle.trim());
-    }
-
     const title = (opts?.taskTitle || opts?.title || '').toString();
     if (title) {
       formData.append('taskTitle', title);

@@ -197,7 +197,7 @@ export class TaskActionsDialogComponent implements OnInit {
     this.isUploading.set(true);
     const taskTitle = this.data.task.title;
 
-    this.fileUploadService.uploadFile(file, taskTitle).subscribe({
+    this.fileUploadService.uploadFile(file, { taskTitle }).subscribe({
       next: (response) => {
         if (!response || !response.fileInfo || !response.fileUrl) {
           this.alerts.error('No se pudo procesar la subida del archivo');
