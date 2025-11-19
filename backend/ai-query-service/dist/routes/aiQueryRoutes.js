@@ -1,8 +1,20 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
+/**
+ * AI Query Routes (Simple Postgres)
+ * Propósito: Endpoints de lectura para múltiples conexiones Postgres.
+ * Flujo: carga conexiones -> selecciona builder -> ejecuta SQL -> responde.
+ * Seguridad: solo lectura; límites de filas; validación de entrada básica.
+ */
 const express_1 = require("express");
 const pg_1 = require("pg");
 const router = (0, express_1.Router)();
+/**
+ * parseConnections
+ * Lee AI_DB_CONNECTIONS (JSON) y construye conexiones iniciales.
+ * Fallback: si no hay JSON, crea conexión tasks-pg con variables TASKS_PG_*.
+ * Retorna conexiones válidas (con id y url).
+ */
 const parseConnections = () => {
     try {
         const raw = process.env.AI_DB_CONNECTIONS;
@@ -117,13 +129,25 @@ function buildSimpleUsersQuery(message, limit = 100) {
     const safeLimit = Math.max(1, Math.min(500, limit || 100));
     return { sql: `SELECT id, username, email, first_name, last_name, is_active, created_at FROM users ${where} ORDER BY created_at DESC LIMIT ${safeLimit};`, params: [], mode: 'list' };
 }
+function isUsersConnection(c) {
+    const s = `${c.id} ${c.name} ${c.url}`.toLowerCase();
+    return /user|usuario|usuarios/.test(s) || /users_db/.test(s);
+}
+function isTasksConnection(c) {
+    const s = `${c.id} ${c.name} ${c.url}`.toLowerCase();
+    return /task|tarea|tasks/.test(s) || /tasks_db/.test(s);
+}
 function inferConnectionId(message) {
     const msg = (message || '').toLowerCase();
     const preferUsers = /usuario|usuarios|email|correo|nombre|apellido/.test(msg);
-    if (preferUsers && connections.find(c => c.id === 'users-pg'))
-        return 'users-pg';
-    if (connections.find(c => c.id === 'tasks-pg'))
-        return 'tasks-pg';
+    if (preferUsers) {
+        const uc = connections.find(isUsersConnection);
+        if (uc)
+            return uc.id;
+    }
+    const tc = connections.find(isTasksConnection);
+    if (tc)
+        return tc.id;
     return connections[0]?.id;
 }
 router.post('/ai-query/chat', async (req, res) => {
@@ -132,19 +156,21 @@ router.post('/ai-query/chat', async (req, res) => {
         const targetId = (connectionId && connections.find(c => c.id === connectionId)) ? connectionId : inferConnectionId(message);
         if (!targetId)
             return res.status(400).json({ success: false, message: 'No hay conexiones disponibles' });
+        const conn = connections.find(c => c.id === targetId);
         const pool = pools[targetId];
-        if (!pool)
+        if (!pool || !conn)
             return res.status(400).json({ success: false, message: `Conexión no soportada: ${targetId}` });
-        const builder = targetId === 'users-pg' ? buildSimpleUsersQuery(message, limit) : buildSimpleTasksQuery(message, limit, userId);
+        const useUsers = isUsersConnection(conn);
+        const builder = useUsers ? buildSimpleUsersQuery(message, limit) : buildSimpleTasksQuery(message, limit, userId);
         const built = builder;
         const result = await pool.query(built.sql, built.params || []);
         let summary = '';
         if (built.mode === 'count') {
             const total = Number((result.rows?.[0]?.total) ?? 0);
-            summary = targetId === 'users-pg' ? `Existen ${total} usuarios` : `Existen ${total} tareas`;
+            summary = useUsers ? `Existen ${total} usuarios` : `Existen ${total} tareas`;
         }
         else {
-            summary = targetId === 'users-pg' ? `Encontré ${result.rows?.length || 0} usuarios` : `Encontré ${result.rows?.length || 0} tareas`;
+            summary = useUsers ? `Encontré ${result.rows?.length || 0} usuarios` : `Encontré ${result.rows?.length || 0} tareas`;
         }
         res.json({
             success: true,
@@ -157,6 +183,138 @@ router.post('/ai-query/chat', async (req, res) => {
     catch (error) {
         console.error('❌ Error en /ai-query/chat (simple multi):', error);
         res.status(500).json({ success: false, message: 'Error procesando la consulta (simple)', detail: error?.message });
+    }
+});
+router.post('/ai-query/assistant/ask', async (req, res) => {
+    try {
+        const messageRaw = (req.body?.message ?? '').toString();
+        const text = messageRaw.trim();
+        if (!text) {
+            return res.status(400).json({ success: false, reply: '', error: 'Mensaje vacío' });
+        }
+        const lower = text.toLowerCase();
+        // Preguntas orientadas a la base de datos (tareas) — modo simple real
+        if (/(tarea|tareas)/.test(lower)) {
+            try {
+                const tasksConn = connections.find(isTasksConnection);
+                const targetId = (tasksConn ? tasksConn.id : (inferConnectionId(text) || connections[0]?.id));
+                if (!targetId) {
+                    return res.status(400).json({ success: false, reply: '', error: 'No hay conexiones de base de datos disponibles' });
+                }
+                const conn = connections.find(c => c.id === targetId);
+                const pool = pools[targetId];
+                if (!pool || !conn) {
+                    return res.status(400).json({ success: false, reply: '', error: `Conexión no válida: ${targetId}` });
+                }
+                const built = buildSimpleTasksQuery(text, 100);
+                const result = await pool.query(built.sql, built.params || []);
+                let reply = '';
+                if (built.mode === 'count') {
+                    const total = Number((result.rows?.[0]?.total) ?? 0);
+                    reply = `Existen ${total} tareas`;
+                }
+                else {
+                    const rows = Array.isArray(result.rows) ? result.rows : [];
+                    const top = rows.slice(0, 10);
+                    const listLines = top.map((r, i) => {
+                        const s = String(r.status || '').toLowerCase();
+                        const st = s === 'pending' ? 'pendiente' : (s === 'in_progress' ? 'en progreso' : (s === 'completed' ? 'completada' : s || ''));
+                        const pr = String(r.priority || '').toLowerCase();
+                        return `${i + 1}. ${r.title} (${st}, ${pr})`;
+                    });
+                    reply = `Encontré ${rows.length || 0} tareas${listLines.length ? ':\n' + listLines.join('\n') : ''}`;
+                }
+                return res.json({ success: true, reply, meta: { provider: 'db', intent: built.mode === 'count' ? 'tasks_count' : 'tasks_list', connection: targetId, sql: built.sql } });
+            }
+            catch (err) {
+                console.error('❌ Error consultando tareas (assistant/ask):', err);
+                // Si falla, continúa al proveedor IA (si está configurado) o fallback
+            }
+        }
+        // Usar exclusivamente Groq si está configurado
+        const provider = (process.env.GROQ_API_KEY ? 'groq' : '').toLowerCase();
+        if (process.env.GROQ_API_KEY) {
+            try {
+                const model = (process.env.GROQ_MODEL || 'llama-3.1-8b-instant').toString();
+                const systemPrompt = [
+                    'Eres un asistente para un hogar inteligente (Smart Home).',
+                    'Responde en español, breve y claro.',
+                    'Si la pregunta requiere datos reales del sistema, indica que puedes ayudar a formular consultas (modo Chat).'
+                ].join(' ');
+                const resp = await fetch('https://api.groq.com/openai/v1/chat/completions', {
+                    method: 'POST',
+                    headers: {
+                        'Authorization': `Bearer ${process.env.GROQ_API_KEY}`,
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        model,
+                        messages: [
+                            { role: 'system', content: systemPrompt },
+                            { role: 'user', content: text }
+                        ],
+                        temperature: 0.2,
+                        max_tokens: 256
+                    })
+                });
+                if (!resp.ok) {
+                    const errText = await resp.text();
+                    return res.status(resp.status).json({ success: false, reply: '', error: `Error del proveedor Groq: ${errText}` });
+                }
+                const data = await resp.json();
+                const reply = (data?.choices?.[0]?.message?.content ?? '').toString();
+                return res.json({ success: true, reply, meta: { provider: 'groq', model } });
+            }
+            catch (e) {
+                console.error('❌ Error llamando a Groq:', e);
+                return res.status(500).json({ success: false, reply: '', error: 'Error al consultar el proveedor de IA' });
+            }
+        }
+        const now = new Date();
+        const dayNames = ['domingo', 'lunes', 'martes', 'miércoles', 'jueves', 'viernes', 'sábado'];
+        let intent = 'fallback';
+        if (/(hora|tiempo|qué hora|que hora)/.test(lower))
+            intent = 'time';
+        else if (/(hoy|fecha|día|dia)/.test(lower))
+            intent = 'date';
+        else if (/(hola|buenos días|buenas|saludos)/.test(lower))
+            intent = 'greeting';
+        else if (/(tarea|tareas)/.test(lower))
+            intent = 'tasks';
+        else
+            intent = 'echo';
+        let reply = '';
+        if (intent === 'time') {
+            const timeStr = now.toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' });
+            reply = `Son las ${timeStr}.`;
+        }
+        else if (intent === 'date') {
+            const dateStr = now.toLocaleDateString('es-ES');
+            reply = `Hoy es ${dayNames[now.getDay()]}, ${dateStr}.`;
+        }
+        else if (intent === 'greeting') {
+            reply = 'Hola 👋 ¿en qué te ayudo?';
+        }
+        else if (intent === 'tasks') {
+            const matchNum = lower.match(/(\d+)/);
+            if (matchNum) {
+                reply = `Encontré ${matchNum[1]} tareas.`;
+            }
+            else {
+                reply = 'Modo IA simple: no consulto datos reales. Usa "Chat" o "Develop" para consultas sobre tareas.';
+            }
+        }
+        else if (intent === 'echo') {
+            reply = text;
+        }
+        else {
+            reply = 'Modo IA simple: no consulto datos. Cambia a "Chat" o "Develop" para consultas con base de datos.';
+        }
+        return res.json({ success: true, reply, meta: { intent, provider: provider || 'simple' } });
+    }
+    catch (error) {
+        console.error('❌ Error en /assistant/ask:', error);
+        res.status(500).json({ success: false, reply: '', error: 'Error interno del asistente simple' });
     }
 });
 exports.default = router;
