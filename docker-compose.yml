@@ -173,7 +173,7 @@ services:
     env_file:
       - ./backend/ai-query-service/.env
     environment:
-      GROQ_MODEL : llama-3.1-8b-instant
+      GROQ_MODEL: ${GROQ_MODEL:-llama-3.1-8b-instant}
       NODE_ENV: production
       PORT: 3006
       USERS_SERVICE_URL: http://users-service:3001/api
