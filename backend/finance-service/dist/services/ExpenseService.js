@@ -73,6 +73,72 @@ class ExpenseService {
             createdAt: new Date(row.createdAt).toISOString()
         }));
     }
+    async update(id, updates) {
+        const setClauses = [];
+        const values = [];
+        let paramCount = 1;
+        if (updates.amount !== undefined) {
+            setClauses.push(`amount = $${paramCount}`);
+            values.push(updates.amount);
+            paramCount++;
+        }
+        if (updates.currency !== undefined) {
+            setClauses.push(`currency = $${paramCount}`);
+            values.push(updates.currency);
+            paramCount++;
+        }
+        if (updates.categoryId !== undefined) {
+            setClauses.push(`category_id = $${paramCount}`);
+            values.push(updates.categoryId);
+            paramCount++;
+        }
+        if (updates.memberId !== undefined) {
+            setClauses.push(`member_id = $${paramCount}`);
+            values.push(updates.memberId);
+            paramCount++;
+        }
+        if (updates.date !== undefined) {
+            setClauses.push(`date = $${paramCount}`);
+            values.push(new Date(updates.date));
+            paramCount++;
+        }
+        if (updates.notes !== undefined) {
+            setClauses.push(`notes = $${paramCount}`);
+            values.push(updates.notes);
+            paramCount++;
+        }
+        if (setClauses.length === 0) {
+            return null;
+        }
+        values.push(id);
+        const query = `
+      UPDATE expenses
+      SET ${setClauses.join(', ')}
+      WHERE id = $${paramCount}
+      RETURNING id, amount, currency, category_id as "categoryId", member_id as "memberId",
+                date, notes, created_at as "createdAt"
+    `;
+        const result = await database_1.databaseService.query(query, values);
+        if (result.rows.length === 0) {
+            return null;
+        }
+        const row = result.rows[0];
+        return {
+            id: row.id.toString(),
+            amount: parseFloat(row.amount),
+            currency: row.currency,
+            categoryId: row.categoryId,
+            memberId: row.memberId,
+            date: new Date(row.date).toISOString(),
+            notes: row.notes,
+            createdAt: new Date(row.createdAt).toISOString()
+        };
+    }
+    async delete(id) {
+        const query = 'DELETE FROM expenses WHERE id = $1';
+        const result = await database_1.databaseService.query(query, [id]);
+        return result.rowCount !== null && result.rowCount > 0;
+    }
 }
 exports.ExpenseService = ExpenseService;
 //# sourceMappingURL=ExpenseService.js.map

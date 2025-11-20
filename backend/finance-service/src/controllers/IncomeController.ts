@@ -1,7 +1,7 @@
 import { Request, Response } from 'express';
 import { IncomeService } from '../services/IncomeService';
 import { IncomeBuilder } from '../builders/IncomeBuilder';
-import { ApiResponse, CreateIncomeRequest, GetIncomeQuery } from '../models/types';
+import { CreateIncomeRequest, ApiResponse, ApiError } from '../models/types';
 
 export class IncomeController {
     private incomeService: IncomeService;
@@ -10,59 +10,54 @@ export class IncomeController {
         this.incomeService = new IncomeService();
     }
 
-    /**
-     * POST /finance/income - Crear ingreso
-     */
     async createIncome(req: Request, res: Response): Promise<void> {
         try {
             const requestData: CreateIncomeRequest = req.body;
 
-            // Usar Builder para construir y validar
-            const incomeData = IncomeBuilder.fromRequest(requestData);
+            // Usar el Builder para construir y validar
+            const income = IncomeBuilder.fromRequest(requestData);
 
-            // Persistir
-            const income = await this.incomeService.create(incomeData);
+            // Guardar en la BD
+            const saved = await this.incomeService.create(income);
 
             const response: ApiResponse = {
                 ok: true,
-                data: income,
+                data: saved,
                 meta: {
-                    createdAt: income.createdAt
+                    createdAt: saved.createdAt
                 }
             };
 
             res.status(201).json(response);
-        } catch (error) {
-            console.error('Error creating income:', error);
-
-            const response: ApiResponse = {
+        } catch (error: any) {
+            res.status(400).json({
                 ok: false,
                 error: {
                     code: 'VALIDATION_ERROR',
-                    message: error instanceof Error ? error.message : 'Error creating income',
-                    details: error instanceof Error ? { field: this.extractField(error.message) } : undefined
+                    message: error.message || 'Error creating income',
+                    details: error
                 }
-            };
-
-            res.status(400).json(response);
+            });
         }
     }
 
-    /**
-     * GET /finance/income - Listar ingresos
-     */
     async getIncome(req: Request, res: Response): Promise<void> {
         try {
-            const filters: GetIncomeQuery = {
-                from: req.query.from as string,
-                to: req.query.to as string,
-                source: req.query.source as string,
-                memberId: req.query.memberId as string
+            const { from, to, source, memberId } = req.query;
+
+            const filters = {
+                from: from as string | undefined,
+                to: to as string | undefined,
+                source: source as string | undefined,
+                memberId: memberId as string | undefined
             };
 
             const income = await this.incomeService.findAll(filters);
 
-            const range = this.calculateRange(filters.from, filters.to);
+            // Calculate range
+            const now = new Date();
+            const thirtyDaysAgo = new Date(now);
+            thirtyDaysAgo.setDate(now.getDate() - 30);
 
             const response: ApiResponse = {
                 ok: true,
@@ -71,45 +66,98 @@ export class IncomeController {
                 },
                 meta: {
                     count: income.length,
-                    currency: income.length > 0 ? income[0].currency : 'USD',
-                    range
+                    currency: 'USD',
+                    range: {
+                        start: from ? new Date(from as string).toISOString() : thirtyDaysAgo.toISOString(),
+                        end: to ? new Date(to as string).toISOString() : now.toISOString()
+                    }
                 }
             };
 
             res.status(200).json(response);
-        } catch (error) {
-            console.error('Error getting income:', error);
-
-            const response: ApiResponse = {
+        } catch (error: any) {
+            res.status(500).json({
                 ok: false,
                 error: {
-                    code: 'SERVER_ERROR',
-                    message: 'Error retrieving income'
+                    code: 'INTERNAL_ERROR',
+                    message: error.message || 'Error fetching income',
+                    details: error
                 }
-            };
-
-            res.status(500).json(response);
+            });
         }
     }
 
-    private extractField(message: string): string | undefined {
-        if (message.includes('amount')) return 'amount';
-        if (message.includes('currency')) return 'currency';
-        if (message.includes('source')) return 'source';
-        return undefined;
+    async updateIncome(req: Request, res: Response): Promise<void> {
+        try {
+            const { id } = req.params;
+            const updates = req.body;
+
+            // Validate if amount is being updated
+            if (updates.amount !== undefined && updates.amount <= 0) {
+                throw new Error('Amount must be greater than 0');
+            }
+
+            const updated = await this.incomeService.update(id, updates);
+
+            if (!updated) {
+                res.status(404).json({
+                    ok: false,
+                    error: {
+                        code: 'NOT_FOUND',
+                        message: `Income with id ${id} not found`
+                    }
+                });
+                return;
+            }
+
+            const response: ApiResponse = {
+                ok: true,
+                data: updated,
+                meta: {
+                    updatedAt: new Date().toISOString()
+                }
+            };
+
+            res.status(200).json(response);
+        } catch (error: any) {
+            res.status(400).json({
+                ok: false,
+                error: {
+                    code: 'VALIDATION_ERROR',
+                    message: error.message || 'Error updating income',
+                    details: error
+                }
+            });
+        }
     }
 
-    private calculateRange(from?: string, to?: string): { start: string, end: string } {
-        const now = new Date();
-        const start = from ? new Date(from) : new Date(now.setDate(now.getDate() - 30));
-        const end = to ? new Date(to) : new Date();
+    async deleteIncome(req: Request, res: Response): Promise<void> {
+        try {
+            const { id } = req.params;
 
-        start.setHours(0, 0, 0, 0);
-        end.setHours(23, 59, 59, 999);
+            const deleted = await this.incomeService.delete(id);
 
-        return {
-            start: start.toISOString(),
-            end: end.toISOString()
-        };
+            if (!deleted) {
+                res.status(404).json({
+                    ok: false,
+                    error: {
+                        code: 'NOT_FOUND',
+                        message: `Income with id ${id} not found`
+                    }
+                });
+                return;
+            }
+
+            res.status(204).send();
+        } catch (error: any) {
+            res.status(500).json({
+                ok: false,
+                error: {
+                    code: 'INTERNAL_ERROR',
+                    message: error.message || 'Error deleting income',
+                    details: error
+                }
+            });
+        }
     }
 }
