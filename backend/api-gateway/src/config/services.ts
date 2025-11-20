@@ -68,6 +68,13 @@ export const SERVICES: Record<string, ServiceConfig> = {
     path: '/api/finance',
     description: 'Servicio de gestión de finanzas (gastos e ingresos)',
     healthEndpoint: '/health'
+  },
+  TASKS_TRACKING: {
+    name: 'Tasks Tracking Service',
+    url: process.env.FINANCE_SERVICE_URL || 'http://localhost:3007',
+    path: '/api/tasks',
+    description: 'Servicio de tracking de tareas completadas por miembro',
+    healthEndpoint: '/health'
   }
 };
 
