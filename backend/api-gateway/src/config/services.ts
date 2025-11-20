@@ -32,7 +32,7 @@ export const SERVICES: Record<string, ServiceConfig> = {
     healthEndpoint: '/health'
   },
   TASKS: {
-    name: 'Tasks Service', 
+    name: 'Tasks Service',
     url: process.env.TASKS_SERVICE_URL || 'http://localhost:3002',
     path: '/api/tasks',
     description: 'Servicio de gestión de tareas',
@@ -61,22 +61,42 @@ export const SERVICES: Record<string, ServiceConfig> = {
     path: '/api/ai-query',
     description: 'Servicio de consultas con IA (solo lectura) para SQL/NoSQL',
     healthEndpoint: '/api/health'
+  },
+  FINANCE: {
+    name: 'Finance Service',
+    url: process.env.FINANCE_SERVICE_URL || 'http://localhost:3007',
+    path: '/api/finance',
+    description: 'Servicio de gestión de finanzas (gastos e ingresos)',
+    healthEndpoint: '/health'
   }
 };
 
 /**
  * Configuración del proxy
- */
-export const PROXY_CONFIG = {
-  timeout: parseInt(process.env.PROXY_TIMEOUT || '30000'),
-  limit: process.env.PROXY_LIMIT || '10mb',
-  preserveHostHdr: true,
-  parseReqBody: true,
-  memoizeHost: false
-};
+ stripApiPrefix: true
+  },
+AI_QUERY: {
+  name: 'AI Query Service',
+  url: process.env.AI_QUERY_SERVICE_URL || 'http://localhost:3006',
+  path: '/api/ai-query',
+  description: 'Servicio de consultas con IA (solo lectura) para SQL/NoSQL',
+  healthEndpoint: '/api/health'
+  }
 
-/**
- * Obtener la configuración de un servicio por su path
+
+*
+ Configuración del proxy
+/
+port const PROXY_CONFIG = {
+timeout: parseInt(process.env.PROXY_TIMEOUT || '30000'),
+limit: process.env.PROXY_LIMIT || '10mb',
+  preserveHostHdr: true,
+parseReqBody: true,
+memoizeHost: false
+
+
+*
+ Obtener la configuración de un servicio por su path
  */
 export const getServiceByPath = (path: string): ServiceConfig | undefined => {
   // Ordenar servicios por longitud de path descendente para evaluar rutas más específicas primero
