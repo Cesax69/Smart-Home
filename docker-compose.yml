@@ -41,6 +41,27 @@ services:
       timeout: 10s
       retries: 3
 
+  # Base de datos PostgreSQL para Finanzas
+  postgres-finance:
+    image: postgres:15-alpine
+    container_name: smart-home-postgres-finance
+    environment:
+      POSTGRES_DB: finance_db
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: linux
+    ports:
+      - "5435:5432"
+    volumes:
+      - postgres_finance_data:/var/lib/postgresql/data
+      - ./backend/setup-finance-database.sql:/docker-entrypoint-initdb.d/setup-finance-database.sql
+    networks:
+      - smart-home-network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d finance_db"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
 
   # API Gateway
   api-gateway:
@@ -215,6 +236,8 @@ volumes:
   postgres_users_data:
     driver: local
   postgres_tasks_data:
+    driver: local
+  postgres_finance_data:
     driver: local
   file_uploads:
     driver: local
