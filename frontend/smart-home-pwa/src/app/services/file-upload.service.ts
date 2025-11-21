@@ -40,8 +40,8 @@ export class FileUploadService {
     }
     if (opts?.folderId) formData.append('folderId', opts.folderId);
     if (opts?.subfolder) formData.append('subfolder', opts.subfolder);
-
-    return this.http.post<any>(`${this.apiUrl}/upload`, formData);
+    
+    return this.http.post<any>(`${this.apiUrl}/files/upload`, formData);
 
   }
 

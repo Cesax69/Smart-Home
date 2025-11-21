@@ -7,47 +7,51 @@ class ExpenseController {
     constructor() {
         this.expenseService = new ExpenseService_1.ExpenseService();
     }
+    /**
+     * POST /finance/expenses - Crear gasto
+     */
     async createExpense(req, res) {
         try {
             const requestData = req.body;
-            // Usar el Builder para construir y validar el expense
-            const expense = ExpenseBuilder_1.ExpenseBuilder.fromRequest(requestData);
-            // Guardar en la BD
-            const saved = await this.expenseService.create(expense);
+            // Usar Builder para construir y validar
+            const expenseData = ExpenseBuilder_1.ExpenseBuilder.fromRequest(requestData);
+            // Persistir
+            const expense = await this.expenseService.create(expenseData);
             const response = {
                 ok: true,
-                data: saved,
+                data: expense,
                 meta: {
-                    createdAt: saved.createdAt
+                    createdAt: expense.createdAt
                 }
             };
             res.status(201).json(response);
         }
         catch (error) {
-            res.status(400).json({
+            console.error('Error creating expense:', error);
+            const response = {
                 ok: false,
                 error: {
                     code: 'VALIDATION_ERROR',
-                    message: error.message || 'Error creating expense',
-                    details: error
+                    message: error instanceof Error ? error.message : 'Error creating expense',
+                    details: error instanceof Error ? { field: this.extractField(error.message) } : undefined
                 }
-            });
+            };
+            res.status(400).json(response);
         }
     }
+    /**
+     * GET /finance/expenses - Listar gastos
+     */
     async getExpenses(req, res) {
         try {
-            const { from, to, categoryId, memberId } = req.query;
             const filters = {
-                from: from,
-                to: to,
-                categoryId: categoryId,
-                memberId: memberId
+                from: req.query.from,
+                to: req.query.to,
+                categoryId: req.query.categoryId,
+                memberId: req.query.memberId
             };
             const expenses = await this.expenseService.findAll(filters);
-            // Calculate range
-            const now = new Date();
-            const thirtyDaysAgo = new Date(now);
-            thirtyDaysAgo.setDate(now.getDate() - 30);
+            const range = this.calculateRange(filters.from, filters.to);
             const response = {
                 ok: true,
                 data: {
@@ -55,91 +59,116 @@ class ExpenseController {
                 },
                 meta: {
                     count: expenses.length,
-                    currency: 'USD',
-                    range: {
-                        start: from ? new Date(from).toISOString() : thirtyDaysAgo.toISOString(),
-                        end: to ? new Date(to).toISOString() : now.toISOString()
-                    }
+                    currency: expenses.length > 0 ? expenses[0].currency : 'USD',
+                    range
                 }
             };
             res.status(200).json(response);
         }
         catch (error) {
-            res.status(500).json({
+            console.error('Error getting expenses:', error);
+            const response = {
                 ok: false,
                 error: {
-                    code: 'INTERNAL_ERROR',
-                    message: error.message || 'Error fetching expenses',
-                    details: error
+                    code: 'SERVER_ERROR',
+                    message: 'Error retrieving expenses'
                 }
-            });
+            };
+            res.status(500).json(response);
         }
     }
+    /**
+     * GET /finance/expenses/:id - Obtener gasto por ID
+     */
+    async getExpenseById(req, res) {
+        try {
+            const { id } = req.params;
+            const expense = await this.expenseService.findById(id);
+            if (!expense) {
+                const response = {
+                    ok: false,
+                    error: { code: 'NOT_FOUND', message: 'Expense not found' }
+                };
+                res.status(404).json(response);
+                return;
+            }
+            const response = { ok: true, data: expense };
+            res.status(200).json(response);
+        }
+        catch (error) {
+            console.error('Error getting expense by id:', error);
+            const response = {
+                ok: false,
+                error: { code: 'SERVER_ERROR', message: 'Error retrieving expense' }
+            };
+            res.status(500).json(response);
+        }
+    }
+    /**
+     * PUT /finance/expenses/:id - Actualizar gasto
+     */
     async updateExpense(req, res) {
         try {
             const { id } = req.params;
-            const updates = req.body;
-            // Validate if amount is being updated
-            if (updates.amount !== undefined && updates.amount <= 0) {
-                throw new Error('Amount must be greater than 0');
-            }
-            const updated = await this.expenseService.update(id, updates);
+            const updated = await this.expenseService.update(id, req.body || {});
             if (!updated) {
-                res.status(404).json({
+                const response = {
                     ok: false,
-                    error: {
-                        code: 'NOT_FOUND',
-                        message: `Expense with id ${id} not found`
-                    }
-                });
+                    error: { code: 'NOT_FOUND', message: 'Expense not found' }
+                };
+                res.status(404).json(response);
                 return;
             }
-            const response = {
-                ok: true,
-                data: updated,
-                meta: {
-                    updatedAt: new Date().toISOString()
-                }
-            };
+            const response = { ok: true, data: updated };
             res.status(200).json(response);
         }
         catch (error) {
-            res.status(400).json({
+            console.error('Error updating expense:', error);
+            const response = {
                 ok: false,
-                error: {
-                    code: 'VALIDATION_ERROR',
-                    message: error.message || 'Error updating expense',
-                    details: error
-                }
-            });
+                error: { code: 'SERVER_ERROR', message: 'Error updating expense' }
+            };
+            res.status(500).json(response);
         }
     }
+    /**
+     * DELETE /finance/expenses/:id - Eliminar gasto
+     */
     async deleteExpense(req, res) {
         try {
             const { id } = req.params;
-            const deleted = await this.expenseService.delete(id);
-            if (!deleted) {
-                res.status(404).json({
-                    ok: false,
-                    error: {
-                        code: 'NOT_FOUND',
-                        message: `Expense with id ${id} not found`
-                    }
-                });
-                return;
-            }
-            res.status(204).send();
+            const success = await this.expenseService.delete(id);
+            const response = { ok: success };
+            res.status(success ? 200 : 404).json(success ? response : { ok: false, error: { code: 'NOT_FOUND', message: 'Expense not found' } });
         }
         catch (error) {
-            res.status(500).json({
+            console.error('Error deleting expense:', error);
+            const response = {
                 ok: false,
-                error: {
-                    code: 'INTERNAL_ERROR',
-                    message: error.message || 'Error deleting expense',
-                    details: error
-                }
-            });
+                error: { code: 'SERVER_ERROR', message: 'Error deleting expense' }
+            };
+            res.status(500).json(response);
         }
+    }
+    extractField(message) {
+        if (message.includes('amount'))
+            return 'amount';
+        if (message.includes('currency'))
+            return 'currency';
+        if (message.includes('categoryId'))
+            return 'categoryId';
+        return undefined;
+    }
+    calculateRange(from, to) {
+        const now = new Date();
+        const start = from ? new Date(from) : new Date(now.setDate(now.getDate() - 30));
+        const end = to ? new Date(to) : new Date();
+        start.setHours(0, 0, 0, 0);
+        end.setHours(23, 59, 59, 999);
+        return {
+            start: start.toISOString(),
+            end: end.toISOString()
+        };
     }
 }
 exports.ExpenseController = ExpenseController;

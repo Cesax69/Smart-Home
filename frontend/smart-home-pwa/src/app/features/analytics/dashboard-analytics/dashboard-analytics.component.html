@@ -1,0 +1,94 @@
+<div class="page-container">
+  <mat-toolbar color="primary" class="toolbar">
+    <span>Analytics</span>
+    <span class="spacer"></span>
+    <form class="filters" [formGroup]="form">
+      <mat-form-field appearance="outline">
+        <mat-label>Fuente</mat-label>
+        <mat-select formControlName="dataSource">
+          <mat-option value="finance">Finanzas</mat-option>
+          <mat-option value="tasks" disabled>Tareas (próximamente)</mat-option>
+        </mat-select>
+      </mat-form-field>
+      <mat-form-field appearance="outline">
+        <mat-label>Vista</mat-label>
+        <mat-select formControlName="view">
+          <mat-option value="overview">General</mat-option>
+          <mat-option value="distribution">Distribución</mat-option>
+        </mat-select>
+      </mat-form-field>
+      <mat-form-field appearance="outline">
+        <mat-label>Período</mat-label>
+        <mat-select formControlName="period">
+          <mat-option value="week">Semana</mat-option>
+          <mat-option value="month">Mes</mat-option>
+          <mat-option value="year">Año</mat-option>
+        </mat-select>
+      </mat-form-field>
+      <mat-form-field appearance="outline">
+        <mat-label>Moneda</mat-label>
+        <mat-select formControlName="currency">
+          <mat-option value="USD">USD</mat-option>
+          <mat-option value="EUR">EUR</mat-option>
+          <mat-option value="MXN">MXN</mat-option>
+        </mat-select>
+      </mat-form-field>
+      <button mat-stroked-button color="accent" [routerLink]="['/analytics/builder']">Configurador</button>
+    </form>
+  </mat-toolbar>
+
+  <div class="analytics-grid">
+    <mat-card>
+      <mat-card-header>
+        <mat-card-title>Métricas Financieras</mat-card-title>
+        <mat-card-subtitle>Gastos vs Ingresos ({{ currency() }})</mat-card-subtitle>
+      </mat-card-header>
+      <mat-card-content>
+        <div *ngIf="loading(); else chartsTpl" class="loading">
+          <mat-progress-spinner mode="indeterminate"></mat-progress-spinner>
+        </div>
+        <ng-template #chartsTpl>
+          <canvas baseChart [data]="lineChartData" [options]="lineChartOptions" [type]="'line'"></canvas>
+        </ng-template>
+      </mat-card-content>
+      
+    </mat-card>
+
+    <mat-card>
+      <mat-card-header>
+        <mat-card-title>Balance</mat-card-title>
+        <mat-card-subtitle>Balance acumulado por período</mat-card-subtitle>
+      </mat-card-header>
+      <mat-card-content>
+        <canvas baseChart [data]="barChartData" [options]="barChartOptions" [type]="'bar'"></canvas>
+      </mat-card-content>
+    </mat-card>
+
+    <mat-card *ngIf="form.value.view === 'distribution' && form.value.dataSource === 'finance'">
+      <mat-card-header>
+        <mat-card-title>Distribución por Categoría (Gastos)</mat-card-title>
+        <mat-card-subtitle>{{ currency() }} · {{ form.value.period | uppercase }}</mat-card-subtitle>
+      </mat-card-header>
+      <mat-card-content>
+        <div *ngIf="loadingDistribution(); else distTpl" class="loading">
+          <mat-progress-spinner mode="indeterminate"></mat-progress-spinner>
+        </div>
+        <ng-template #distTpl>
+          <div class="chart-area">
+            <canvas baseChart [data]="donutChartData" [options]="donutChartOptions" [type]="'doughnut'"></canvas>
+          </div>
+        </ng-template>
+      </mat-card-content>
+    </mat-card>
+
+    <mat-card *ngIf="form.value.dataSource !== 'finance'">
+      <mat-card-header>
+        <mat-card-title>Estadísticas de Tareas</mat-card-title>
+        <mat-card-subtitle>Próximamente</mat-card-subtitle>
+      </mat-card-header>
+      <mat-card-content>
+        <p>La fuente "Tareas" aún no está disponible. Cuando esté lista, podrás alternar vistas como progreso, estados y miembros.</p>
+      </mat-card-content>
+    </mat-card>
+  </div>
+</div>

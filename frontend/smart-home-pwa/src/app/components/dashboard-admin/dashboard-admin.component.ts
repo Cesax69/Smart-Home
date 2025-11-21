@@ -83,21 +83,7 @@ import { NotificationBellComponent } from '../notification-bell/notification-bel
             </mat-card-actions>
           </mat-card>
 
-          <mat-card class="feature-card disabled-card">
-            <mat-card-header>
-              <mat-icon mat-card-avatar class="feature-icon">📊</mat-icon>
-              <mat-card-title>Reportes</mat-card-title>
-              <mat-card-subtitle>Estadísticas del hogar</mat-card-subtitle>
-            </mat-card-header>
-            <mat-card-content>
-              <p>Visualiza estadísticas de uso, consumo energético y actividad del hogar.</p>
-            </mat-card-content>
-            <mat-card-actions>
-              <button mat-raised-button color="primary" [disabled]="true" (click)="navigateTo('/reports')">
-                Ver Reportes
-              </button>
-            </mat-card-actions>
-          </mat-card>
+          
 
           <mat-card class="feature-card disabled-card">
             <mat-card-header>
@@ -143,6 +129,46 @@ import { NotificationBellComponent } from '../notification-bell/notification-bel
             <mat-card-actions>
               <button mat-raised-button color="primary" [disabled]="true" (click)="navigateTo('/security')">
                 Ver Seguridad
+              </button>
+            </mat-card-actions>
+          </mat-card>
+
+          <!-- Finanzas -->
+          <mat-card class="feature-card">
+            <mat-card-header>
+              <mat-icon mat-card-avatar class="feature-icon">💰</mat-icon>
+              <mat-card-title>Finanzas</mat-card-title>
+              <mat-card-subtitle>Gastos e ingresos</mat-card-subtitle>
+            </mat-card-header>
+            <mat-card-content>
+              <p>Gestiona tus gastos e ingresos y mantén tus finanzas organizadas.</p>
+            </mat-card-content>
+            <mat-card-actions>
+              <button mat-raised-button color="primary" (click)="openFinance('expenses')">
+                Ver Gastos
+              </button>
+              <button mat-raised-button color="primary" (click)="openFinance('incomes')" style="margin-left:12px">
+                Ver Ingresos
+              </button>
+            </mat-card-actions>
+          </mat-card>
+
+          <!-- Analíticas -->
+          <mat-card class="feature-card">
+            <mat-card-header>
+              <mat-icon mat-card-avatar class="feature-icon">📈</mat-icon>
+              <mat-card-title>Analíticas</mat-card-title>
+              <mat-card-subtitle>Gráficas y métricas financieras</mat-card-subtitle>
+            </mat-card-header>
+            <mat-card-content>
+              <p>Explora tendencias y el balance acumulado con gráficas interactivas.</p>
+            </mat-card-content>
+            <mat-card-actions>
+              <button mat-raised-button color="primary" (click)="navigateTo('/analytics')">
+                Abrir Dashboard
+              </button>
+              <button mat-raised-button color="primary" style="margin-left:12px" (click)="navigateTo('/analytics/builder')">
+                Configurar Gráficas
               </button>
             </mat-card-actions>
           </mat-card>
@@ -338,6 +364,10 @@ export class DashboardAdminComponent implements OnInit {
 
   navigateTo(route: string): void {
     this.router.navigateByUrl(route);
+  }
+
+  openFinance(tab: 'expenses' | 'incomes'): void {
+    this.router.navigate(['/finance'], { queryParams: { tab } });
   }
 
   logout(): void {

@@ -1,0 +1,98 @@
+<div class="page-container">
+  <mat-toolbar color="primary" class="toolbar">
+    <span>Analytics Dashboard</span>
+    <span class="spacer"></span>
+    <span class="hint">Selecciona fuente y configura tus gráficas</span>
+  </mat-toolbar>
+
+  <div class="builder-grid">
+    <mat-card>
+      <mat-card-header>
+        <mat-card-title>Constructor de Gráficas</mat-card-title>
+        <mat-card-subtitle>Selecciona opciones y genera la visualización</mat-card-subtitle>
+      </mat-card-header>
+      <mat-card-content>
+        <form [formGroup]="form" class="builder-form">
+          <div class="row">
+            <mat-form-field appearance="outline">
+              <mat-label>Fuente de datos</mat-label>
+              <mat-select formControlName="dataSource">
+                <mat-option value="finance">Finanzas</mat-option>
+                <mat-option value="tasks" disabled>Tareas (próximamente)</mat-option>
+              </mat-select>
+            </mat-form-field>
+
+            <mat-form-field appearance="outline">
+              <mat-label>Tipo de gráfica</mat-label>
+              <mat-select formControlName="chartType">
+                <mat-option value="line">Línea</mat-option>
+                <mat-option value="bar">Barras</mat-option>
+                <mat-option value="pie">Pie</mat-option>
+                <mat-option value="doughnut">Dona</mat-option>
+              </mat-select>
+            </mat-form-field>
+
+            <mat-form-field appearance="outline">
+              <mat-label>Agrupar por</mat-label>
+              <mat-select formControlName="groupBy">
+                <mat-option value="date">Fecha</mat-option>
+                <mat-option value="category">Categoría</mat-option>
+                <mat-option value="member">Miembro</mat-option>
+              </mat-select>
+            </mat-form-field>
+
+            <mat-form-field appearance="outline">
+              <mat-label>Período</mat-label>
+              <mat-select formControlName="period">
+                <mat-option value="day">Día</mat-option>
+                <mat-option value="week">Semana</mat-option>
+                <mat-option value="month">Mes</mat-option>
+                <mat-option value="quarter">Trimestre</mat-option>
+                <mat-option value="year">Año</mat-option>
+              </mat-select>
+            </mat-form-field>
+          </div>
+
+          <div class="row">
+            <mat-form-field appearance="outline">
+              <mat-label>Moneda</mat-label>
+              <mat-select formControlName="currency">
+                <mat-option value="USD">USD</mat-option>
+                <mat-option value="EUR">EUR</mat-option>
+                <mat-option value="PEN">PEN</mat-option>
+                <mat-option value="MXN">MXN</mat-option>
+                <mat-option value="COP">COP</mat-option>
+                <mat-option value="CLP">CLP</mat-option>
+              </mat-select>
+            </mat-form-field>
+
+            <mat-checkbox formControlName="includeExpenses">Incluir gastos</mat-checkbox>
+            <mat-checkbox formControlName="includeIncomes">Incluir ingresos</mat-checkbox>
+            <mat-checkbox formControlName="includeBalance">Incluir balance</mat-checkbox>
+            <mat-checkbox formControlName="stacked">Apilar (barras/línea)</mat-checkbox>
+          </div>
+
+          <div class="actions">
+            <button mat-raised-button color="primary" (click)="generate()" [disabled]="loading()">Generar</button>
+          </div>
+        </form>
+      </mat-card-content>
+    </mat-card>
+
+    <mat-card>
+      <mat-card-header>
+        <mat-card-title>Vista previa</mat-card-title>
+      </mat-card-header>
+      <mat-card-content>
+        <div *ngIf="loading(); else chartTpl" class="loading">
+          Generando gráfica...
+        </div>
+        <ng-template #chartTpl>
+          <div class="chart-area">
+            <canvas baseChart [type]="chartType" [data]="chartData" [options]="chartOptions"></canvas>
+          </div>
+        </ng-template>
+      </mat-card-content>
+    </mat-card>
+  </div>
+</div>

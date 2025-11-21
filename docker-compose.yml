@@ -79,11 +79,13 @@ services:
       - NOTIFICATIONS_SERVICE_URL=http://notifications-service:3004
       - FILE_UPLOAD_SERVICE_URL=http://file-upload-service:3005
       - AI_QUERY_SERVICE_URL=http://ai-query-service:3006
+      - FINANCE_SERVICE_URL=http://finance-service:3007
     depends_on:
       - users-service
       - tasks-service
       - notifications-service
       - file-upload-service
+      - finance-service
     networks:
       - smart-home-network
     restart: unless-stopped
@@ -205,6 +207,31 @@ services:
       postgres-users:
         condition: service_healthy
       postgres-tasks:
+        condition: service_healthy
+    networks:
+      - smart-home-network
+    restart: unless-stopped
+
+  # Finance Service
+  finance-service:
+    build:
+      context: ./backend/finance-service
+      dockerfile: Dockerfile
+    container_name: smart-home-finance-service
+    ports:
+      - "3007:3007"
+    env_file:
+      - ./backend/finance-service/.env
+    environment:
+      - NODE_ENV=production
+      - PORT=3007
+      - DB_HOST=postgres-finance
+      - DB_PORT=5432
+      - DB_NAME=finance_db
+      - DB_USER=postgres
+      - DB_PASSWORD=linux
+    depends_on:
+      postgres-finance:
         condition: service_healthy
     networks:
       - smart-home-network

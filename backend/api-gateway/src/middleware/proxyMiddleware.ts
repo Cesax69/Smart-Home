@@ -55,7 +55,7 @@ const createServiceProxy = (service: ServiceConfig) => {
       return bodyContent;
     },
     
-    // Modificar la URL de la petición para mantener el prefijo /api
+    // Modificar la URL de la petición para mantener/re-escribir el prefijo
     proxyReqPathResolver: (req: Request) => {
       const originalUrl = req.originalUrl;
       const svc = getServiceByPath(originalUrl);
@@ -66,6 +66,13 @@ const createServiceProxy = (service: ServiceConfig) => {
           const strippedPath = originalUrl.substring(svc.path.length) || '/';
           console.log(`🔄 [PROXY] ${req.method} ${originalUrl} -> ${svc.url}${strippedPath}`);
           return strippedPath;
+        }
+        // Si el servicio requiere reescritura de prefijo, aplicar mapeo
+        if (svc.rewritePrefix && originalUrl.startsWith(svc.path)) {
+          const rest = originalUrl.substring(svc.path.length) || '';
+          const rewritten = `${svc.rewritePrefix}${rest}` || '/';
+          console.log(`🔄 [PROXY] ${req.method} ${originalUrl} -> ${svc.url}${rewritten}`);
+          return rewritten;
         }
         // En caso contrario, forward tal cual
         console.log(`🔄 [PROXY] ${req.method} ${originalUrl} -> ${svc.url}${originalUrl}`);

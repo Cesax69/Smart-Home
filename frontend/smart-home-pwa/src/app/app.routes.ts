@@ -36,6 +36,17 @@ export const routes: Routes = [
         loadComponent: () => import('./components/notifications-list/notifications-list.component').then(m => m.NotificationsListComponent),
         canActivate: [authGuard]
       }
+      ,
+      {
+        path: 'finance',
+        loadChildren: () => import('./features/finance/finance.routes').then(m => m.financeRoutes),
+        canActivate: [authGuard]
+      },
+      {
+        path: 'analytics',
+        loadChildren: () => import('./features/analytics/analytics.routes').then(m => m.analyticsRoutes),
+        canActivate: [authGuard]
+      }
     ]
   },
   { 

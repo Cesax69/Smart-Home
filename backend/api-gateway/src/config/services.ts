@@ -11,6 +11,9 @@ export interface ServiceConfig {
   healthEndpoint?: string;
   // Algunos servicios montan rutas en la raíz y requieren quitar el prefijo /api
   stripApiPrefix?: boolean;
+  // Opcional: reescribir el prefijo /api/<service> a otro prefijo en el upstream
+  // Ejemplo: /api/finance -> /finance
+  rewritePrefix?: string;
 }
 
 /**
@@ -67,7 +70,10 @@ export const SERVICES: Record<string, ServiceConfig> = {
     url: process.env.FINANCE_SERVICE_URL || 'http://localhost:3007',
     path: '/api/finance',
     description: 'Servicio de gestión de finanzas (gastos e ingresos)',
-    healthEndpoint: '/health'
+    healthEndpoint: '/health',
+    // El Finance Service monta sus rutas bajo /finance, por lo que
+    // debemos reescribir /api/finance -> /finance al hacer forward
+    rewritePrefix: '/finance'
   },
   TASKS_TRACKING: {
     name: 'Tasks Tracking Service',
@@ -94,17 +100,27 @@ AI_QUERY: {
 *
  Configuración del proxy
 /
-port const PROXY_CONFIG = {
+export const PROXY_CONFIG = {
 timeout: parseInt(process.env.PROXY_TIMEOUT || '30000'),
 limit: process.env.PROXY_LIMIT || '10mb',
   preserveHostHdr: true,
 parseReqBody: true,
 memoizeHost: false
+};
 
 
 *
  Obtener la configuración de un servicio por su path
  */
+// Configuración del proxy HTTP (safe re-export para evitar bloqueos por texto corrupto más arriba)
+const PROXY_CONFIG_SAFE = {
+  timeout: parseInt(process.env.PROXY_TIMEOUT || '30000', 10),
+  limit: process.env.PROXY_LIMIT || '10mb',
+  preserveHostHdr: true,
+  parseReqBody: true,
+  memoizeHost: false
+};
+export { PROXY_CONFIG_SAFE as PROXY_CONFIG };
 export const getServiceByPath = (path: string): ServiceConfig | undefined => {
   // Ordenar servicios por longitud de path descendente para evaluar rutas más específicas primero
   const sortedServices = Object.values(SERVICES).sort((a, b) => b.path.length - a.path.length);
