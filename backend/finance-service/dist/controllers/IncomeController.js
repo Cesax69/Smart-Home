@@ -77,6 +77,79 @@ class IncomeController {
             res.status(500).json(response);
         }
     }
+    /**
+     * GET /finance/income/:id - Obtener ingreso por ID
+     */
+    async getIncomeById(req, res) {
+        try {
+            const { id } = req.params;
+            const income = await this.incomeService.findById(id);
+            if (!income) {
+                const response = {
+                    ok: false,
+                    error: { code: 'NOT_FOUND', message: 'Income not found' }
+                };
+                res.status(404).json(response);
+                return;
+            }
+            const response = { ok: true, data: income };
+            res.status(200).json(response);
+        }
+        catch (error) {
+            console.error('Error getting income by id:', error);
+            const response = {
+                ok: false,
+                error: { code: 'SERVER_ERROR', message: 'Error retrieving income' }
+            };
+            res.status(500).json(response);
+        }
+    }
+    /**
+     * PUT /finance/income/:id - Actualizar ingreso
+     */
+    async updateIncome(req, res) {
+        try {
+            const { id } = req.params;
+            const updated = await this.incomeService.update(id, req.body || {});
+            if (!updated) {
+                const response = {
+                    ok: false,
+                    error: { code: 'NOT_FOUND', message: 'Income not found' }
+                };
+                res.status(404).json(response);
+                return;
+            }
+            const response = { ok: true, data: updated };
+            res.status(200).json(response);
+        }
+        catch (error) {
+            console.error('Error updating income:', error);
+            const response = {
+                ok: false,
+                error: { code: 'SERVER_ERROR', message: 'Error updating income' }
+            };
+            res.status(500).json(response);
+        }
+    }
+    /**
+     * DELETE /finance/income/:id - Eliminar ingreso
+     */
+    async deleteIncome(req, res) {
+        try {
+            const { id } = req.params;
+            const success = await this.incomeService.delete(id);
+            const response = { ok: success };
+            res.status(success ? 200 : 404).json(success ? response : { ok: false, error: { code: 'NOT_FOUND', message: 'Income not found' } });
+        }
+        catch (error) {
+            console.error('Error deleting income:', error);
+            const response = {
+                ok: false,
+                error: { code: 'SERVER_ERROR', message: 'Error deleting income' }
+            };
+            res.status(500).json(response);
+        }
+    }
     extractField(message) {
         if (message.includes('amount'))
             return 'amount';

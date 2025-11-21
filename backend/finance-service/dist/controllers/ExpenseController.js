@@ -77,6 +77,79 @@ class ExpenseController {
             res.status(500).json(response);
         }
     }
+    /**
+     * GET /finance/expenses/:id - Obtener gasto por ID
+     */
+    async getExpenseById(req, res) {
+        try {
+            const { id } = req.params;
+            const expense = await this.expenseService.findById(id);
+            if (!expense) {
+                const response = {
+                    ok: false,
+                    error: { code: 'NOT_FOUND', message: 'Expense not found' }
+                };
+                res.status(404).json(response);
+                return;
+            }
+            const response = { ok: true, data: expense };
+            res.status(200).json(response);
+        }
+        catch (error) {
+            console.error('Error getting expense by id:', error);
+            const response = {
+                ok: false,
+                error: { code: 'SERVER_ERROR', message: 'Error retrieving expense' }
+            };
+            res.status(500).json(response);
+        }
+    }
+    /**
+     * PUT /finance/expenses/:id - Actualizar gasto
+     */
+    async updateExpense(req, res) {
+        try {
+            const { id } = req.params;
+            const updated = await this.expenseService.update(id, req.body || {});
+            if (!updated) {
+                const response = {
+                    ok: false,
+                    error: { code: 'NOT_FOUND', message: 'Expense not found' }
+                };
+                res.status(404).json(response);
+                return;
+            }
+            const response = { ok: true, data: updated };
+            res.status(200).json(response);
+        }
+        catch (error) {
+            console.error('Error updating expense:', error);
+            const response = {
+                ok: false,
+                error: { code: 'SERVER_ERROR', message: 'Error updating expense' }
+            };
+            res.status(500).json(response);
+        }
+    }
+    /**
+     * DELETE /finance/expenses/:id - Eliminar gasto
+     */
+    async deleteExpense(req, res) {
+        try {
+            const { id } = req.params;
+            const success = await this.expenseService.delete(id);
+            const response = { ok: success };
+            res.status(success ? 200 : 404).json(success ? response : { ok: false, error: { code: 'NOT_FOUND', message: 'Expense not found' } });
+        }
+        catch (error) {
+            console.error('Error deleting expense:', error);
+            const response = {
+                ok: false,
+                error: { code: 'SERVER_ERROR', message: 'Error deleting expense' }
+            };
+            res.status(500).json(response);
+        }
+    }
     extractField(message) {
         if (message.includes('amount'))
             return 'amount';

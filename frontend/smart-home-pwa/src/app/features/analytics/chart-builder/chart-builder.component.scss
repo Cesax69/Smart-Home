@@ -1,0 +1,54 @@
+.page-container {
+  padding: 24px;
+}
+
+.toolbar {
+  position: sticky;
+  top: 0;
+  z-index: 2;
+}
+
+.spacer {
+  flex: 1 1 auto;
+}
+
+.builder-grid {
+  display: grid;
+  grid-template-columns: minmax(320px, 420px) 1fr;
+  gap: 16px;
+  align-items: start;
+}
+
+.builder-form {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  overflow: auto;
+  max-height: calc(100vh - 140px);
+}
+
+.row {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(160px, 1fr));
+  gap: 12px;
+  align-items: center;
+}
+
+.actions {
+  display: flex;
+  justify-content: flex-end;
+}
+
+.loading {
+  padding: 24px;
+  text-align: center;
+}
+
+.chart-area {
+  height: 420px;
+}
+
+@media (max-width: 960px) {
+  .builder-grid { grid-template-columns: 1fr; }
+  .row { grid-template-columns: repeat(2, minmax(160px, 1fr)); }
+}

@@ -10,6 +10,18 @@ export declare class ExpenseController {
      * GET /finance/expenses - Listar gastos
      */
     getExpenses(req: Request, res: Response): Promise<void>;
+    /**
+     * GET /finance/expenses/:id - Obtener gasto por ID
+     */
+    getExpenseById(req: Request, res: Response): Promise<void>;
+    /**
+     * PUT /finance/expenses/:id - Actualizar gasto
+     */
+    updateExpense(req: Request, res: Response): Promise<void>;
+    /**
+     * DELETE /finance/expenses/:id - Eliminar gasto
+     */
+    deleteExpense(req: Request, res: Response): Promise<void>;
     private extractField;
     private calculateRange;
 }

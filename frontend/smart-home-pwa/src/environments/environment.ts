@@ -8,6 +8,7 @@ export const environment = {
     notifications: 'http://localhost:3004',
     fileUpload: 'http://localhost:3000/api/files',
     aiQuery: 'http://localhost:3006/api/ai-query',
+    finance: 'http://localhost:3000/api/finance',
     
   },
   // Conectar Socket.IO directamente al microservicio de notificaciones en desarrollo
