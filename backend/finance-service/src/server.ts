@@ -2,7 +2,9 @@ import express, { Request, Response } from 'express';
 import cors from 'cors';
 import dotenv from 'dotenv';
 import financeRoutes from './routes/financeRoutes';
+import taskRoutes from './routes/taskRoutes';
 import { databaseService } from './config/database';
+import { tasksDatabaseService } from './config/tasksDatabase';
 
 dotenv.config();
 
@@ -26,6 +28,7 @@ app.get('/health', (req: Request, res: Response) => {
 
 // API Routes
 app.use('/finance', financeRoutes);
+app.use('/tasks', taskRoutes);
 
 // Root endpoint
 app.get('/', (req: Request, res: Response) => {

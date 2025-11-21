@@ -74,6 +74,13 @@ export const SERVICES: Record<string, ServiceConfig> = {
     // El Finance Service monta sus rutas bajo /finance, por lo que
     // debemos reescribir /api/finance -> /finance al hacer forward
     rewritePrefix: '/finance'
+  },
+  TASKS_TRACKING: {
+    name: 'Tasks Tracking Service',
+    url: process.env.FINANCE_SERVICE_URL || 'http://localhost:3007',
+    path: '/api/tasks',
+    description: 'Servicio de tracking de tareas completadas por miembro',
+    healthEndpoint: '/health'
   }
 };
 
