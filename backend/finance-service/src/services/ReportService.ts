@@ -79,21 +79,54 @@ export class ReportService {
         const expenses = labels.map(() => 0);
         const income = labels.map(() => 0);
 
+        const days = Math.ceil((range.end.getTime() - range.start.getTime()) / (1000 * 60 * 60 * 24));
+        const isWeekly = days > 31;
+
         // Llenar datos de expenses
         expensesResult.rows.forEach(row => {
-            const dayStr = new Date(row.day).toISOString().split('T')[0];
-            const index = labels.indexOf(dayStr);
-            if (index !== -1) {
-                expenses[index] = parseFloat(row.total);
+            const day = new Date(row.day);
+            const dayStr = day.toISOString().split('T')[0];
+
+            if (isWeekly) {
+                // Find the week start that contains this day
+                const weekIndex = labels.findIndex(label => {
+                    const labelDate = new Date(label);
+                    const nextWeek = new Date(labelDate);
+                    nextWeek.setDate(labelDate.getDate() + 7);
+                    return day >= labelDate && day < nextWeek;
+                });
+                if (weekIndex !== -1) {
+                    expenses[weekIndex] += parseFloat(row.total);
+                }
+            } else {
+                const index = labels.indexOf(dayStr);
+                if (index !== -1) {
+                    expenses[index] = parseFloat(row.total);
+                }
             }
         });
 
         // Llenar datos de income
         incomeResult.rows.forEach(row => {
-            const dayStr = new Date(row.day).toISOString().split('T')[0];
-            const index = labels.indexOf(dayStr);
-            if (index !== -1) {
-                income[index] = parseFloat(row.total);
+            const day = new Date(row.day);
+            const dayStr = day.toISOString().split('T')[0];
+
+            if (isWeekly) {
+                // Find the week start that contains this day
+                const weekIndex = labels.findIndex(label => {
+                    const labelDate = new Date(label);
+                    const nextWeek = new Date(labelDate);
+                    nextWeek.setDate(labelDate.getDate() + 7);
+                    return day >= labelDate && day < nextWeek;
+                });
+                if (weekIndex !== -1) {
+                    income[weekIndex] += parseFloat(row.total);
+                }
+            } else {
+                const index = labels.indexOf(dayStr);
+                if (index !== -1) {
+                    income[index] = parseFloat(row.total);
+                }
             }
         });
 

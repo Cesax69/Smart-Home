@@ -32,14 +32,14 @@ export class FinanceReportQueryBuilder {
     }
 
     setCurrency(currency?: string): this {
-        this.query.currency = currency || 'USD';
+        this.query.currency = currency || 'MXN';
         return this;
     }
 
     build(): FinanceReportQuery {
         // Set defaults
         if (!this.query.currency) {
-            this.query.currency = 'USD';
+            this.query.currency = 'MXN';
         }
         if (!this.query.groupBy) {
             this.query.groupBy = 'date';
