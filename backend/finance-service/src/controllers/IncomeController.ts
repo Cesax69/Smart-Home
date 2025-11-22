@@ -43,7 +43,7 @@ export class IncomeController {
 
     async getIncome(req: Request, res: Response): Promise<void> {
         try {
-            const { from, to, source, memberId } = req.query;
+            const { from, to, source, memberId, page, limit, sort } = req.query;
 
             const filters = {
                 from: from as string | undefined,
@@ -52,26 +52,82 @@ export class IncomeController {
                 memberId: memberId as string | undefined
             };
 
-            const income = await this.incomeService.findAll(filters);
+            // Get ALL matching incomes first (for count)
+            const allIncome = await this.incomeService.findAll(filters);
+            const totalItems = allIncome.length;
 
-            // Calculate range
-            const now = new Date();
-            const thirtyDaysAgo = new Date(now);
-            thirtyDaysAgo.setDate(now.getDate() - 30);
+            // Parse pagination params
+            const currentPage = page ? parseInt(page as string) : 1;
+            const pageSize = limit ? parseInt(limit as string) : 10;
+            const totalPages = Math.ceil(totalItems / pageSize);
+
+            // Calculate pagination
+            const startIndex = (currentPage - 1) * pageSize;
+            const endIndex = startIndex + pageSize;
+            const paginatedItems = allIncome.slice(startIndex, endIndex);
+
+            // Sort if requested
+            let sortedItems = paginatedItems;
+            if (sort) {
+                const [field, direction] = (sort as string).split(':');
+                sortedItems = [...paginatedItems].sort((a: any, b: any) => {
+                    const aVal = a[field];
+                    const bVal = b[field];
+                    if (direction === 'asc') {
+                        return aVal > bVal ? 1 : -1;
+                    } else {
+                        return aVal < bVal ? 1 : -1;
+                    }
+                });
+            }
 
             const response: ApiResponse = {
                 ok: true,
                 data: {
-                    items: income
+                    items: sortedItems
                 },
                 meta: {
-                    count: income.length,
-                    currency: 'USD',
-                    range: {
-                        start: from ? new Date(from as string).toISOString() : thirtyDaysAgo.toISOString(),
-                        end: to ? new Date(to as string).toISOString() : now.toISOString()
-                    }
+                    page: currentPage,
+                    limit: pageSize,
+                    totalItems: totalItems,
+                    totalPages: totalPages,
+                    hasNextPage: currentPage < totalPages,
+                    hasPrevPage: currentPage > 1
                 }
+            };
+
+            res.status(200).json(response);
+        } catch (error: any) {
+            res.status(500).json({
+                ok: false,
+                error: {
+                    code: 'INTERNAL_ERROR',
+                    message: error.message || 'Error fetching income',
+                    details: error
+                }
+            });
+        }
+    }
+
+    async getIncomeById(req: Request, res: Response): Promise<void> {
+        try {
+            const { id } = req.params;
+            const income = await this.incomeService.findById(parseInt(id));
+
+            if (!income) {
+                res.status(404).json({
+                    ok: false,
+                    error: {
+                        code: 'NOT_FOUND',
+                        message: `Income with id ${id} not found`
+                    }
+                });
+                return;
+            }
+
+            const response: ApiResponse = {
+                ok: true,
+                data: income
             };
 
             res.status(200).json(response);

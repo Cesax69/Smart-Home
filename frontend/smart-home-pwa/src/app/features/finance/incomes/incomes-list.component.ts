@@ -19,6 +19,7 @@ import { FinanceService } from '../../../services/finance.service';
 import { Income, IncomesListResponse } from '../../../models/finance.model';
 import { INCOME_SOURCES, HOUSEHOLD_MEMBERS, CatalogMaps } from '../../../catalogs/catalogs';
 import { IncomeFormComponent } from './income-form.component';
+import { ConfirmDialogComponent } from '../../../shared/components/confirm-dialog.component';
 
 @Component({
   selector: 'app-incomes-list',
@@ -165,6 +166,9 @@ import { IncomeFormComponent } from './income-form.component';
               <td mat-cell *matCellDef="let i">
                 <button mat-icon-button color="primary" class="action-button" (click)="openIncomeDialog(i.id)" matTooltip="Editar ingreso">
                   <mat-icon>edit</mat-icon>
+                </button>
+                <button mat-icon-button color="warn" class="action-button delete-button" (click)="deleteIncome(i.id)" matTooltip="Eliminar ingreso">
+                  <mat-icon>delete</mat-icon>
                 </button>
               </td>
             </ng-container>
@@ -567,4 +571,34 @@ export class IncomesListComponent implements OnInit {
     } as any);
     ref.afterClosed().subscribe((changed) => { if (changed) this.load(); });
   }
+
+  deleteIncome(id: string): void {
+    const dialogRef = this.dialog.open(ConfirmDialogComponent, {
+      width: '450px',
+      data: {
+        title: 'Eliminar Ingreso',
+        message: '¿Estás seguro de que deseas eliminar este ingreso? Esta acción no se puede deshacer.',
+        confirmText: 'Eliminar',
+        cancelText: 'Cancelar',
+        type: 'danger'
+      }
+    });
+
+    dialogRef.afterClosed().subscribe(result => {
+      if (!result) return;
+      
+      this.loading.set(true);
+      this.finance.deleteIncome(id).subscribe({
+        next: () => {
+          this.loading.set(false);
+          this.load();
+        },
+        error: (err) => {
+          this.loading.set(false);
+          alert('Error al eliminar el ingreso: ' + (err.message || 'Error desconocido'));
+        }
+      });
+    });
+  }
 }
+

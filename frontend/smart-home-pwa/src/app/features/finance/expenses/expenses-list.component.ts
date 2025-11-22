@@ -19,6 +19,7 @@ import { FinanceService } from '../../../services/finance.service';
 import { ExpenseFormComponent } from './expense-form.component';
 import { Expense, ExpensesListResponse } from '../../../models/finance.model';
 import { EXPENSE_CATEGORIES, HOUSEHOLD_MEMBERS, CatalogMaps } from '../../../catalogs/catalogs';
+import { ConfirmDialogComponent } from '../../../shared/components/confirm-dialog.component';
 
 @Component({
   selector: 'app-expenses-list',
@@ -578,5 +579,34 @@ export class ExpensesListComponent implements OnInit {
       autoFocus: true
     } as any);
     ref.afterClosed().subscribe((changed) => { if (changed) this.load(); });
+  }
+
+  deleteExpense(id: string): void {
+    const dialogRef = this.dialog.open(ConfirmDialogComponent, {
+      width: '450px',
+      data: {
+        title: 'Eliminar Gasto',
+        message: '¿Estás seguro de que deseas eliminar este gasto? Esta acción no se puede deshacer.',
+        confirmText: 'Eliminar',
+        cancelText: 'Cancelar',
+        type: 'danger'
+      }
+    });
+
+    dialogRef.afterClosed().subscribe(result => {
+      if (!result) return;
+
+      this.loading.set(true);
+      this.finance.deleteExpense(id).subscribe({
+        next: () => {
+          this.loading.set(false);
+          this.load();
+        },
+        error: (err) => {
+          this.loading.set(false);
+          alert('Error al eliminar el gasto: ' + (err.message || 'Error desconocido'));
+        }
+      });
+    });
   }
 }

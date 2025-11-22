@@ -43,7 +43,7 @@ export class ExpenseController {
 
     async getExpenses(req: Request, res: Response): Promise<void> {
         try {
-            const { from, to, categoryId, memberId } = req.query;
+            const { from, to, categoryId, memberId, page, limit, sort } = req.query;
 
             const filters = {
                 from: from as string | undefined,
@@ -52,25 +52,47 @@ export class ExpenseController {
                 memberId: memberId as string | undefined
             };
 
-            const expenses = await this.expenseService.findAll(filters);
+            // Get ALL matching expenses first (for count)
+            const allExpenses = await this.expenseService.findAll(filters);
+            const totalItems = allExpenses.length;
 
-            // Calculate range
-            const now = new Date();
-            const thirtyDaysAgo = new Date(now);
-            thirtyDaysAgo.setDate(now.getDate() - 30);
+            // Parse pagination params
+            const currentPage = page ? parseInt(page as string) : 1;
+            const pageSize = limit ? parseInt(limit as string) : 10;
+            const totalPages = Math.ceil(totalItems / pageSize);
+
+            // Calculate pagination
+            const startIndex = (currentPage - 1) * pageSize;
+            const endIndex = startIndex + pageSize;
+            const paginatedItems = allExpenses.slice(startIndex, endIndex);
+
+            // Sort if requested
+            let sortedItems = paginatedItems;
+            if (sort) {
+                const [field, direction] = (sort as string).split(':');
+                sortedItems = [...paginatedItems].sort((a: any, b: any) => {
+                    const aVal = a[field];
+                    const bVal = b[field];
+                    if (direction === 'asc') {
+                        return aVal > bVal ? 1 : -1;
+                    } else {
+                        return aVal < bVal ? 1 : -1;
+                    }
+                });
+            }
 
             const response: ApiResponse = {
                 ok: true,
                 data: {
-                    items: expenses
+                    items: sortedItems
                 },
                 meta: {
-                    count: expenses.length,
-                    currency: 'USD',
-                    range: {
-                        start: from ? new Date(from as string).toISOString() : thirtyDaysAgo.toISOString(),
-                        end: to ? new Date(to as string).toISOString() : now.toISOString()
-                    }
+                    page: currentPage,
+                    limit: pageSize,
+                    totalItems: totalItems,
+                    totalPages: totalPages,
+                    hasNextPage: currentPage < totalPages,
+                    hasPrevPage: currentPage > 1
                 }
             };
 
@@ -81,6 +103,40 @@ export class ExpenseController {
                 error: {
                     code: 'INTERNAL_ERROR',
                     message: error.message || 'Error fetching expenses',
+                    details: error
+                }
+            });
+        }
+    }
+
+    async getExpenseById(req: Request, res: Response): Promise<void> {
+        try {
+            const { id } = req.params;
+            const expense = await this.expenseService.findById(parseInt(id));
+
+            if (!expense) {
+                res.status(404).json({
+                    ok: false,
+                    error: {
+                        code: 'NOT_FOUND',
+                        message: `Expense with id ${id} not found`
+                    }
+                });
+                return;
+            }
+
+            const response: ApiResponse = {
+                ok: true,
+                data: expense
+            };
+
+            res.status(200).json(response);
+        } catch (error: any) {
+            res.status(500).json({
+                ok: false,
+                error: {
+                    code: 'INTERNAL_ERROR',
+                    message: error.message || 'Error fetching expense',
                     details: error
                 }
             });

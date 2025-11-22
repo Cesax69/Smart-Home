@@ -85,6 +85,33 @@ export class IncomeService {
         }));
     }
 
+    async findById(id: number): Promise<Income | null> {
+        const query = `
+            SELECT id, amount, currency, source, member_id as "memberId",
+                   date, notes, created_at as "createdAt"
+            FROM income
+            WHERE id = $1
+        `;
+
+        const result = await databaseService.query(query, [id]);
+
+        if (result.rows.length === 0) {
+            return null;
+        }
+
+        const row = result.rows[0];
+        return {
+            id: row.id.toString(),
+            amount: parseFloat(row.amount),
+            currency: row.currency,
+            source: row.source,
+            memberId: row.memberId,
+            date: new Date(row.date).toISOString(),
+            notes: row.notes,
+            createdAt: new Date(row.createdAt).toISOString()
+        };
+    }
+
     async update(id: string, updates: Partial<Omit<Income, 'id' | 'createdAt'>>): Promise<Income | null> {
         const setClauses: string[] = [];
         const values: any[] = [];
