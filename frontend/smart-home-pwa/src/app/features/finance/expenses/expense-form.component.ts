@@ -11,8 +11,10 @@ import { MatButtonModule } from '@angular/material/button';
 import { MatIconModule } from '@angular/material/icon';
 import { Router, ActivatedRoute } from '@angular/router';
 import { FinanceService } from '../../../services/finance.service';
+import { AuthService } from '../../../services/auth.service';
+import { User } from '../../../models/user.model';
 import { CurrencyCode, Expense } from '../../../models/finance.model';
-import { EXPENSE_CATEGORIES, HOUSEHOLD_MEMBERS } from '../../../catalogs/catalogs';
+import { EXPENSE_CATEGORIES } from '../../../catalogs/catalogs';
 import { MatDialogModule, MatDialogRef, MAT_DIALOG_DATA } from '@angular/material/dialog';
 import { Inject } from '@angular/core';
 
@@ -70,7 +72,7 @@ import { Inject } from '@angular/core';
             <mat-label>Miembro</mat-label>
             <mat-select formControlName="memberId">
               <mat-option [value]="">(Sin miembro)</mat-option>
-              <mat-option *ngFor="let m of members" [value]="m.id">{{ m.name }}</mat-option>
+              <mat-option *ngFor="let u of users" [value]="u.id">{{ (u.firstName + ' ' + u.lastName).trim() || u.username }}</mat-option>
             </mat-select>
           </mat-form-field>
 
@@ -99,6 +101,7 @@ import { Inject } from '@angular/core';
 export class ExpenseFormComponent implements OnInit {
   private fb = inject(FormBuilder);
   private finance = inject(FinanceService);
+  private auth = inject(AuthService);
   private router = inject(Router);
   private route = inject(ActivatedRoute);
   private dialogRef = inject<MatDialogRef<ExpenseFormComponent> | null>(MatDialogRef, { optional: true });
@@ -106,7 +109,7 @@ export class ExpenseFormComponent implements OnInit {
 
   currencies: CurrencyCode[] = ['USD', 'EUR', 'PEN', 'MXN', 'COP', 'CLP'];
   expenseCategories = EXPENSE_CATEGORIES;
-  members = HOUSEHOLD_MEMBERS;
+  users: User[] = [];
 
   form: FormGroup = this.fb.group({
     date: [new Date(), Validators.required],
@@ -122,6 +125,11 @@ export class ExpenseFormComponent implements OnInit {
   id: string | null = null;
 
   ngOnInit(): void {
+    // Cargar usuarios registrados para selección de miembro
+    this.auth.getFamilyMembers().subscribe({
+      next: (users) => { this.users = users || []; },
+      error: () => { this.users = []; }
+    });
     // Detectar id por ruta o por datos del diálogo
     this.id = (this.data && this.data.id) ? this.data.id : this.route.snapshot.paramMap.get('id');
     if (this.id) {

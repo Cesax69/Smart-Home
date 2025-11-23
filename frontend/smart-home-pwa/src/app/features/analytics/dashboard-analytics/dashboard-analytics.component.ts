@@ -10,6 +10,7 @@ import { ReactiveFormsModule, FormBuilder, FormGroup } from '@angular/forms';
 import { FinanceService } from '../../../services/finance.service';
 import { FinanceReportResponse } from '../../../models/finance.model';
 import { normalizeReport, ChartConfigBuilder, ChartDatasetInput } from '../chart-config.builder';
+import { CatalogMaps } from '../../../catalogs/catalogs';
 import { BaseChartDirective } from 'ng2-charts';
 import { RouterLink } from '@angular/router';
 import { ChartConfiguration, Chart as ChartJS, registerables } from 'chart.js';
@@ -82,7 +83,7 @@ export class DashboardAnalyticsComponent implements OnInit {
     this.finance.getReport({ period: period as any, currency: currency as any }).subscribe({
       next: (res: FinanceReportResponse | any) => {
         const normalized = normalizeReport(res);
-        const labels = normalized.labels;
+        const labels = (normalized.labels || []).map(l => CatalogMaps.expenseCategoriesMap[String(l)] || String(l));
         const exp = normalized.datasets['expenses'];
         const inc = normalized.datasets['incomes'];
         const bal = normalized.datasets['balance'];

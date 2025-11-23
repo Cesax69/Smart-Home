@@ -106,7 +106,24 @@ export class ChartConfigBuilder {
       maintainAspectRatio: false,
       plugins: {
         legend: { display: this.showLegend },
-        title: this.title ? { display: true, text: this.title } : undefined
+        title: this.title ? { display: true, text: this.title } : undefined,
+        tooltip: (this.type === 'pie' || this.type === 'doughnut') ? {
+          enabled: true,
+          mode: 'nearest',
+          intersect: true,
+          callbacks: {
+            label: (context: any) => {
+              const lbl = context.label ?? '';
+              const valNum = typeof context.parsed === 'number' ? context.parsed : Number(context.formattedValue?.replace(/[^0-9.-]/g, ''));
+              const dataArr = Array.isArray(context?.dataset?.data) ? context.dataset.data : [];
+              const total = (dataArr as number[]).reduce((acc, n) => acc + (Number(n) || 0), 0) || 0;
+              const pct = total > 0 ? ((valNum || 0) / total) * 100 : 0;
+              const valFmt = (valNum ?? '')?.toLocaleString?.() ?? valNum;
+              const pctFmt = `${pct.toFixed(1)}%`;
+              return `${lbl}: ${valFmt} (${pctFmt})`;
+            }
+          }
+        } : undefined
       },
       scales: this.type === 'bar' || this.type === 'line' ? {
         x: { stacked: this.stacked },
@@ -124,8 +141,36 @@ export class ChartConfigBuilder {
  * - { data: { labels, datasets: { expenses, incomes, balance } } }
  * - { data: { labels, datasets: Array<{label,data,color}> } }
  */
+export function formatLabelForPeriod(iso: string, period?: string): string {
+  if (!iso) return '';
+  const pad = (n: number) => String(n).padStart(2, '0');
+  // Mantener formato ISO YYYY-MM-DD siempre para evitar desfases por zona horaria
+  const isoMatch = /^\d{4}-\d{2}-\d{2}$/.test(iso);
+  if (isoMatch) {
+    const [yStr, mStr, dStr] = iso.split('-');
+    const y = parseInt(yStr, 10);
+    const m = parseInt(mStr, 10);
+    const day = parseInt(dStr, 10);
+    if (period === 'year') return `${y}-01-01`;
+    if (period === 'month') return `${y}-${pad(m)}-01`;
+    return `${y}-${pad(m)}-${pad(day)}`;
+  }
+  // Fallback: intentar convertir a ISO con cero padding
+  const d = new Date(iso);
+  if (isNaN(d.getTime())) return iso;
+  const y = d.getFullYear();
+  const m = d.getMonth() + 1;
+  const day = d.getDate();
+  if (period === 'year') return `${y}-01-01`;
+  if (period === 'month') return `${y}-${pad(m)}-01`;
+  return `${y}-${pad(m)}-${pad(day)}`;
+}
+
 export function normalizeReport(res: any): { labels: string[]; datasets: Record<string, ChartDatasetInput> } {
-  const labels: string[] = res?.data?.labels || [];
+  const rawLabels: string[] = res?.data?.labels || [];
+  const period: string | undefined = res?.meta?.period;
+  const groupBy: string | undefined = res?.meta?.groupBy;
+  const labels: string[] = (groupBy === 'date' && period) ? rawLabels.map(l => formatLabelForPeriod(l, period)) : rawLabels;
   const ds = res?.data?.datasets;
 
   if (Array.isArray(ds)) {

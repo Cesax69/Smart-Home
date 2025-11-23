@@ -332,6 +332,38 @@ export class TaskService {
     );
   }
 
+  // Obtener tareas por estado (usa la ruta dedicada del backend)
+  getTasksByStatus(status: 'pendiente' | 'en_proceso' | 'completada' | 'archivada'): Observable<Task[]> {
+    const st = this.mapStatusToBackend(status);
+    return this.http.get<any>(`${this.API_URL}/tasks/status/${st}`).pipe(
+      map((response) => {
+        const list: Task[] = (response?.data ?? response ?? []) as Task[];
+        return (list || []).map(task => ({
+          ...task as any,
+          status: this.mapStatusFromBackend((task as any).status),
+          priority: this.mapPriorityFromBackend((task as any).priority),
+          assignedTo: (task as any).assignedUserId || (task as any).assignedTo
+        }));
+      }),
+      catchError((error) => {
+        console.error('Error obteniendo tareas por estado:', error);
+        return of([]);
+      })
+    );
+  }
+
+  // Obtener tareas por prioridad (filtrado en cliente)
+  getTasksByPriority(priority: 'baja' | 'media' | 'alta' | 'urgente'): Observable<Task[]> {
+    const p = this.mapPriorityToBackend(priority);
+    return this.getTasks().pipe(
+      map(resp => (resp.tasks || []).filter(t => this.mapPriorityFromBackend((t as any).priority) === p)),
+      catchError((error) => {
+        console.error('Error obteniendo tareas por prioridad:', error);
+        return of([]);
+      })
+    );
+  }
+
   // Obtener tareas por usuario (solo para jefe de hogar)
   getTasksByUser(userId: number): Observable<Task[]> {
     return this.http.get<Task[]>(`${this.API_URL}/tasks/user/${userId}`)
@@ -342,6 +374,39 @@ export class TaskService {
           priority: this.mapPriorityFromBackend((task as any).priority),
           assignedTo: (task as any).assignedUserId || (task as any).assignedTo
         })))
+      );
+  }
+
+  // Obtener tareas por miembro (ruta dedicada del backend)
+  getTasksByMember(userId: number): Observable<Task[]> {
+    return this.http.get<any>(`${this.API_URL}/tasks/member/${userId}`)
+      .pipe(
+        map((response) => {
+          const list: Task[] = (response?.data ?? response ?? []) as Task[];
+          return (list || []).map(task => ({
+            ...task as any,
+            status: this.mapStatusFromBackend((task as any).status),
+            priority: this.mapPriorityFromBackend((task as any).priority),
+            assignedTo: (task as any).assignedUserId || (task as any).assignedTo
+          }));
+        })
+      );
+  }
+
+  // Obtener tareas por categoría
+  getTasksByCategory(category: string): Observable<Task[]> {
+    const cat = String(category).toLowerCase();
+    return this.http.get<any>(`${this.API_URL}/tasks/category/${cat}`)
+      .pipe(
+        map((response) => {
+          const list: Task[] = (response?.data ?? response ?? []) as Task[];
+          return (list || []).map(task => ({
+            ...task as any,
+            status: this.mapStatusFromBackend((task as any).status),
+            priority: this.mapPriorityFromBackend((task as any).priority),
+            assignedTo: (task as any).assignedUserId || (task as any).assignedTo
+          }));
+        })
       );
   }
 

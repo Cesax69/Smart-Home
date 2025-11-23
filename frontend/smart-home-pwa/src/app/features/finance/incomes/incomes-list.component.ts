@@ -16,8 +16,10 @@ import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
 import { MatDialogModule, MatDialog } from '@angular/material/dialog';
 import { MatTooltipModule } from '@angular/material/tooltip';
 import { FinanceService } from '../../../services/finance.service';
-import { Income, IncomesListResponse } from '../../../models/finance.model';
-import { INCOME_SOURCES, HOUSEHOLD_MEMBERS, CatalogMaps } from '../../../catalogs/catalogs';
+import { Income, IncomesListResponse, CurrencyCode } from '../../../models/finance.model';
+import { INCOME_SOURCES, CatalogMaps } from '../../../catalogs/catalogs';
+import { AuthService } from '../../../services/auth.service';
+import { User } from '../../../models/user.model';
 import { IncomeFormComponent } from './income-form.component';
 import { ConfirmDialogComponent } from '../../../shared/components/confirm-dialog.component';
 
@@ -97,9 +99,18 @@ import { ConfirmDialogComponent } from '../../../shared/components/confirm-dialo
             <mat-label>Miembro</mat-label>
             <mat-select formControlName="memberId">
               <mat-option [value]="">Todos</mat-option>
-              <mat-option *ngFor="let m of members" [value]="m.id">{{ m.name }}</mat-option>
+              <mat-option *ngFor="let u of users" [value]="u.id">{{ (u.firstName + ' ' + u.lastName).trim() || u.username }}</mat-option>
             </mat-select>
             <mat-icon matPrefix>person</mat-icon>
+          </mat-form-field>
+
+          <mat-form-field appearance="outline" class="filter-field">
+            <mat-label>Moneda</mat-label>
+            <mat-select formControlName="currency">
+              <mat-option [value]="">Todas</mat-option>
+              <mat-option *ngFor="let c of currencies" [value]="c">{{ c }}</mat-option>
+            </mat-select>
+            <mat-icon matPrefix>attach_money</mat-icon>
           </mat-form-field>
 
           <button mat-raised-button color="primary" class="filter-button" (click)="applyFilters()">
@@ -498,22 +509,44 @@ export class IncomesListComponent implements OnInit {
   sortActive: string = 'date';
   sortDirection: 'asc' | 'desc' = 'desc';
 
-  constructor(private fb: FormBuilder, private finance: FinanceService, private dialog: MatDialog) {
+  constructor(private fb: FormBuilder, private finance: FinanceService, private dialog: MatDialog, private auth: AuthService) {
     this.filters = this.fb.group({
       from: [undefined],
       to: [undefined],
       sourceId: [''],
       memberId: [''],
+      currency: ['USD'],
       page: [1],
       limit: [10]
     });
   }
 
   incomeSources = INCOME_SOURCES;
-  members = HOUSEHOLD_MEMBERS;
+  currencies: CurrencyCode[] = ['USD', 'EUR', 'PEN', 'MXN', 'COP', 'CLP'];
+  users: User[] = [];
+  private usersById: Record<number, string> = {};
   catalog = CatalogMaps;
 
-  ngOnInit(): void { this.load(); }
+
+  ngOnInit(): void {
+    // Cargar usuarios registrados para filtros y etiquetas
+    this.auth.getFamilyMembers().subscribe({
+      next: (users) => {
+        this.users = users || [];
+        const map: Record<number, string> = {};
+        (this.users || []).forEach(u => {
+          const name = [u.firstName, u.lastName].filter(Boolean).join(' ').trim() || u.username || `Usuario ${u.id}`;
+          map[Number(u.id)] = name;
+        });
+        this.usersById = map;
+      },
+      error: () => {
+        this.users = [];
+        this.usersById = {};
+      }
+    });
+    this.load();
+  }
   applyFilters(): void { this.filters.patchValue({ page: 1 }); this.load(); }
   onPaginator(e: PageEvent): void { this.filters.patchValue({ page: (e.pageIndex + 1), limit: e.pageSize }); this.load(); }
   onSortChange(e: Sort): void { this.sortActive = e.active || 'date'; this.sortDirection = (e.direction as any) || 'asc'; this.load(); }
@@ -526,18 +559,23 @@ export class IncomesListComponent implements OnInit {
 
   getMemberName(i: Income): string {
     const id = i?.memberId;
-    if (!id) return '-';
-    return this.catalog.membersMap[id] || id;
+    if (id === undefined || id === null || id === '') return '-';
+    const num = Number(id);
+    if (!isNaN(num)) {
+      return this.usersById[num] || `Usuario ${num}`;
+    }
+    return String(id);
   }
 
   private load(): void {
     this.loading.set(true);
-    const { from, to, sourceId, memberId, page, limit } = this.filters.value;
+    const { from, to, sourceId, memberId, currency, page, limit } = this.filters.value;
     const query: any = {
       from: from ? new Date(from).toISOString().slice(0, 10) : undefined,
       to: to ? new Date(to).toISOString().slice(0, 10) : undefined,
       sourceId: sourceId || undefined,
       memberId: memberId || undefined,
+      currency: currency || undefined,
       page: page || 1,
       limit: limit || 10,
       sort: `${this.sortActive}:${this.sortDirection}`
@@ -577,7 +615,7 @@ export class IncomesListComponent implements OnInit {
       width: '450px',
       data: {
         title: 'Eliminar Ingreso',
-        message: '¿Estás seguro de que deseas eliminar este ingreso? Esta acción no se puede deshacer.',
+        message: 'ï¿½Estï¿½s seguro de que deseas eliminar este ingreso? Esta acciï¿½n no se puede deshacer.',
         confirmText: 'Eliminar',
         cancelText: 'Cancelar',
         type: 'danger'
