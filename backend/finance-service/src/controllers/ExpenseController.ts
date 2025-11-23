@@ -43,13 +43,14 @@ export class ExpenseController {
 
     async getExpenses(req: Request, res: Response): Promise<void> {
         try {
-            const { from, to, categoryId, memberId, page, limit, sort } = req.query;
+            const { from, to, categoryId, memberId, currency, page, limit, sort } = req.query;
 
             const filters = {
                 from: from as string | undefined,
                 to: to as string | undefined,
                 categoryId: categoryId as string | undefined,
-                memberId: memberId as string | undefined
+                memberId: memberId as string | undefined,
+                currency: currency as string | undefined
             };
 
             // Get ALL matching expenses first (for count)

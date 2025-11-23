@@ -43,13 +43,14 @@ export class IncomeController {
 
     async getIncome(req: Request, res: Response): Promise<void> {
         try {
-            const { from, to, source, memberId, page, limit, sort } = req.query;
+            const { from, to, source, memberId, currency, page, limit, sort } = req.query;
 
             const filters = {
                 from: from as string | undefined,
                 to: to as string | undefined,
                 source: source as string | undefined,
-                memberId: memberId as string | undefined
+                memberId: memberId as string | undefined,
+                currency: currency as string | undefined
             };
 
             // Get ALL matching incomes first (for count)

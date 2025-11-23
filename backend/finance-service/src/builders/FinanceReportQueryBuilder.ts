@@ -3,7 +3,7 @@ import { FinanceReportQuery, DateRange } from '../models/types';
 export class FinanceReportQueryBuilder {
     private query: FinanceReportQuery = {};
 
-    setPeriod(period?: 'week' | 'month' | 'year'): this {
+    setPeriod(period?: 'day' | 'week' | 'month' | 'year'): this {
         if (period) {
             this.query.period = period;
         }
@@ -24,7 +24,7 @@ export class FinanceReportQueryBuilder {
         return this;
     }
 
-    setGroupBy(groupBy?: 'category' | 'member' | 'date'): this {
+    setGroupBy(groupBy?: 'category' | 'member' | 'date' | 'source'): this {
         if (groupBy) {
             this.query.groupBy = groupBy;
         }

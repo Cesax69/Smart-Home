@@ -69,6 +69,12 @@ export class IncomeService {
             paramCount++;
         }
 
+        if (filters.currency) {
+            query += ` AND currency = $${paramCount}`;
+            values.push(filters.currency);
+            paramCount++;
+        }
+
         query += ' ORDER BY date DESC';
 
         const result = await databaseService.query(query, values);

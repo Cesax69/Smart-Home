@@ -38,6 +38,7 @@ export interface ListQuery {
   to?: string;   // ISO date
   categoryId?: string;
   memberId?: string;
+  currency?: CurrencyCode;
   page?: number;
   limit?: number;
   sort?: string; // e.g. "date:desc"

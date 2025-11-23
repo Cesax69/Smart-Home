@@ -1,98 +1,242 @@
 <div class="page-container">
   <mat-toolbar color="primary" class="toolbar">
-    <span>Analytics Dashboard</span>
+    <span>📊 Analytics Dashboard</span>
     <span class="spacer"></span>
-    <span class="hint">Selecciona fuente y configura tus gráficas</span>
+    <span class="hint"> Selecciona fuente y configura tus gráficas con opciones avanzadas</span>
   </mat-toolbar>
 
   <div class="builder-grid">
-    <mat-card>
+    <mat-card class="config-card">
       <mat-card-header>
-        <mat-card-title>Constructor de Gráficas</mat-card-title>
-        <mat-card-subtitle>Selecciona opciones y genera la visualización</mat-card-subtitle>
+        <mat-card-title>⚙️ Constructor de Gráficas</mat-card-title>
+        <mat-card-subtitle> Personaliza cada aspecto de tu visualización</mat-card-subtitle>
       </mat-card-header>
       <mat-card-content>
         <form [formGroup]="form" class="builder-form">
-          <div class="row">
-            <mat-form-field appearance="outline">
-              <mat-label>Fuente de datos</mat-label>
-              <mat-select formControlName="dataSource">
-                <mat-option value="finance">Finanzas</mat-option>
-                <mat-option value="tasks" disabled>Tareas (próximamente)</mat-option>
-              </mat-select>
-            </mat-form-field>
+          <mat-form-field appearance="outline">
+            <mat-label>Fuente de datos</mat-label>
+            <mat-select formControlName="dataSource">
+              <mat-option value="finance">💰 Finanzas</mat-option>
+              <mat-option value="tasks">✅ Tareas</mat-option>
+            </mat-select>
+          </mat-form-field>
 
-            <mat-form-field appearance="outline">
-              <mat-label>Tipo de gráfica</mat-label>
-              <mat-select formControlName="chartType">
-                <mat-option value="line">Línea</mat-option>
-                <mat-option value="bar">Barras</mat-option>
-                <mat-option value="pie">Pie</mat-option>
-                <mat-option value="doughnut">Dona</mat-option>
-              </mat-select>
-            </mat-form-field>
+          <mat-form-field appearance="outline">
+            <mat-label>Tipo de gráfica</mat-label>
+            <mat-select formControlName="chartType">
+              <mat-option value="line">📈 Línea</mat-option>
+              <mat-option value="bar">📊 Barras</mat-option>
+              <mat-option value="pie">🥧 Pie</mat-option>
+              <mat-option value="doughnut">🍩 Dona</mat-option>
+            </mat-select>
+          </mat-form-field>
 
-            <mat-form-field appearance="outline">
-              <mat-label>Agrupar por</mat-label>
-              <mat-select formControlName="groupBy">
-                <mat-option value="date">Fecha</mat-option>
-                <mat-option value="category">Categoría</mat-option>
-                <mat-option value="member">Miembro</mat-option>
-              </mat-select>
-            </mat-form-field>
+          <!-- Agrupar por: opciones según fuente -->
+          <mat-form-field *ngIf="form.value.dataSource === 'finance'" appearance="outline">
+            <mat-label>Agrupar por</mat-label>
+            <mat-select formControlName="groupBy">
+              <mat-option value="timeline">📅 Período</mat-option>
+              <ng-container *ngIf="form.value.includeExpenses && !form.value.includeIncomes">
+                <mat-option value="category">🏷️ Categoría</mat-option>
+              </ng-container>
+              <ng-container *ngIf="form.value.includeIncomes && !form.value.includeExpenses">
+                <mat-option value="source">💵 Fuente</mat-option>
+              </ng-container>
+              <mat-option value="member">👤 Miembro</mat-option>
+            </mat-select>
+          </mat-form-field>
+          
+          <mat-form-field *ngIf="form.value.dataSource === 'tasks'" appearance="outline">
+            <mat-label>Agrupar por</mat-label>
+            <mat-select formControlName="groupBy">
+              <mat-option value="status">🔄 Estado</mat-option>
+              <mat-option value="category">🏷️ Categoría</mat-option>
+              <mat-option value="priority">⚡ Prioridad</mat-option>
+              <mat-option value="member">👤 Miembro</mat-option>
+            </mat-select>
+          </mat-form-field>
 
-            <mat-form-field appearance="outline">
-              <mat-label>Período</mat-label>
-              <mat-select formControlName="period">
-                <mat-option value="day">Día</mat-option>
-                <mat-option value="week">Semana</mat-option>
-                <mat-option value="month">Mes</mat-option>
-                <mat-option value="quarter">Trimestre</mat-option>
-                <mat-option value="year">Año</mat-option>
-              </mat-select>
-            </mat-form-field>
-          </div>
+          <!-- Período solo activo cuando Agrupar por = Período -->
+          <mat-form-field *ngIf="form.value.dataSource === 'finance' && (form.value.groupBy === 'timeline' || !form.value.groupBy)" appearance="outline">
+            <mat-label>Período</mat-label>
+            <mat-select formControlName="period">
+              <mat-option value="day">Día</mat-option>
+              <mat-option value="week">Semana</mat-option>
+              <mat-option value="month">Mes</mat-option>
+              <mat-option value="year">Año</mat-option>
+            </mat-select>
+          </mat-form-field>
 
-          <div class="row">
+          <!-- Controles específicos por fuente -->
+          <ng-container *ngIf="form.value.dataSource === 'finance'">
             <mat-form-field appearance="outline">
               <mat-label>Moneda</mat-label>
               <mat-select formControlName="currency">
-                <mat-option value="USD">USD</mat-option>
-                <mat-option value="EUR">EUR</mat-option>
-                <mat-option value="PEN">PEN</mat-option>
-                <mat-option value="MXN">MXN</mat-option>
-                <mat-option value="COP">COP</mat-option>
-                <mat-option value="CLP">CLP</mat-option>
+                <mat-option value="USD">🇺🇸 USD</mat-option>
+                <mat-option value="EUR">🇪🇺 EUR</mat-option>
+                <mat-option value="PEN">🇵🇪 PEN</mat-option>
+                <mat-option value="MXN">🇲🇽 MXN</mat-option>
+                <mat-option value="COP">🇨🇴 COP</mat-option>
+                <mat-option value="CLP">🇨🇱 CLP</mat-option>
               </mat-select>
             </mat-form-field>
 
-            <mat-checkbox formControlName="includeExpenses">Incluir gastos</mat-checkbox>
-            <mat-checkbox formControlName="includeIncomes">Incluir ingresos</mat-checkbox>
-            <mat-checkbox formControlName="includeBalance">Incluir balance</mat-checkbox>
-            <mat-checkbox formControlName="stacked">Apilar (barras/línea)</mat-checkbox>
-          </div>
+            <div class="checkbox-group">
+              <mat-checkbox formControlName="includeExpenses">💸 Incluir gastos</mat-checkbox>
+              <mat-checkbox formControlName="includeIncomes">💰 Incluir ingresos</mat-checkbox>
+              <mat-checkbox formControlName="includeBalance">⚖️ Incluir balance</mat-checkbox>
+            </div>
+          </ng-container>
+
+          <!-- Secciones de Opciones Visuales y Avanzadas eliminadas según solicitud -->
 
           <div class="actions">
-            <button mat-raised-button color="primary" (click)="generate()" [disabled]="loading()">Generar</button>
+            <button mat-raised-button color="primary" (click)="generate()" [disabled]="loading()">
+              <span *ngIf="!loading()">✨ Generar Gráfica</span>
+              <span *ngIf="loading()">⏳ Generando...</span>
+            </button>
           </div>
         </form>
       </mat-card-content>
     </mat-card>
 
-    <mat-card>
+    <mat-card class="preview-card">
       <mat-card-header>
-        <mat-card-title>Vista previa</mat-card-title>
+        <mat-card-title>👁️ Vista Previa</mat-card-title>
+        <mat-card-subtitle *ngIf="!loading()">
+          Haz clic en cualquier punto para ver detalles
+        </mat-card-subtitle>
       </mat-card-header>
       <mat-card-content>
         <div *ngIf="loading(); else chartTpl" class="loading">
-          Generando gráfica...
+          <span>Generando gráfica personalizada...</span>
         </div>
         <ng-template #chartTpl>
           <div class="chart-area">
-            <canvas baseChart [type]="chartType" [data]="chartData" [options]="chartOptions"></canvas>
+            <div class="chart-scroll" [style.width.px]="computeChartWidth()">
+              <canvas baseChart 
+                      [type]="chartType" 
+                      [data]="chartData" 
+                      [options]="chartOptions" 
+                      (chartClick)="onChartClick($event)">
+              </canvas>
+            </div>
           </div>
         </ng-template>
       </mat-card-content>
     </mat-card>
   </div>
+
+  <!-- Panel de detalle debajo del builder -->
+  <mat-card class="detail-card" *ngIf="detailVisible()">
+    <mat-card-header>
+      <mat-card-title>
+        🔎 Detalle del punto seleccionado
+        <button mat-icon-button (click)="detailVisible.set(false)">
+          <span>✕</span>
+        </button>
+      </mat-card-title>
+      <mat-card-subtitle>
+        <strong>Fuente:</strong> {{ selectedMeta()?.source === 'finance' ? '💰 Finanzas' : '✅ Tareas' }}
+        <span class="separator">•</span>
+        <strong>Agrupado por:</strong>
+        <ng-container *ngIf="selectedMeta()?.groupBy === 'timeline'; else groupByText">
+          📅 Período
+        </ng-container>
+        <ng-template #groupByText>{{ selectedMeta()?.groupBy }}</ng-template>
+        <span class="separator">•</span>
+        <strong>Etiqueta:</strong> {{ selectedMeta()?.label }}
+        <ng-container *ngIf="selectedMeta()?.period">
+          <span class="separator">•</span>
+          <strong>Período:</strong> {{ selectedMeta()?.period }}
+        </ng-container>
+      </mat-card-subtitle>
+    </mat-card-header>
+    <mat-card-content>
+      <!-- Resumen de datasets en ese punto -->
+      <div class="summary-section">
+        <h4>Resumen General</h4>
+        <div class="summary-row">
+          <div class="summary-item" *ngFor="let s of selectedSummary()">
+            <div class="summary-label">{{ s.label }}</div>
+            <div class="summary-value">{{ s.value | number:'1.2-2' }}</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Detalle específico por fuente -->
+      <ng-container *ngIf="selectedMeta()?.source === 'finance'; else tasksDetail">
+        <div class="detail-columns">
+          <!-- Solo mostrar sección de gastos si están incluidos -->
+          <div class="detail-col" *ngIf="form.value.includeExpenses">
+            <h4>Gastos Detallados ({{ financeExpenses().length }})</h4>
+            <div *ngIf="financeExpenses().length === 0" class="empty">
+              No hay gastos registrados en este período
+            </div>
+            <ul class="list" *ngIf="financeExpenses().length > 0">
+              <li *ngFor="let e of financeExpenses() | slice:0:15">
+                <span class="amount negative">{{ e.amount | number:'1.2-2' }} {{ e.currency }}</span>
+                <span class="meta">{{ e.categoryName || e.categoryId || 'Sin categoría' }}</span>
+                <span class="date">{{ e.date | date:'dd/MM/yyyy':'UTC' }}</span>
+              </li>
+            </ul>
+            <div *ngIf="financeExpenses().length > 15" class="more-items">
+              y {{ financeExpenses().length - 15 }} transacciones más
+            </div>
+          </div>
+          
+          <!-- Solo mostrar sección de ingresos si están incluidos -->
+          <div class="detail-col" *ngIf="form.value.includeIncomes">
+            <h4>Ingresos Detallados ({{ financeIncomes().length }})</h4>
+            <div *ngIf="financeIncomes().length === 0" class="empty">
+              No hay ingresos registrados en este período
+            </div>
+            <ul class="list" *ngIf="financeIncomes().length > 0">
+              <li *ngFor="let i of financeIncomes() | slice:0:15">
+                <span class="amount positive">{{ i.amount | number:'1.2-2' }} {{ i.currency }}</span>
+                <span class="meta">{{ i.sourceName || i.source || i.sourceId || 'Sin fuente' }}</span>
+                <span class="date">{{ i.date | date:'dd/MM/yyyy':'UTC' }}</span>
+              </li>
+            </ul>
+            <div *ngIf="financeIncomes().length > 15" class="more-items">
+              y {{ financeIncomes().length - 15 }} transacciones más
+            </div>
+          </div>
+          
+          <!-- Mensaje cuando no hay nada seleccionado -->
+          <div class="detail-col full" *ngIf="!form.value.includeExpenses && !form.value.includeIncomes">
+            <div class="empty">
+              Selecciona "Incluir gastos" o "Incluir ingresos" en la configuración para ver detalles
+            </div>
+          </div>
+        </div>
+      </ng-container>
+      
+      <ng-template #tasksDetail>
+        <div class="detail-columns">
+          <div class="detail-col full">
+            <h4>Listado de Tareas ({{ taskItems().length }})</h4>
+            <div *ngIf="taskItems().length === 0" class="empty">
+              No hay tareas que coincidan con este criterio
+            </div>
+            <ul class="list" *ngIf="taskItems().length > 0">
+              <li *ngFor="let t of taskItems() | slice:0:15">
+                <div class="task-row">
+                  <span class="task-title">{{ t.title }}</span>
+                  <div class="task-meta">
+                    <span class="badge status-{{ t.status }}">{{ t.status }}</span>
+                    <span class="badge priority-{{ t.priority }}">{{ t.priority }}</span>
+                    <span *ngIf="t.dueDate" class="due-date">{{ t.dueDate | date:'dd/MM/yyyy' }}</span>
+                  </div>
+                </div>
+              </li>
+            </ul>
+            <div *ngIf="taskItems().length > 15" class="more-items">
+              y {{ taskItems().length - 15 }} tareas más
+            </div>
+          </div>
+        </div>
+      </ng-template>
+    </mat-card-content>
+  </mat-card>
 </div>
