@@ -167,6 +167,9 @@ import { ConfirmDialogComponent } from '../../../shared/components/confirm-dialo
                 <button mat-icon-button color="primary" class="action-button" (click)="openExpenseDialog(e.id)" matTooltip="Editar gasto">
                   <mat-icon>edit</mat-icon>
                 </button>
+                <button mat-icon-button color="warn" class="action-button delete-button" (click)="deleteExpense(e.id)" matTooltip="Eliminar gasto">
+                  <mat-icon>delete</mat-icon>
+                </button>
               </td>
             </ng-container>
 
