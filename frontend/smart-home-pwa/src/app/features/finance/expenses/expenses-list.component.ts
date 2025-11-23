@@ -1,4 +1,4 @@
-import { Component, OnInit, signal } from '@angular/core';
+﻿import { Component, OnInit, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { ReactiveFormsModule, FormBuilder, FormGroup } from '@angular/forms';
 import { MatCardModule } from '@angular/material/card';
@@ -17,11 +17,10 @@ import { MatDialogModule, MatDialog } from '@angular/material/dialog';
 import { MatTooltipModule } from '@angular/material/tooltip';
 import { FinanceService } from '../../../services/finance.service';
 import { ExpenseFormComponent } from './expense-form.component';
-import { Expense, ExpensesListResponse, CurrencyCode } from '../../../models/finance.model';
-import { EXPENSE_CATEGORIES, CatalogMaps } from '../../../catalogs/catalogs';
-import { AuthService } from '../../../services/auth.service';
-import { User } from '../../../models/user.model';
+import { Expense, ExpensesListResponse, CurrencyBalance } from '../../../models/finance.model';
+import { EXPENSE_CATEGORIES, HOUSEHOLD_MEMBERS, CatalogMaps } from '../../../catalogs/catalogs';
 import { ConfirmDialogComponent } from '../../../shared/components/confirm-dialog.component';
+import { BalanceWidgetComponent } from '../shared/balance-widget.component';
 
 @Component({
   selector: 'app-expenses-list',
@@ -46,6 +45,54 @@ import { ConfirmDialogComponent } from '../../../shared/components/confirm-dialo
   ],
   template: `
     <div class="expenses-container">
+      <!-- Balance Summary Card -->
+      <mat-card class="balance-summary-card">
+        <div class="balance-header" (click)="toggleBalance()" style="cursor: pointer">
+          <div style="display: flex; align-items: center; gap: 12px;">
+            <mat-icon>account_balance_wallet</mat-icon>
+            <h3>Resumen Financiero (MXN)</h3>
+          </div>
+          <mat-icon>{{ showBalance() ? 'expand_less' : 'expand_more' }}</mat-icon>
+        </div>
+        
+        <div class="balance-content" [class.expanded]="showBalance()">
+          <ng-container *ngIf="mxnBalance(); else noBalance">
+            <div class="balance-grid">
+              <div class="balance-item income">
+                <div class="balance-label">Total Ingresos</div>
+                <div class="balance-value positive">{{ mxnBalance()!.totalIncomes | number:'1.2-2' }}</div>
+              </div>
+              <div class="balance-item expense">
+                <div class="balance-label">Total Gastos</div>
+                <div class="balance-value negative">{{ mxnBalance()!.totalExpenses | number:'1.2-2' }}</div>
+              </div>
+              <div class="balance-item">
+                <div class="balance-label">Balance</div>
+                <div class="balance-value" [class.positive]="mxnBalance()!.balance >= 0" [class.negative]="mxnBalance()!.balance < 0">
+                  {{ mxnBalance()!.balance | number:'1.2-2' }}
+                </div>
+              </div>
+            </div>
+          </ng-container>
+
+          <ng-template #noBalance>
+            <div class="balance-grid">
+              <div class="balance-item income">
+                <div class="balance-label">Total Ingresos</div>
+                <div class="balance-value positive">0.00</div>
+              </div>
+              <div class="balance-item expense">
+                <div class="balance-label">Total Gastos</div>
+                <div class="balance-value negative">0.00</div>
+              </div>
+              <div class="balance-item">
+                <div class="balance-label">Balance</div>
+                <div class="balance-value">0.00</div>
+              </div>
+            </div>
+          </ng-template>
+        </div>
+      </mat-card>
       <!-- Header Card -->
       <mat-card class="header-card">
         <div class="header-content">
@@ -87,7 +134,7 @@ import { ConfirmDialogComponent } from '../../../shared/components/confirm-dialo
           </mat-form-field>
 
           <mat-form-field appearance="outline" class="filter-field">
-            <mat-label>Categoría</mat-label>
+            <mat-label>CategorÃ­a</mat-label>
             <mat-select formControlName="categoryId">
               <mat-option [value]="">Todas</mat-option>
               <mat-option *ngFor="let c of expenseCategories" [value]="c.id">{{ c.name }}</mat-option>
@@ -99,18 +146,9 @@ import { ConfirmDialogComponent } from '../../../shared/components/confirm-dialo
             <mat-label>Miembro</mat-label>
             <mat-select formControlName="memberId">
               <mat-option [value]="">Todos</mat-option>
-              <mat-option *ngFor="let u of users" [value]="u.id">{{ (u.firstName + ' ' + u.lastName).trim() || u.username }}</mat-option>
+              <mat-option *ngFor="let m of members" [value]="m.id">{{ m.name }}</mat-option>
             </mat-select>
             <mat-icon matPrefix>person</mat-icon>
-          </mat-form-field>
-
-          <mat-form-field appearance="outline" class="filter-field">
-            <mat-label>Moneda</mat-label>
-            <mat-select formControlName="currency">
-              <mat-option [value]="">Todas</mat-option>
-              <mat-option *ngFor="let c of currencies" [value]="c">{{ c }}</mat-option>
-            </mat-select>
-            <mat-icon matPrefix>attach_money</mat-icon>
           </mat-form-field>
 
           <button mat-raised-button color="primary" class="filter-button" (click)="applyFilters()">
@@ -155,7 +193,7 @@ import { ConfirmDialogComponent } from '../../../shared/components/confirm-dialo
             <ng-container matColumnDef="category">
               <th mat-header-cell *matHeaderCellDef mat-sort-header>
                 <mat-icon class="header-icon">category</mat-icon>
-                Categoría
+                CategorÃ­a
               </th>
               <td mat-cell *matCellDef="let e">
                 <span class="category-badge">{{ getCategoryName(e) }}</span>
@@ -495,6 +533,110 @@ import { ConfirmDialogComponent } from '../../../shared/components/confirm-dialo
         padding: 12px 8px !important;
       }
     }
+
+    /* Balance Summary Card */
+    .balance-summary-card {
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%) !important;
+      color: white !important;
+      border-radius: 16px !important;
+      margin-bottom: 24px;
+      box-shadow: 0 8px 24px rgba(102, 126, 234, 0.3) !important;
+    }
+
+    .balance-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 0;
+      padding-bottom: 0;
+      border-bottom: none;
+      transition: all 0.3s ease;
+    }
+
+    .balance-content {
+      max-height: 0;
+      overflow: hidden;
+      opacity: 0;
+      transition: all 0.3s ease-in-out;
+    }
+
+    .balance-content.expanded {
+      max-height: 500px;
+      opacity: 1;
+      margin-top: 20px;
+      padding-top: 16px;
+      border-top: 1px solid rgba(255, 255, 255, 0.2);
+    }
+
+    .balance-header mat-icon {
+      font-size: 32px;
+      width: 32px;
+      height: 32px;
+    }
+
+    .balance-header h3 {
+      margin: 0;
+      font-size: 1.5rem;
+      font-weight: 600;
+    }
+
+    .balance-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+      gap: 16px;
+    }
+
+    .balance-item {
+      background: rgba(255, 255, 255, 0.15);
+      backdrop-filter: blur(10px);
+      border-radius: 12px;
+      padding: 16px;
+      border: 1px solid rgba(255, 255, 255, 0.2);
+    }
+
+    .balance-label {
+      font-size: 0.875rem;
+      opacity: 0.9;
+      margin-bottom: 8px;
+      font-weight: 500;
+    }
+
+    .balance-value {
+      font-size: 1.75rem;
+      font-weight: 700;
+      font-family: 'Roboto Mono', monospace;
+    }
+
+    .balance-value.positive {
+      color: #4ade80;
+    }
+
+    .balance-value.negative {
+      color: #fb7185;
+    }
+
+    .currency-section {
+      margin-bottom: 24px;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+      padding-bottom: 16px;
+    }
+
+    .currency-section:last-child {
+      margin-bottom: 0;
+      border-bottom: none;
+      padding-bottom: 0;
+    }
+
+    .currency-badge {
+      display: inline-block;
+      background: rgba(255, 255, 255, 0.2);
+      padding: 4px 12px;
+      border-radius: 12px;
+      font-size: 0.875rem;
+      font-weight: 600;
+      margin-bottom: 12px;
+      letter-spacing: 0.5px;
+    }
   `]
 })
 export class ExpensesListComponent implements OnInit {
@@ -503,61 +645,44 @@ export class ExpensesListComponent implements OnInit {
   items = signal<Expense[]>([]);
   loading = signal<boolean>(false);
   meta = signal<{ page: number; totalPages: number; hasNextPage: boolean; hasPrevPage: boolean; totalItems: number }>({ page: 1, totalPages: 1, hasNextPage: false, hasPrevPage: false, totalItems: 0 });
+  mxnBalance = signal<CurrencyBalance | null>(null);
+  showBalance = signal<boolean>(false);
   sortActive: string = 'date';
   sortDirection: 'asc' | 'desc' = 'desc';
 
-  constructor(private fb: FormBuilder, private finance: FinanceService, private dialog: MatDialog, private auth: AuthService) {
+  constructor(private fb: FormBuilder, private finance: FinanceService, private dialog: MatDialog) {
     this.filters = this.fb.group({
       from: [undefined],
       to: [undefined],
       categoryId: [''],
       memberId: [''],
-      currency: ['USD'],
       page: [1],
       limit: [10]
     });
   }
 
   expenseCategories = EXPENSE_CATEGORIES;
-  currencies: CurrencyCode[] = ['USD', 'EUR', 'PEN', 'MXN', 'COP', 'CLP'];
-  users: User[] = [];
-  private usersById: Record<number, string> = {};
+  members = HOUSEHOLD_MEMBERS;
   catalog = CatalogMaps;
 
   ngOnInit(): void {
-    // Cargar usuarios registrados para filtros y etiquetas
-    this.auth.getFamilyMembers().subscribe({
-      next: (users) => {
-        this.users = users || [];
-        const map: Record<number, string> = {};
-        (this.users || []).forEach(u => {
-          const name = [u.firstName, u.lastName].filter(Boolean).join(' ').trim() || u.username || `Usuario ${u.id}`;
-          map[Number(u.id)] = name;
-        });
-        this.usersById = map;
-      },
-      error: () => {
-        this.users = [];
-        this.usersById = {};
-      }
-    });
-    this.load();
+    this.load(); this.loadBalance(); this.loadBalance();
   }
 
   applyFilters(): void {
     this.filters.patchValue({ page: 1 });
-    this.load();
+    this.load(); this.loadBalance();
   }
 
   onPaginator(e: PageEvent): void {
     this.filters.patchValue({ page: (e.pageIndex + 1), limit: e.pageSize });
-    this.load();
+    this.load(); this.loadBalance();
   }
 
   onSortChange(e: Sort): void {
     this.sortActive = e.active || 'date';
     this.sortDirection = (e.direction as any) || 'asc';
-    this.load();
+    this.load(); this.loadBalance();
   }
 
   getCategoryName(e: Expense): string {
@@ -568,23 +693,44 @@ export class ExpensesListComponent implements OnInit {
 
   getMemberName(e: Expense): string {
     const id = e?.memberId;
-    if (id === undefined || id === null || id === '') return '-';
-    const num = Number(id);
-    if (!isNaN(num)) {
-      return this.usersById[num] || `Usuario ${num}`;
-    }
-    return String(id);
+    if (!id) return '-';
+    return this.catalog.membersMap[id] || id;
   }
+
+
+  toggleBalance(): void {
+    this.showBalance.update(v => !v);
+  }
+
+  private loadBalance(): void {
+    this.finance.getBalance().subscribe({
+      next: (response) => {
+        // Backend already returns totals in MXN after conversion
+        // Create a CurrencyBalance object from the main totals
+        this.mxnBalance.set({
+          currency: 'MXN',
+          totalIncomes: response.data.totalIncomes,
+          totalExpenses: response.data.totalExpenses,
+          balance: response.data.balance
+        });
+      },
+      error: (error) => {
+        console.error('Error loading balance:', error);
+      }
+    });
+  }
+
+
+
 
   private load(): void {
     this.loading.set(true);
-    const { from, to, categoryId, memberId, currency, page, limit } = this.filters.value;
+    const { from, to, categoryId, memberId, page, limit } = this.filters.value;
     const query: any = {
       from: from ? new Date(from).toISOString().slice(0, 10) : undefined,
       to: to ? new Date(to).toISOString().slice(0, 10) : undefined,
       categoryId: categoryId || undefined,
       memberId: memberId || undefined,
-      currency: currency || undefined,
       page: page || 1,
       limit: limit || 10,
       sort: `${this.sortActive}:${this.sortDirection}`
@@ -616,7 +762,7 @@ export class ExpensesListComponent implements OnInit {
       data: id ? { id } : undefined,
       autoFocus: true
     } as any);
-    ref.afterClosed().subscribe((changed) => { if (changed) this.load(); });
+    ref.afterClosed().subscribe((changed) => { if (changed) this.load(); this.loadBalance(); });
   }
 
   deleteExpense(id: string): void {
@@ -624,7 +770,7 @@ export class ExpensesListComponent implements OnInit {
       width: '450px',
       data: {
         title: 'Eliminar Gasto',
-        message: '¿Estás seguro de que deseas eliminar este gasto? Esta acción no se puede deshacer.',
+        message: 'Â¿EstÃ¡s seguro de que deseas eliminar este gasto? Esta acciÃ³n no se puede deshacer.',
         confirmText: 'Eliminar',
         cancelText: 'Cancelar',
         type: 'danger'
@@ -638,7 +784,7 @@ export class ExpensesListComponent implements OnInit {
       this.finance.deleteExpense(id).subscribe({
         next: () => {
           this.loading.set(false);
-          this.load();
+          this.load(); this.loadBalance();
         },
         error: (err) => {
           this.loading.set(false);

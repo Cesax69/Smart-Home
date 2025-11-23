@@ -30,13 +30,13 @@ class FinanceReportQueryBuilder {
         return this;
     }
     setCurrency(currency) {
-        this.query.currency = currency || 'USD';
+        this.query.currency = currency || 'MXN';
         return this;
     }
     build() {
         // Set defaults
         if (!this.query.currency) {
-            this.query.currency = 'USD';
+            this.query.currency = 'MXN';
         }
         if (!this.query.groupBy) {
             this.query.groupBy = 'date';

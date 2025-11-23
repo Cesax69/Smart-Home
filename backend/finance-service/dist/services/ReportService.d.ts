@@ -7,6 +7,7 @@ export declare class ReportService {
         data: FinanceReportData;
         meta: any;
     }>;
+    private aggregateBySource;
     private aggregateByDate;
     private aggregateByCategory;
     private aggregateByMember;

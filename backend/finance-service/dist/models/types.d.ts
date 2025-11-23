@@ -39,18 +39,20 @@ export interface GetExpensesQuery {
     to?: string;
     categoryId?: string;
     memberId?: string;
+    currency?: string;
 }
 export interface GetIncomeQuery {
     from?: string;
     to?: string;
     source?: string;
     memberId?: string;
+    currency?: string;
 }
 export interface FinanceReportQuery {
-    period?: 'week' | 'month' | 'year';
+    period?: 'day' | 'week' | 'month' | 'year';
     from?: string;
     to?: string;
-    groupBy?: 'category' | 'member' | 'date';
+    groupBy?: 'category' | 'member' | 'date' | 'source';
     currency?: string;
 }
 export interface ApiResponse<T = any> {
