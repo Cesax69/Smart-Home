@@ -60,6 +60,11 @@ class ExpenseService {
             values.push(filters.memberId);
             paramCount++;
         }
+        if (filters.currency) {
+            query += ` AND currency = $${paramCount}`;
+            values.push(filters.currency);
+            paramCount++;
+        }
         query += ' ORDER BY date DESC';
         const result = await database_1.databaseService.query(query, values);
         return result.rows.map(row => ({
@@ -75,14 +80,15 @@ class ExpenseService {
     }
     async findById(id) {
         const query = `
-      SELECT id, amount, currency, category_id as "categoryId", member_id as "memberId",
-             date, notes, created_at as "createdAt"
-      FROM expenses
-      WHERE id = $1
-    `;
+            SELECT id, amount, currency, category_id as "categoryId", member_id as "memberId",
+                   date, notes, created_at as "createdAt"
+            FROM expenses
+            WHERE id = $1
+        `;
         const result = await database_1.databaseService.query(query, [id]);
-        if (result.rows.length === 0)
+        if (result.rows.length === 0) {
             return null;
+        }
         const row = result.rows[0];
         return {
             id: row.id.toString(),
@@ -95,47 +101,55 @@ class ExpenseService {
             createdAt: new Date(row.createdAt).toISOString()
         };
     }
-    async update(id, data) {
-        const fields = [];
+    async update(id, updates) {
+        const setClauses = [];
         const values = [];
-        let i = 1;
-        if (data.amount !== undefined) {
-            fields.push(`amount = $${i++}`);
-            values.push(data.amount);
+        let paramCount = 1;
+        if (updates.amount !== undefined) {
+            setClauses.push(`amount = $${paramCount}`);
+            values.push(updates.amount);
+            paramCount++;
         }
-        if (data.currency !== undefined) {
-            fields.push(`currency = $${i++}`);
-            values.push(data.currency);
+        if (updates.currency !== undefined) {
+            setClauses.push(`currency = $${paramCount}`);
+            values.push(updates.currency);
+            paramCount++;
         }
-        if (data.categoryId !== undefined) {
-            fields.push(`category_id = $${i++}`);
-            values.push(data.categoryId);
+        if (updates.categoryId !== undefined) {
+            setClauses.push(`category_id = $${paramCount}`);
+            values.push(updates.categoryId);
+            paramCount++;
         }
-        if (data.memberId !== undefined) {
-            fields.push(`member_id = $${i++}`);
-            values.push(data.memberId);
+        if (updates.memberId !== undefined) {
+            setClauses.push(`member_id = $${paramCount}`);
+            values.push(updates.memberId);
+            paramCount++;
         }
-        if (data.date !== undefined) {
-            fields.push(`date = $${i++}`);
-            values.push(new Date(data.date));
+        if (updates.date !== undefined) {
+            setClauses.push(`date = $${paramCount}`);
+            values.push(new Date(updates.date));
+            paramCount++;
         }
-        if (data.notes !== undefined) {
-            fields.push(`notes = $${i++}`);
-            values.push(data.notes);
+        if (updates.notes !== undefined) {
+            setClauses.push(`notes = $${paramCount}`);
+            values.push(updates.notes);
+            paramCount++;
         }
-        if (fields.length === 0) {
-            return this.findById(id);
+        if (setClauses.length === 0) {
+            return null;
         }
+        values.push(id);
         const query = `
-      UPDATE expenses SET ${fields.join(', ')}
-      WHERE id = $${i}
+      UPDATE expenses
+      SET ${setClauses.join(', ')}
+      WHERE id = $${paramCount}
       RETURNING id, amount, currency, category_id as "categoryId", member_id as "memberId",
                 date, notes, created_at as "createdAt"
     `;
-        values.push(id);
         const result = await database_1.databaseService.query(query, values);
-        if (result.rows.length === 0)
+        if (result.rows.length === 0) {
             return null;
+        }
         const row = result.rows[0];
         return {
             id: row.id.toString(),
@@ -149,9 +163,9 @@ class ExpenseService {
         };
     }
     async delete(id) {
-        const result = await database_1.databaseService.query('DELETE FROM expenses WHERE id = $1', [id]);
-        // rowCount can be undefined in some typings; normalize to 0 when falsy
-        return (result.rowCount ?? 0) > 0;
+        const query = 'DELETE FROM expenses WHERE id = $1';
+        const result = await database_1.databaseService.query(query, [id]);
+        return result.rowCount !== null && result.rowCount > 0;
     }
 }
 exports.ExpenseService = ExpenseService;

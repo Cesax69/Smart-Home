@@ -7,168 +7,192 @@ class ExpenseController {
     constructor() {
         this.expenseService = new ExpenseService_1.ExpenseService();
     }
-    /**
-     * POST /finance/expenses - Crear gasto
-     */
     async createExpense(req, res) {
         try {
             const requestData = req.body;
-            // Usar Builder para construir y validar
-            const expenseData = ExpenseBuilder_1.ExpenseBuilder.fromRequest(requestData);
-            // Persistir
-            const expense = await this.expenseService.create(expenseData);
+            // Usar el Builder para construir y validar el expense
+            const expense = ExpenseBuilder_1.ExpenseBuilder.fromRequest(requestData);
+            // Guardar en la BD
+            const saved = await this.expenseService.create(expense);
             const response = {
                 ok: true,
-                data: expense,
+                data: saved,
                 meta: {
-                    createdAt: expense.createdAt
+                    createdAt: saved.createdAt
                 }
             };
             res.status(201).json(response);
         }
         catch (error) {
-            console.error('Error creating expense:', error);
-            const response = {
+            res.status(400).json({
                 ok: false,
                 error: {
                     code: 'VALIDATION_ERROR',
-                    message: error instanceof Error ? error.message : 'Error creating expense',
-                    details: error instanceof Error ? { field: this.extractField(error.message) } : undefined
+                    message: error.message || 'Error creating expense',
+                    details: error
                 }
-            };
-            res.status(400).json(response);
+            });
         }
     }
-    /**
-     * GET /finance/expenses - Listar gastos
-     */
     async getExpenses(req, res) {
         try {
+            const { from, to, categoryId, memberId, currency, page, limit, sort } = req.query;
             const filters = {
-                from: req.query.from,
-                to: req.query.to,
-                categoryId: req.query.categoryId,
-                memberId: req.query.memberId
+                from: from,
+                to: to,
+                categoryId: categoryId,
+                memberId: memberId,
+                currency: currency
             };
-            const expenses = await this.expenseService.findAll(filters);
-            const range = this.calculateRange(filters.from, filters.to);
+            // Get ALL matching expenses first (for count)
+            const allExpenses = await this.expenseService.findAll(filters);
+            const totalItems = allExpenses.length;
+            // Parse pagination params
+            const currentPage = page ? parseInt(page) : 1;
+            const pageSize = limit ? parseInt(limit) : 10;
+            const totalPages = Math.ceil(totalItems / pageSize);
+            // Calculate pagination
+            const startIndex = (currentPage - 1) * pageSize;
+            const endIndex = startIndex + pageSize;
+            const paginatedItems = allExpenses.slice(startIndex, endIndex);
+            // Sort if requested
+            let sortedItems = paginatedItems;
+            if (sort) {
+                const [field, direction] = sort.split(':');
+                sortedItems = [...paginatedItems].sort((a, b) => {
+                    const aVal = a[field];
+                    const bVal = b[field];
+                    if (direction === 'asc') {
+                        return aVal > bVal ? 1 : -1;
+                    }
+                    else {
+                        return aVal < bVal ? 1 : -1;
+                    }
+                });
+            }
             const response = {
                 ok: true,
                 data: {
-                    items: expenses
+                    items: sortedItems
                 },
                 meta: {
-                    count: expenses.length,
-                    currency: expenses.length > 0 ? expenses[0].currency : 'USD',
-                    range
+                    page: currentPage,
+                    limit: pageSize,
+                    totalItems: totalItems,
+                    totalPages: totalPages,
+                    hasNextPage: currentPage < totalPages,
+                    hasPrevPage: currentPage > 1
                 }
             };
             res.status(200).json(response);
         }
         catch (error) {
-            console.error('Error getting expenses:', error);
-            const response = {
+            res.status(500).json({
                 ok: false,
                 error: {
-                    code: 'SERVER_ERROR',
-                    message: 'Error retrieving expenses'
+                    code: 'INTERNAL_ERROR',
+                    message: error.message || 'Error fetching expenses',
+                    details: error
                 }
-            };
-            res.status(500).json(response);
+            });
         }
     }
-    /**
-     * GET /finance/expenses/:id - Obtener gasto por ID
-     */
     async getExpenseById(req, res) {
         try {
             const { id } = req.params;
-            const expense = await this.expenseService.findById(id);
+            const expense = await this.expenseService.findById(parseInt(id));
             if (!expense) {
-                const response = {
+                res.status(404).json({
                     ok: false,
-                    error: { code: 'NOT_FOUND', message: 'Expense not found' }
-                };
-                res.status(404).json(response);
+                    error: {
+                        code: 'NOT_FOUND',
+                        message: `Expense with id ${id} not found`
+                    }
+                });
                 return;
             }
-            const response = { ok: true, data: expense };
+            const response = {
+                ok: true,
+                data: expense
+            };
             res.status(200).json(response);
         }
         catch (error) {
-            console.error('Error getting expense by id:', error);
-            const response = {
+            res.status(500).json({
                 ok: false,
-                error: { code: 'SERVER_ERROR', message: 'Error retrieving expense' }
-            };
-            res.status(500).json(response);
+                error: {
+                    code: 'INTERNAL_ERROR',
+                    message: error.message || 'Error fetching expense',
+                    details: error
+                }
+            });
         }
     }
-    /**
-     * PUT /finance/expenses/:id - Actualizar gasto
-     */
     async updateExpense(req, res) {
         try {
             const { id } = req.params;
-            const updated = await this.expenseService.update(id, req.body || {});
+            const updates = req.body;
+            // Validate if amount is being updated
+            if (updates.amount !== undefined && updates.amount <= 0) {
+                throw new Error('Amount must be greater than 0');
+            }
+            const updated = await this.expenseService.update(id, updates);
             if (!updated) {
-                const response = {
+                res.status(404).json({
                     ok: false,
-                    error: { code: 'NOT_FOUND', message: 'Expense not found' }
-                };
-                res.status(404).json(response);
+                    error: {
+                        code: 'NOT_FOUND',
+                        message: `Expense with id ${id} not found`
+                    }
+                });
                 return;
             }
-            const response = { ok: true, data: updated };
+            const response = {
+                ok: true,
+                data: updated,
+                meta: {
+                    updatedAt: new Date().toISOString()
+                }
+            };
             res.status(200).json(response);
         }
         catch (error) {
-            console.error('Error updating expense:', error);
-            const response = {
+            res.status(400).json({
                 ok: false,
-                error: { code: 'SERVER_ERROR', message: 'Error updating expense' }
-            };
-            res.status(500).json(response);
+                error: {
+                    code: 'VALIDATION_ERROR',
+                    message: error.message || 'Error updating expense',
+                    details: error
+                }
+            });
         }
     }
-    /**
-     * DELETE /finance/expenses/:id - Eliminar gasto
-     */
     async deleteExpense(req, res) {
         try {
             const { id } = req.params;
-            const success = await this.expenseService.delete(id);
-            const response = { ok: success };
-            res.status(success ? 200 : 404).json(success ? response : { ok: false, error: { code: 'NOT_FOUND', message: 'Expense not found' } });
+            const deleted = await this.expenseService.delete(id);
+            if (!deleted) {
+                res.status(404).json({
+                    ok: false,
+                    error: {
+                        code: 'NOT_FOUND',
+                        message: `Expense with id ${id} not found`
+                    }
+                });
+                return;
+            }
+            res.status(204).send();
         }
         catch (error) {
-            console.error('Error deleting expense:', error);
-            const response = {
+            res.status(500).json({
                 ok: false,
-                error: { code: 'SERVER_ERROR', message: 'Error deleting expense' }
-            };
-            res.status(500).json(response);
+                error: {
+                    code: 'INTERNAL_ERROR',
+                    message: error.message || 'Error deleting expense',
+                    details: error
+                }
+            });
         }
-    }
-    extractField(message) {
-        if (message.includes('amount'))
-            return 'amount';
-        if (message.includes('currency'))
-            return 'currency';
-        if (message.includes('categoryId'))
-            return 'categoryId';
-        return undefined;
-    }
-    calculateRange(from, to) {
-        const now = new Date();
-        const start = from ? new Date(from) : new Date(now.setDate(now.getDate() - 30));
-        const end = to ? new Date(to) : new Date();
-        start.setHours(0, 0, 0, 0);
-        end.setHours(23, 59, 59, 999);
-        return {
-            start: start.toISOString(),
-            end: end.toISOString()
-        };
     }
 }
 exports.ExpenseController = ExpenseController;

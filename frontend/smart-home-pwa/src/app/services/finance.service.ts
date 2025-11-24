@@ -10,13 +10,14 @@ import {
   IncomesListResponse,
   FinanceReportQuery,
   FinanceReportResponse,
+  BalanceResponse
 } from '../models/finance.model';
 
 @Injectable({ providedIn: 'root' })
 export class FinanceService {
   private readonly base = environment.services.finance;
 
-  constructor(private http: HttpClient) {}
+  constructor(private http: HttpClient) { }
 
   // Expenses
   listExpenses(query: ListQuery): Observable<ExpensesListResponse> {
@@ -77,6 +78,14 @@ export class FinanceService {
   getReport(query: FinanceReportQuery): Observable<FinanceReportResponse> {
     const params = this.buildParams(query);
     return this.http.get<FinanceReportResponse>(`${this.base}/report`, { params });
+  }
+
+  // Balance
+  getBalance(params?: { from?: string; to?: string }): Observable<BalanceResponse> {
+    let httpParams = new HttpParams();
+    if (params?.from) httpParams = httpParams.set('from', params.from);
+    if (params?.to) httpParams = httpParams.set('to', params.to);
+    return this.http.get<BalanceResponse>(`${this.base}/balance`, { params: httpParams });
   }
 
   private buildParams(query: Record<string, any>): HttpParams {

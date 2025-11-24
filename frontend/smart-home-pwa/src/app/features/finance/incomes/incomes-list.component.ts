@@ -16,7 +16,7 @@ import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
 import { MatDialogModule, MatDialog } from '@angular/material/dialog';
 import { MatTooltipModule } from '@angular/material/tooltip';
 import { FinanceService } from '../../../services/finance.service';
-import { Income, IncomesListResponse, CurrencyCode } from '../../../models/finance.model';
+import { Income, IncomesListResponse, CurrencyBalance, CurrencyCode } from '../../../models/finance.model';
 import { INCOME_SOURCES, CatalogMaps } from '../../../catalogs/catalogs';
 import { AuthService } from '../../../services/auth.service';
 import { User } from '../../../models/user.model';
@@ -46,6 +46,54 @@ import { ConfirmDialogComponent } from '../../../shared/components/confirm-dialo
   ],
   template: `
     <div class="incomes-container">
+      <!-- Balance Summary Card -->
+      <mat-card class="balance-summary-card">
+        <div class="balance-header" (click)="toggleBalance()" style="cursor: pointer">
+          <div style="display: flex; align-items: center; gap: 12px;">
+            <mat-icon>account_balance_wallet</mat-icon>
+            <h3>Resumen Financiero (MXN)</h3>
+          </div>
+          <mat-icon>{{ showBalance() ? 'expand_less' : 'expand_more' }}</mat-icon>
+        </div>
+        
+        <div class="balance-content" [class.expanded]="showBalance()">
+          <ng-container *ngIf="mxnBalance(); else noBalance">
+            <div class="balance-grid">
+              <div class="balance-item income">
+                <div class="balance-label">Total Ingresos</div>
+                <div class="balance-value positive">{{ mxnBalance()!.totalIncomes | number:'1.2-2' }}</div>
+              </div>
+              <div class="balance-item expense">
+                <div class="balance-label">Total Gastos</div>
+                <div class="balance-value negative">{{ mxnBalance()!.totalExpenses | number:'1.2-2' }}</div>
+              </div>
+              <div class="balance-item">
+                <div class="balance-label">Balance</div>
+                <div class="balance-value" [class.positive]="mxnBalance()!.balance >= 0" [class.negative]="mxnBalance()!.balance < 0">
+                  {{ mxnBalance()!.balance | number:'1.2-2' }}
+                </div>
+              </div>
+            </div>
+          </ng-container>
+
+          <ng-template #noBalance>
+            <div class="balance-grid">
+              <div class="balance-item income">
+                <div class="balance-label">Total Ingresos</div>
+                <div class="balance-value positive">0.00</div>
+              </div>
+              <div class="balance-item expense">
+                <div class="balance-label">Total Gastos</div>
+                <div class="balance-value negative">0.00</div>
+              </div>
+              <div class="balance-item">
+                <div class="balance-label">Balance</div>
+                <div class="balance-value">0.00</div>
+              </div>
+            </div>
+          </ng-template>
+        </div>
+      </mat-card>
       <!-- Header Card -->
       <mat-card class="header-card">
         <div class="header-content">
@@ -219,6 +267,77 @@ import { ConfirmDialogComponent } from '../../../shared/components/confirm-dialo
       flex-direction: column;
       gap: 24px;
     }
+
+    /* Balance Summary Card */
+    .balance-summary-card {
+      border-radius: 16px !important;
+      background: linear-gradient(135deg, #10b981 0%, #059669 100%) !important;
+      color: white !important;
+      box-shadow: 0 8px 24px rgba(16, 185, 129, 0.2) !important;
+      overflow: hidden;
+    }
+
+    .balance-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 20px 24px;
+    }
+
+    .balance-header h3 {
+      margin: 0;
+      font-size: 20px;
+      font-weight: 600;
+    }
+
+    .balance-content {
+      max-height: 0;
+      overflow: hidden;
+      transition: max-height 0.3s ease;
+      padding: 0 24px;
+    }
+
+    .balance-content.expanded {
+      max-height: 500px;
+      padding: 0 24px 24px 24px;
+    }
+
+    .balance-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+      gap: 16px;
+    }
+
+    .balance-item {
+      background: rgba(255, 255, 255, 0.15);
+      padding: 16px;
+      border-radius: 12px;
+      backdrop-filter: blur(10px);
+    }
+
+    .balance-label {
+      font-size: 13px;
+      opacity: 0.9;
+      margin-bottom: 8px;
+      font-weight: 500;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+
+    .balance-value {
+      font-size: 28px;
+      font-weight: 700;
+      letter-spacing: -0.5px;
+    }
+
+    .balance-value.positive {
+      color: #d1fae5;
+    }
+
+    .balance-value.negative {
+      color: #fecaca;
+    }
+
 
     /* Header Card - Green gradient for income theme */
     .header-card {
@@ -506,6 +625,8 @@ export class IncomesListComponent implements OnInit {
   items = signal<Income[]>([]);
   loading = signal<boolean>(false);
   meta = signal<{ page: number; totalPages: number; hasNextPage: boolean; hasPrevPage: boolean; totalItems: number }>({ page: 1, totalPages: 1, hasNextPage: false, hasPrevPage: false, totalItems: 0 });
+  mxnBalance = signal<CurrencyBalance | null>(null);
+  showBalance = signal<boolean>(false);
   sortActive: string = 'date';
   sortDirection: 'asc' | 'desc' = 'desc';
 
@@ -546,6 +667,7 @@ export class IncomesListComponent implements OnInit {
       }
     });
     this.load();
+    this.loadBalance();
   }
   applyFilters(): void { this.filters.patchValue({ page: 1 }); this.load(); }
   onPaginator(e: PageEvent): void { this.filters.patchValue({ page: (e.pageIndex + 1), limit: e.pageSize }); this.load(); }
@@ -607,7 +729,29 @@ export class IncomesListComponent implements OnInit {
       data: id ? { id } : undefined,
       autoFocus: true
     } as any);
-    ref.afterClosed().subscribe((changed) => { if (changed) this.load(); });
+    ref.afterClosed().subscribe((changed) => { if (changed) { this.load(); this.loadBalance(); } });
+  }
+
+  toggleBalance(): void {
+    this.showBalance.update(v => !v);
+  }
+
+  private loadBalance(): void {
+    this.finance.getBalance().subscribe({
+      next: (response) => {
+        // Backend already returns totals in MXN after conversion
+        // Create a CurrencyBalance object from the main totals
+        this.mxnBalance.set({
+          currency: 'MXN',
+          totalIncomes: response.data.totalIncomes,
+          totalExpenses: response.data.totalExpenses,
+          balance: response.data.balance
+        });
+      },
+      error: (error) => {
+        console.error('Error loading balance:', error);
+      }
+    });
   }
 
   deleteIncome(id: string): void {
@@ -624,12 +768,13 @@ export class IncomesListComponent implements OnInit {
 
     dialogRef.afterClosed().subscribe(result => {
       if (!result) return;
-      
+
       this.loading.set(true);
       this.finance.deleteIncome(id).subscribe({
         next: () => {
           this.loading.set(false);
           this.load();
+          this.loadBalance();
         },
         error: (err) => {
           this.loading.set(false);

@@ -84,3 +84,22 @@ export interface FinanceReportResponse {
   };
   meta?: Record<string, any>;
 }
+// Balance interfaces
+export interface CurrencyBalance {
+  currency: string;
+  totalIncomes: number;
+  totalExpenses: number;
+  balance: number;
+}
+
+export interface BalanceData {
+  totalIncomes: number;
+  totalExpenses: number;
+  balance: number;
+  byCurrency: CurrencyBalance[];
+}
+
+export interface BalanceResponse {
+  ok: boolean;
+  data: BalanceData;
+}

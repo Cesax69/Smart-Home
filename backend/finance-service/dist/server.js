@@ -7,6 +7,7 @@ const express_1 = __importDefault(require("express"));
 const cors_1 = __importDefault(require("cors"));
 const dotenv_1 = __importDefault(require("dotenv"));
 const financeRoutes_1 = __importDefault(require("./routes/financeRoutes"));
+const taskRoutes_1 = __importDefault(require("./routes/taskRoutes"));
 const database_1 = require("./config/database");
 dotenv_1.default.config();
 const app = (0, express_1.default)();
@@ -26,6 +27,7 @@ app.get('/health', (req, res) => {
 });
 // API Routes
 app.use('/finance', financeRoutes_1.default);
+app.use('/tasks', taskRoutes_1.default);
 // Root endpoint
 app.get('/', (req, res) => {
     res.json({

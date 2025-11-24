@@ -7,168 +7,192 @@ class IncomeController {
     constructor() {
         this.incomeService = new IncomeService_1.IncomeService();
     }
-    /**
-     * POST /finance/income - Crear ingreso
-     */
     async createIncome(req, res) {
         try {
             const requestData = req.body;
-            // Usar Builder para construir y validar
-            const incomeData = IncomeBuilder_1.IncomeBuilder.fromRequest(requestData);
-            // Persistir
-            const income = await this.incomeService.create(incomeData);
+            // Usar el Builder para construir y validar
+            const income = IncomeBuilder_1.IncomeBuilder.fromRequest(requestData);
+            // Guardar en la BD
+            const saved = await this.incomeService.create(income);
             const response = {
                 ok: true,
-                data: income,
+                data: saved,
                 meta: {
-                    createdAt: income.createdAt
+                    createdAt: saved.createdAt
                 }
             };
             res.status(201).json(response);
         }
         catch (error) {
-            console.error('Error creating income:', error);
-            const response = {
+            res.status(400).json({
                 ok: false,
                 error: {
                     code: 'VALIDATION_ERROR',
-                    message: error instanceof Error ? error.message : 'Error creating income',
-                    details: error instanceof Error ? { field: this.extractField(error.message) } : undefined
+                    message: error.message || 'Error creating income',
+                    details: error
                 }
-            };
-            res.status(400).json(response);
+            });
         }
     }
-    /**
-     * GET /finance/income - Listar ingresos
-     */
     async getIncome(req, res) {
         try {
+            const { from, to, source, memberId, currency, page, limit, sort } = req.query;
             const filters = {
-                from: req.query.from,
-                to: req.query.to,
-                source: req.query.source,
-                memberId: req.query.memberId
+                from: from,
+                to: to,
+                source: source,
+                memberId: memberId,
+                currency: currency
             };
-            const income = await this.incomeService.findAll(filters);
-            const range = this.calculateRange(filters.from, filters.to);
+            // Get ALL matching incomes first (for count)
+            const allIncome = await this.incomeService.findAll(filters);
+            const totalItems = allIncome.length;
+            // Parse pagination params
+            const currentPage = page ? parseInt(page) : 1;
+            const pageSize = limit ? parseInt(limit) : 10;
+            const totalPages = Math.ceil(totalItems / pageSize);
+            // Calculate pagination
+            const startIndex = (currentPage - 1) * pageSize;
+            const endIndex = startIndex + pageSize;
+            const paginatedItems = allIncome.slice(startIndex, endIndex);
+            // Sort if requested
+            let sortedItems = paginatedItems;
+            if (sort) {
+                const [field, direction] = sort.split(':');
+                sortedItems = [...paginatedItems].sort((a, b) => {
+                    const aVal = a[field];
+                    const bVal = b[field];
+                    if (direction === 'asc') {
+                        return aVal > bVal ? 1 : -1;
+                    }
+                    else {
+                        return aVal < bVal ? 1 : -1;
+                    }
+                });
+            }
             const response = {
                 ok: true,
                 data: {
-                    items: income
+                    items: sortedItems
                 },
                 meta: {
-                    count: income.length,
-                    currency: income.length > 0 ? income[0].currency : 'USD',
-                    range
+                    page: currentPage,
+                    limit: pageSize,
+                    totalItems: totalItems,
+                    totalPages: totalPages,
+                    hasNextPage: currentPage < totalPages,
+                    hasPrevPage: currentPage > 1
                 }
             };
             res.status(200).json(response);
         }
         catch (error) {
-            console.error('Error getting income:', error);
-            const response = {
+            res.status(500).json({
                 ok: false,
                 error: {
-                    code: 'SERVER_ERROR',
-                    message: 'Error retrieving income'
+                    code: 'INTERNAL_ERROR',
+                    message: error.message || 'Error fetching income',
+                    details: error
                 }
-            };
-            res.status(500).json(response);
+            });
         }
     }
-    /**
-     * GET /finance/income/:id - Obtener ingreso por ID
-     */
     async getIncomeById(req, res) {
         try {
             const { id } = req.params;
-            const income = await this.incomeService.findById(id);
+            const income = await this.incomeService.findById(parseInt(id));
             if (!income) {
-                const response = {
+                res.status(404).json({
                     ok: false,
-                    error: { code: 'NOT_FOUND', message: 'Income not found' }
-                };
-                res.status(404).json(response);
+                    error: {
+                        code: 'NOT_FOUND',
+                        message: `Income with id ${id} not found`
+                    }
+                });
                 return;
             }
-            const response = { ok: true, data: income };
+            const response = {
+                ok: true,
+                data: income
+            };
             res.status(200).json(response);
         }
         catch (error) {
-            console.error('Error getting income by id:', error);
-            const response = {
+            res.status(500).json({
                 ok: false,
-                error: { code: 'SERVER_ERROR', message: 'Error retrieving income' }
-            };
-            res.status(500).json(response);
+                error: {
+                    code: 'INTERNAL_ERROR',
+                    message: error.message || 'Error fetching income',
+                    details: error
+                }
+            });
         }
     }
-    /**
-     * PUT /finance/income/:id - Actualizar ingreso
-     */
     async updateIncome(req, res) {
         try {
             const { id } = req.params;
-            const updated = await this.incomeService.update(id, req.body || {});
+            const updates = req.body;
+            // Validate if amount is being updated
+            if (updates.amount !== undefined && updates.amount <= 0) {
+                throw new Error('Amount must be greater than 0');
+            }
+            const updated = await this.incomeService.update(id, updates);
             if (!updated) {
-                const response = {
+                res.status(404).json({
                     ok: false,
-                    error: { code: 'NOT_FOUND', message: 'Income not found' }
-                };
-                res.status(404).json(response);
+                    error: {
+                        code: 'NOT_FOUND',
+                        message: `Income with id ${id} not found`
+                    }
+                });
                 return;
             }
-            const response = { ok: true, data: updated };
+            const response = {
+                ok: true,
+                data: updated,
+                meta: {
+                    updatedAt: new Date().toISOString()
+                }
+            };
             res.status(200).json(response);
         }
         catch (error) {
-            console.error('Error updating income:', error);
-            const response = {
+            res.status(400).json({
                 ok: false,
-                error: { code: 'SERVER_ERROR', message: 'Error updating income' }
-            };
-            res.status(500).json(response);
+                error: {
+                    code: 'VALIDATION_ERROR',
+                    message: error.message || 'Error updating income',
+                    details: error
+                }
+            });
         }
     }
-    /**
-     * DELETE /finance/income/:id - Eliminar ingreso
-     */
     async deleteIncome(req, res) {
         try {
             const { id } = req.params;
-            const success = await this.incomeService.delete(id);
-            const response = { ok: success };
-            res.status(success ? 200 : 404).json(success ? response : { ok: false, error: { code: 'NOT_FOUND', message: 'Income not found' } });
+            const deleted = await this.incomeService.delete(id);
+            if (!deleted) {
+                res.status(404).json({
+                    ok: false,
+                    error: {
+                        code: 'NOT_FOUND',
+                        message: `Income with id ${id} not found`
+                    }
+                });
+                return;
+            }
+            res.status(204).send();
         }
         catch (error) {
-            console.error('Error deleting income:', error);
-            const response = {
+            res.status(500).json({
                 ok: false,
-                error: { code: 'SERVER_ERROR', message: 'Error deleting income' }
-            };
-            res.status(500).json(response);
+                error: {
+                    code: 'INTERNAL_ERROR',
+                    message: error.message || 'Error deleting income',
+                    details: error
+                }
+            });
         }
-    }
-    extractField(message) {
-        if (message.includes('amount'))
-            return 'amount';
-        if (message.includes('currency'))
-            return 'currency';
-        if (message.includes('source'))
-            return 'source';
-        return undefined;
-    }
-    calculateRange(from, to) {
-        const now = new Date();
-        const start = from ? new Date(from) : new Date(now.setDate(now.getDate() - 30));
-        const end = to ? new Date(to) : new Date();
-        start.setHours(0, 0, 0, 0);
-        end.setHours(23, 59, 59, 999);
-        return {
-            start: start.toISOString(),
-            end: end.toISOString()
-        };
     }
 }
 exports.IncomeController = IncomeController;
