@@ -1,4 +1,10 @@
 import { ChartConfiguration } from 'chart.js';
+// Patrón Builder (Analytics):
+// - "Producto": configuración de Chart.js (`type`, `data`, `options`).
+// - Builder fluido con métodos encadenables para componer la configuración paso a paso.
+// - `build()` materializa el objeto final que consumen los componentes.
+// - Interfaz `ChartConfigBuilderApi` para contrato estable (tests/mocks/intercambio de implementación).
+// - Separación de responsabilidades: normalización/formateo fuera del Builder.
 
 export type ChartType = 'line' | 'bar' | 'pie' | 'doughnut';
 
@@ -19,9 +25,25 @@ export interface ChartBuildParams {
 }
 
 /**
+ * Interfaz del Builder para la configuración de Chart.js.
+ * Permite intercambiar implementaciones y facilita tests/mocks.
+ */
+export interface ChartConfigBuilderApi {
+  setType(type: ChartType): ChartConfigBuilderApi;
+  setLabels(labels: string[]): ChartConfigBuilderApi;
+  setDatasets(datasets: ChartDatasetInput[]): ChartConfigBuilderApi;
+  addDataset(dataset: ChartDatasetInput): ChartConfigBuilderApi;
+  setStacked(stacked: boolean): ChartConfigBuilderApi;
+  setFill(fill: boolean): ChartConfigBuilderApi;
+  setShowLegend(show: boolean): ChartConfigBuilderApi;
+  setTitle(title?: string): ChartConfigBuilderApi;
+  build(): { type: ChartType; data: ChartConfiguration['data']; options: ChartConfiguration['options'] };
+}
+
+/**
  * Builder para construir configuración de Chart.js de forma fluida.
  */
-export class ChartConfigBuilder {
+export class ChartConfigBuilder implements ChartConfigBuilderApi {
   private type: ChartType = 'line';
   private labels: string[] = [];
   private datasets: ChartDatasetInput[] = [];
@@ -30,6 +52,7 @@ export class ChartConfigBuilder {
   private showLegend = true;
   private title?: string;
 
+  // Factory práctico para crear un Builder con parámetros comunes del componente.
   static fromParams(params: ChartBuildParams): ChartConfigBuilder {
     return new ChartConfigBuilder()
       .setType(params.type)
@@ -81,9 +104,8 @@ export class ChartConfigBuilder {
     return this;
   }
 
-  /**
-   * Construye objetos `data` y `options` compatibles con `ng2-charts`.
-   */
+  // Construye objetos `data` y `options` compatibles con `ng2-charts`.
+  // Mantiene defaults razonables según tipo de gráfica y flags del builder.
   build(): { type: ChartType; data: ChartConfiguration['data']; options: ChartConfiguration['options'] } {
     const data: ChartConfiguration['data'] = {
       labels: this.labels,
@@ -134,66 +156,4 @@ export class ChartConfigBuilder {
     return { type: this.type, data, options };
   }
 }
-
-/**
- * Utilidad para normalizar la respuesta del backend a la forma esperada por el frontend.
- * Soporta dos formas:
- * - { data: { labels, datasets: { expenses, incomes, balance } } }
- * - { data: { labels, datasets: Array<{label,data,color}> } }
- */
-export function formatLabelForPeriod(iso: string, period?: string): string {
-  if (!iso) return '';
-  const pad = (n: number) => String(n).padStart(2, '0');
-  // Mantener formato ISO YYYY-MM-DD siempre para evitar desfases por zona horaria
-  const isoMatch = /^\d{4}-\d{2}-\d{2}$/.test(iso);
-  if (isoMatch) {
-    const [yStr, mStr, dStr] = iso.split('-');
-    const y = parseInt(yStr, 10);
-    const m = parseInt(mStr, 10);
-    const day = parseInt(dStr, 10);
-    if (period === 'year') return `${y}-01-01`;
-    if (period === 'month') return `${y}-${pad(m)}-01`;
-    return `${y}-${pad(m)}-${pad(day)}`;
-  }
-  // Fallback: intentar convertir a ISO con cero padding
-  const d = new Date(iso);
-  if (isNaN(d.getTime())) return iso;
-  const y = d.getFullYear();
-  const m = d.getMonth() + 1;
-  const day = d.getDate();
-  if (period === 'year') return `${y}-01-01`;
-  if (period === 'month') return `${y}-${pad(m)}-01`;
-  return `${y}-${pad(m)}-${pad(day)}`;
-}
-
-export function normalizeReport(res: any): { labels: string[]; datasets: Record<string, ChartDatasetInput> } {
-  const rawLabels: string[] = res?.data?.labels || [];
-  const period: string | undefined = res?.meta?.period;
-  const groupBy: string | undefined = res?.meta?.groupBy;
-  const labels: string[] = (groupBy === 'date' && period) ? rawLabels.map(l => formatLabelForPeriod(l, period)) : rawLabels;
-  const ds = res?.data?.datasets;
-
-  if (Array.isArray(ds)) {
-    const map: Record<string, ChartDatasetInput> = {};
-    ds.forEach((d: any) => {
-      const rawLabel: string = d?.label || '';
-      const lower = rawLabel.toLowerCase();
-      let key = lower;
-      if (lower.includes('gasto')) key = 'expenses';
-      else if (lower.includes('ingreso')) key = 'incomes';
-      else if (lower.includes('balance')) key = 'balance';
-
-      map[key] = { label: rawLabel, data: d?.data || [], color: d?.color };
-    });
-    return { labels, datasets: map };
-  }
-
-  return {
-    labels,
-    datasets: {
-      expenses: ds?.expenses,
-      incomes: ds?.incomes,
-      balance: ds?.balance
-    }
-  } as any;
-}
+// Nota: funciones de normalización y formateo se movieron a archivos dedicados

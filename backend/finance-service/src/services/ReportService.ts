@@ -7,7 +7,7 @@ export class ReportService {
      */
     async generateReport(query: FinanceReportQuery): Promise<{ data: FinanceReportData, meta: any }> {
         const { from, to, groupBy, currency, period } = query;
-        const range = this.calculateDateRange(from, to, period);
+        const range = await this.calculateDateRange(from, to, period);
 
         let labels: string[] = [];
         let expensesData: number[] = [];
@@ -242,7 +242,7 @@ export class ReportService {
         return { labels, expenses, income, balance };
     }
 
-    private calculateDateRange(from?: string, to?: string, period?: string): { start: Date, end: Date } {
+    private async calculateDateRange(from?: string, to?: string, period?: string): Promise<{ start: Date, end: Date }> {
         const now = new Date();
         let start: Date;
         let end: Date;
@@ -250,23 +250,51 @@ export class ReportService {
         if (from) {
             start = new Date(from);
             end = to ? new Date(to) : new Date(now);
+            return { start, end };
+        }
+
+        // Cuando no se especifica rango, usar el primer y último registro existentes
+        const qMinExp = `SELECT MIN(date) AS min FROM expenses`;
+        const qMaxExp = `SELECT MAX(date) AS max FROM expenses`;
+        const qMinInc = `SELECT MIN(date) AS min FROM income`;
+        const qMaxInc = `SELECT MAX(date) AS max FROM income`;
+
+        const [minExpRes, maxExpRes, minIncRes, maxIncRes] = await Promise.all([
+            databaseService.query(qMinExp),
+            databaseService.query(qMaxExp),
+            databaseService.query(qMinInc),
+            databaseService.query(qMaxInc)
+        ]);
+
+        const minDates: Date[] = [];
+        const maxDates: Date[] = [];
+        const pushIfValid = (val: any, list: Date[]) => {
+            if (val) {
+                const d = new Date(val);
+                if (!isNaN(d.getTime())) list.push(d);
+            }
+        };
+
+        pushIfValid(minExpRes.rows?.[0]?.min, minDates);
+        pushIfValid(minIncRes.rows?.[0]?.min, minDates);
+        pushIfValid(maxExpRes.rows?.[0]?.max, maxDates);
+        pushIfValid(maxIncRes.rows?.[0]?.max, maxDates);
+
+        if (minDates.length && maxDates.length) {
+            const min = new Date(Math.min(...minDates.map(d => d.getTime())));
+            const max = new Date(Math.max(...maxDates.map(d => d.getTime())));
+            start = new Date(min.getFullYear(), min.getMonth(), min.getDate(), 0, 0, 0, 0);
+            end = new Date(max.getFullYear(), max.getMonth(), max.getDate(), 23, 59, 59, 999);
         } else {
-            if (period === 'day') {
-                // Para "día" en eje temporal, usar todo el mes actual
-                const fromMonth = new Date(now.getFullYear(), now.getMonth(), 1);
-                const toMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0);
-                start = new Date(fromMonth.getFullYear(), fromMonth.getMonth(), fromMonth.getDate(), 0, 0, 0, 0);
-                end = new Date(toMonth.getFullYear(), toMonth.getMonth(), toMonth.getDate(), 23, 59, 59, 999);
-            } else if (period === 'week') {
-                // Para "semana" en eje temporal, usar todo el mes actual
-                const fromMonth = new Date(now.getFullYear(), now.getMonth(), 1);
-                const toMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0);
-                start = new Date(fromMonth.getFullYear(), fromMonth.getMonth(), fromMonth.getDate(), 0, 0, 0, 0);
-                end = new Date(toMonth.getFullYear(), toMonth.getMonth(), toMonth.getDate(), 23, 59, 59, 999);
-            } else if (period === 'year') {
-                // Últimos 3 años completos: desde 2 años atrás hasta fin del año actual
+            // Fallback: comportamiento previo si no hay datos
+            if (period === 'year') {
                 start = new Date(now.getFullYear() - 2, 0, 1, 0, 0, 0, 0);
                 end = new Date(now.getFullYear(), 11, 31, 23, 59, 59, 999);
+            } else if (period === 'day' || period === 'week') {
+                const fromMonth = new Date(now.getFullYear(), now.getMonth(), 1);
+                const toMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0);
+                start = new Date(fromMonth.getFullYear(), fromMonth.getMonth(), fromMonth.getDate(), 0, 0, 0, 0);
+                end = new Date(toMonth.getFullYear(), toMonth.getMonth(), toMonth.getDate(), 23, 59, 59, 999);
             } else { // default month
                 const fromYear = new Date(now.getFullYear(), 0, 1);
                 const toYear = new Date(now.getFullYear(), 11, 31);
@@ -282,41 +310,37 @@ export class ReportService {
         const labels: string[] = [];
         const fmt = (d: Date) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
         if (period === 'week') {
-            // Desde inicio de mes hasta fin de mes, saltos de 7 días
-            const startMonth = new Date(range.start.getFullYear(), range.start.getMonth(), 1);
-            const endMonth = new Date(range.start.getFullYear(), range.start.getMonth() + 1, 0);
-            const cur = new Date(startMonth);
-            while (cur <= endMonth) {
+            // Desde inicio del rango hasta fin del rango, saltos de 7 días
+            const cur = new Date(range.start.getFullYear(), range.start.getMonth(), range.start.getDate());
+            while (cur <= range.end) {
                 labels.push(fmt(cur));
                 cur.setDate(cur.getDate() + 7);
             }
             return labels;
         }
         if (period === 'month') {
-            // Desde inicio de año hasta fin de año, saltos de mes
-            const startYear = new Date(range.start.getFullYear(), 0, 1);
-            const endYear = new Date(range.start.getFullYear(), 11, 31);
-            const cur = new Date(startYear);
-            while (cur <= endYear) {
+            // Desde inicio del rango hasta fin del rango, saltos de mes
+            const cur = new Date(range.start.getFullYear(), range.start.getMonth(), 1);
+            const endMonth = new Date(range.end.getFullYear(), range.end.getMonth(), 1);
+            while (cur <= endMonth) {
                 labels.push(fmt(cur));
                 cur.setMonth(cur.getMonth() + 1);
             }
             return labels;
         }
         if (period === 'year') {
-            // Tres años: el año de inicio (ya es 2 años atrás), el siguiente y el actual
-            const startYear = new Date(range.start.getFullYear(), 0, 1);
-            for (let k = 0; k < 3; k++) {
-                const d = new Date(startYear.getFullYear() + k, 0, 1);
-                labels.push(fmt(d));
+            // Desde el año de inicio hasta el año de fin (inclusive)
+            const cur = new Date(range.start.getFullYear(), 0, 1);
+            const endYear = new Date(range.end.getFullYear(), 0, 1);
+            while (cur <= endYear) {
+                labels.push(fmt(cur));
+                cur.setFullYear(cur.getFullYear() + 1);
             }
             return labels;
         }
-        // default o 'day': días del mes actual
-        const startMonth = new Date(range.start.getFullYear(), range.start.getMonth(), 1);
-        const endMonth = new Date(range.start.getFullYear(), range.start.getMonth() + 1, 0);
-        const cur = new Date(startMonth);
-        while (cur <= endMonth) {
+        // default o 'day': días desde inicio del rango hasta fin del rango
+        const cur = new Date(range.start.getFullYear(), range.start.getMonth(), range.start.getDate());
+        while (cur <= range.end) {
             labels.push(fmt(cur));
             cur.setDate(cur.getDate() + 1);
         }
