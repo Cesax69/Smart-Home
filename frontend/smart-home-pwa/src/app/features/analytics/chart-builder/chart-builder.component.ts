@@ -15,7 +15,9 @@ ChartJS.register(...registerables);
 import { FinanceService } from '../../../services/finance.service';
 import { UserService } from '../../../services/user.service';
 import { TaskService } from '../../task-management/services/task.service';
-import { normalizeReport, ChartConfigBuilder, ChartType, ChartDatasetInput } from '../chart-config.builder';
+// Builder fluido para componer la configuración de Chart.js (producto)
+import { ChartConfigBuilder, ChartType, ChartDatasetInput } from '../chart-config.builder';
+import { normalizeReport } from '../chart-report.normalizer';
 import { CatalogMaps } from '../../../catalogs/catalogs';
 
 @Component({
@@ -36,6 +38,12 @@ import { CatalogMaps } from '../../../catalogs/catalogs';
   templateUrl: './chart-builder.component.html',
   styleUrls: ['./chart-builder.component.scss']
 })
+// Flujo del patrón Builder en Analytics:
+// 1) Se solicitan datos (finance/tasks) y se normalizan con `normalizeReport`.
+// 2) Se seleccionan etiquetas y datasets según el formulario.
+// 3) Se instancia el Builder (`ChartConfigBuilder`) y se configuran propiedades encadenando métodos.
+// 4) `build()` materializa el “producto” (`ChartConfiguration`) que se asigna a `chartData` y `chartOptions`.
+// 5) `enhanceChartOptions()` complementa opciones básicas de render sin mezclar responsabilidades del Builder.
 export class AnalyticsChartBuilderComponent implements OnInit {
   loading = signal<boolean>(false);
   detailVisible = signal<boolean>(false);
@@ -208,7 +216,11 @@ export class AnalyticsChartBuilderComponent implements OnInit {
               CatalogMaps.incomeSourcesMap[String(id)] || String(id)
             );
           }
-
+          // Donde se hace el llamado del builder para construir la configuración del gráfico
+          // Builder Pattern: aquí se construye el “producto” ChartConfiguration.
+          // - El Builder encapsula la composición: tipo, etiquetas, datasets y opciones básicas.
+          // - La configuración se arma de forma fluida y validada; el componente desconoce detalles internos.
+          // - No hay Director explícito; el componente actúa como cliente del Builder.
           const builder = ChartConfigBuilder.fromParams({
             type: value.chartType,
             labels: labelsToUse,
@@ -217,10 +229,13 @@ export class AnalyticsChartBuilderComponent implements OnInit {
             fill: value.chartType === 'line' ? true : false,
             title: this.titleFor(value.chartType, gb)
           });
-
+          // Donde se construye el gráfico y se almacena en las propiedades del componente
+          // `build()` materializa el objeto final y regresan datos y opciones tipadas.
           const built = builder.build();
           this.chartType = built.type;
           this.chartData = built.data;
+          // Separación de responsabilidades: el Builder entrega opciones base,
+          // y este método las enriquece con animaciones/estilos mínimos del proyecto.
           this.chartOptions = this.enhanceChartOptions(built.options);
           
           this.loading.set(false);
@@ -289,6 +304,8 @@ export class AnalyticsChartBuilderComponent implements OnInit {
             color = '#ab47bc';
           }
 
+          // Builder Pattern: el componente arma la configuración de la gráfica con el Builder,
+          // sin acoplarse a la estructura interna del objeto Chart.js.
           const builder = ChartConfigBuilder.fromParams({
             type: value.chartType,
             labels,
@@ -297,9 +314,11 @@ export class AnalyticsChartBuilderComponent implements OnInit {
             title: this.titleFor(value.chartType, group)
           });
 
+          // `build()` entrega configuración lista para render; se asigna al estado del componente.
           const built = builder.build();
           this.chartType = built.type;
           this.chartData = built.data;
+          // Opciones base del Builder se complementan aquí para mantenerlo liviano y reusable.
           this.chartOptions = this.enhanceChartOptions(built.options);
           
           this.loading.set(false);
@@ -317,6 +336,9 @@ export class AnalyticsChartBuilderComponent implements OnInit {
     this.loading.set(false);
   }
 
+  // Nota de diseño (Builder):
+  // Este método complementa opciones del gráfico (animación/estilo). El Builder permanece enfocado
+  // en producir la configuración base; esta función evita sobrecargarlo con detalles de presentación.
   private enhanceChartOptions(baseOptions: any): ChartConfiguration['options'] {
     const enhanced: any = { ...baseOptions };
 
@@ -433,8 +455,16 @@ export class AnalyticsChartBuilderComponent implements OnInit {
       const active = evt?.active || [];
       if (!active.length) return;
       
-      const idx = (active[0]?.index ?? (active[0] as any)?._index ?? 0);
-      const dsIdx = active[0]?.datasetIndex ?? 0;
+      const idx = (
+        typeof active[0]?.index === 'number'
+          ? active[0].index
+          : (active[0] as any)?.element?.$context?.dataIndex ?? (active[0] as any)?._index ?? 0
+      );
+      const dsIdx = (
+        typeof active[0]?.datasetIndex === 'number'
+          ? active[0].datasetIndex
+          : (active[0] as any)?.element?.$context?.datasetIndex ?? 0
+      );
       const labels = (this.chartData?.labels as any[]) || [];
       const datasets = (this.chartData?.datasets as any[]) || [];
       const label = String(labels[idx] ?? '');
@@ -501,11 +531,13 @@ export class AnalyticsChartBuilderComponent implements OnInit {
 
   private computeCurrentPeriodRange(period: string): { from: string; to: string } | null {
     const now = new Date();
-    const startOfDay = (d: Date) => new Date(d.getFullYear(), d.getMonth(), d.getDate(), 0, 0, 0, 0).toISOString();
-    const endOfDay = (d: Date) => new Date(d.getFullYear(), d.getMonth(), d.getDate(), 23, 59, 59, 999).toISOString();
+    const pad = (n: number) => String(n).padStart(2, '0');
+    const ymd = (y: number, mZeroIdx: number, dNum: number) => `${y}-${pad(mZeroIdx + 1)}-${pad(dNum)}`;
 
     if (period === 'day') {
-      return { from: startOfDay(now), to: endOfDay(now) };
+      const y = now.getFullYear(); const m = now.getMonth(); const d = now.getDate();
+      const s = ymd(y, m, d);
+      return { from: s, to: s };
     }
     if (period === 'week') {
       const day = now.getDay();
@@ -514,17 +546,18 @@ export class AnalyticsChartBuilderComponent implements OnInit {
       from.setDate(now.getDate() - diffToMonday);
       const to = new Date(from);
       to.setDate(from.getDate() + 6);
-      return { from: startOfDay(from), to: endOfDay(to) };
+      return { from: ymd(from.getFullYear(), from.getMonth(), from.getDate()), to: ymd(to.getFullYear(), to.getMonth(), to.getDate()) };
     }
     if (period === 'month') {
       const from = new Date(now.getFullYear(), now.getMonth(), 1);
       const to = new Date(now.getFullYear(), now.getMonth() + 1, 0);
-      return { from: startOfDay(from), to: endOfDay(to) };
+      return { from: ymd(from.getFullYear(), from.getMonth(), 1), to: ymd(to.getFullYear(), to.getMonth(), to.getDate()) };
     }
     if (period === 'year') {
       const from = new Date(now.getFullYear(), 0, 1);
       const to = new Date(now.getFullYear(), 11, 31);
-      return { from: startOfDay(from), to: endOfDay(to) };
+      const yr = now.getFullYear();
+      return { from: `${yr}-01-01`, to: `${yr}-12-31` };
     }
     return null;
   }
@@ -618,18 +651,60 @@ export class AnalyticsChartBuilderComponent implements OnInit {
 
   private computeRangeFromLabel(period: string, label: string): { from: string; to: string } | null {
     const pad = (n: number) => String(n).padStart(2, '0');
+    const ymd = (y: number, mZeroIdx: number, dNum: number) => `${y}-${pad(mZeroIdx + 1)}-${pad(dNum)}`;
     
-    let d = new Date(label);
+    // Primero intentamos parsear manualmente etiquetas ISO para evitar el desfase por huso horario
     let isoParsed = false;
     let isoParts: [number, number, number] | null = null;
+    const clean = String(label || '').trim().toLowerCase();
+    let d: Date | null = null;
+
+    // Formato YYYY-M-D o YYYY-MM-DD (aceptando un dígito para mes/día)
+    const ymdHyphenLoose = clean.match(/^(\d{4})-(\d{1,2})-(\d{1,2})$/);
+    if (ymdHyphenLoose) {
+      const yr = parseInt(ymdHyphenLoose[1], 10);
+      const mon = parseInt(ymdHyphenLoose[2], 10) - 1;
+      const day = parseInt(ymdHyphenLoose[3], 10);
+      d = new Date(yr, mon, day);
+      isoParsed = true;
+      isoParts = [yr, mon, day];
+    }
+
+    // Soporte para formato "YYYY/M/D" o "YYYY/MM/DD"
+    if (!isoParsed) {
+      const ymdSlashMatch = clean.match(/^(\d{4})[\/](\d{1,2})[\/](\d{1,2})$/);
+      if (ymdSlashMatch) {
+        const yr = parseInt(ymdSlashMatch[1], 10);
+        const mon = parseInt(ymdSlashMatch[2], 10) - 1;
+        const day = parseInt(ymdSlashMatch[3], 10);
+        d = new Date(yr, mon, day);
+        isoParsed = true;
+        isoParts = [yr, mon, day];
+      }
+    }
+
+    // Soporte para formato "YYYY-MM" o "YYYY/MM" (sin día -> asumir 1)
+    if (!isoParsed) {
+      const ymOnlyHyphen = clean.match(/^(\d{4})-(\d{1,2})$/);
+      const ymOnlySlash = clean.match(/^(\d{4})\/(\d{1,2})$/);
+      const ymOnly = ymOnlyHyphen || ymOnlySlash;
+      if (ymOnly) {
+        const yr = parseInt(ymOnly[1], 10);
+        const mon = parseInt(ymOnly[2], 10) - 1;
+        d = new Date(yr, mon, 1);
+        isoParsed = true;
+        isoParts = [yr, mon, 1];
+      }
+    }
+
+    // Si no es un formato conocido, usamos el parser nativo
+    if (!d) d = new Date(label);
 
     if (isNaN(d.getTime())) {
       const currentRange = this.computeCurrentPeriodRange(period);
       const base = currentRange ? new Date(currentRange.from) : new Date();
       const year = base.getFullYear();
       const month = base.getMonth();
-
-      const clean = String(label || '').trim().toLowerCase();
       const months: Record<string, number> = {
         'ene': 0, 'enero': 0, 'feb': 1, 'febrero': 1, 'mar': 2, 'marzo': 2,
         'abr': 3, 'abril': 3, 'may': 4, 'mayo': 4, 'jun': 5, 'junio': 5,
@@ -638,29 +713,7 @@ export class AnalyticsChartBuilderComponent implements OnInit {
         'dic': 11, 'diciembre': 11
       };
 
-      const isoMatch = clean.match(/^\d{4}-\d{2}-\d{2}$/);
-      if (isoMatch) {
-        const [yrStr, monStr, dayStr] = clean.split('-');
-        const yr = parseInt(yrStr, 10);
-        const mon = parseInt(monStr, 10) - 1;
-        const day = parseInt(dayStr, 10);
-        d = new Date(yr, mon, day);
-        isoParsed = true;
-        isoParts = [yr, mon, day];
-      }
-
-      // Soporte para formato "YYYY/MM/DD" manteniendo interpretación en UTC
-      if (!isoParsed) {
-        const ymdSlashMatch = clean.match(/^(\d{4})[\/](\d{1,2})[\/](\d{1,2})$/);
-        if (ymdSlashMatch) {
-          const yr = parseInt(ymdSlashMatch[1], 10);
-          const mon = parseInt(ymdSlashMatch[2], 10) - 1;
-          const day = parseInt(ymdSlashMatch[3], 10);
-          d = new Date(yr, mon, day);
-          isoParsed = true;
-          isoParts = [yr, mon, day];
-        }
-      }
+      // (los formatos previos ya se intentaron arriba)
 
       if (isNaN(d.getTime())) {
         const dmMatch = clean.match(/^(\d{1,2})[\/-](\d{1,2})(?:[\/-](\d{2,4}))?$/);
@@ -705,31 +758,44 @@ export class AnalyticsChartBuilderComponent implements OnInit {
 
     if (isNaN(d.getTime())) return null;
 
-    if (period === 'day' || period === 'month') {
+    if (period === 'day') {
       if (isoParsed && isoParts) {
         const [yr, mon, day] = isoParts;
-        const fromUtc = new Date(Date.UTC(yr, mon, day, 0, 0, 0, 0)).toISOString();
-        const toUtc = new Date(Date.UTC(yr, mon, day, 23, 59, 59, 999)).toISOString();
-        return { from: fromUtc, to: toUtc };
+        const fromStr = ymd(yr, mon, day);
+        const toStr = ymd(yr, mon, day);
+        return { from: fromStr, to: toStr };
       }
-      const fromIso = new Date(d.getFullYear(), d.getMonth(), d.getDate(), 0, 0, 0, 0).toISOString();
-      const toIsoEnd = new Date(d.getFullYear(), d.getMonth(), d.getDate(), 23, 59, 59, 999).toISOString();
-      return { from: fromIso, to: toIsoEnd };
+      const fromStr = ymd(d.getFullYear(), d.getMonth(), d.getDate());
+      const toStr = ymd(d.getFullYear(), d.getMonth(), d.getDate());
+      return { from: fromStr, to: toStr };
+    }
+    if (period === 'month') {
+      // Para período "mes", el rango debe abarcar todo el mes de la etiqueta
+      if (isoParsed && isoParts) {
+        const [yr, mon] = [isoParts[0], isoParts[1]]; // mon es 0-indexado
+        const fromStr = ymd(yr, mon, 1);
+        const lastDay = new Date(yr, mon + 1, 0);
+        const toStr = ymd(lastDay.getFullYear(), lastDay.getMonth(), lastDay.getDate());
+        return { from: fromStr, to: toStr };
+      }
+      const fromStr = ymd(d.getFullYear(), d.getMonth(), 1);
+      const endOfMonth = new Date(d.getFullYear(), d.getMonth() + 1, 0);
+      const toStr = ymd(endOfMonth.getFullYear(), endOfMonth.getMonth(), endOfMonth.getDate());
+      return { from: fromStr, to: toStr };
     }
     if (period === 'week') {
       const from = new Date(d);
       const to = new Date(d);
       to.setDate(to.getDate() + 6);
-      const fromIso = new Date(from.getFullYear(), from.getMonth(), from.getDate(), 0, 0, 0, 0).toISOString();
-      const toIsoEnd = new Date(to.getFullYear(), to.getMonth(), to.getDate(), 23, 59, 59, 999).toISOString();
-      return { from: fromIso, to: toIsoEnd };
+      const fromStr = ymd(from.getFullYear(), from.getMonth(), from.getDate());
+      const toStr = ymd(to.getFullYear(), to.getMonth(), to.getDate());
+      return { from: fromStr, to: toStr };
     }
     if (period === 'year') {
-      const from = new Date(d.getFullYear(), 0, 1);
-      const to = new Date(d.getFullYear(), 11, 31);
-      const fromIso = new Date(from.getFullYear(), from.getMonth(), from.getDate(), 0, 0, 0, 0).toISOString();
-      const toIsoEnd = new Date(to.getFullYear(), to.getMonth(), to.getDate(), 23, 59, 59, 999).toISOString();
-      return { from: fromIso, to: toIsoEnd };
+      const yr = d.getFullYear();
+      const fromStr = `${yr}-01-01`;
+      const toStr = `${yr}-12-31`;
+      return { from: fromStr, to: toStr };
     }
     return null;
   }

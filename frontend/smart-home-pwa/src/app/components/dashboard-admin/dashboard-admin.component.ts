@@ -167,9 +167,6 @@ import { NotificationBellComponent } from '../notification-bell/notification-bel
               <button mat-raised-button color="primary" (click)="navigateTo('/analytics')">
                 Abrir Dashboard
               </button>
-              <button mat-raised-button color="primary" style="margin-left:12px" (click)="navigateTo('/analytics/builder')">
-                Configurar Gráficas
-              </button>
             </mat-card-actions>
           </mat-card>
         </div>

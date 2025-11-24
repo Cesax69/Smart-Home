@@ -71,6 +71,10 @@ export class FinanceService {
   }
 
   // Report
+  // Nota (Analytics Builder): la respuesta de `getReport()` se normaliza en el
+  // frontend por `chart-report.normalizer.ts` para producir `labels` y
+  // `datasets` compatibles con el contrato del Builder (`ChartConfigBuilder`).
+  // Esto desacopla el componente y el Builder del formato crudo del backend.
   getReport(query: FinanceReportQuery): Observable<FinanceReportResponse> {
     const params = this.buildParams(query);
     return this.http.get<FinanceReportResponse>(`${this.base}/report`, { params });
