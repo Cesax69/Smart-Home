@@ -258,6 +258,78 @@ import { BalanceWidgetComponent } from '../shared/balance-widget.component';
       gap: 24px;
     }
 
+    /* Balance Summary Card */
+    .balance-summary-card {
+      border-radius: 16px !important;
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%) !important;
+      color: white !important;
+      box-shadow: 0 8px 24px rgba(102, 126, 234, 0.3) !important;
+      overflow: hidden;
+    }
+
+    .balance-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 20px 24px;
+    }
+
+    .balance-header h3 {
+      margin: 0;
+      font-size: 20px;
+      font-weight: 600;
+    }
+
+    .balance-content {
+      max-height: 0;
+      overflow: hidden;
+      transition: max-height 0.3s ease;
+      padding: 0 24px;
+    }
+
+    .balance-content.expanded {
+      max-height: 500px;
+      padding: 0 24px 24px 24px;
+    }
+
+    .balance-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+      gap: 16px;
+    }
+
+    .balance-item {
+      background: rgba(255, 255, 255, 0.15);
+      padding: 16px;
+      border-radius: 12px;
+      backdrop-filter: blur(10px);
+    }
+
+    .balance-label {
+      font-size: 13px;
+      opacity: 0.9;
+      margin-bottom: 8px;
+      font-weight: 500;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+
+    .balance-value {
+      font-size: 28px;
+      font-weight: 700;
+      letter-spacing: -0.5px;
+    }
+
+    .balance-value.positive {
+      color: #d1fae5;
+    }
+
+    .balance-value.negative {
+      color: #fecaca;
+    }
+
+
+
     /* Header Card */
     .header-card {
       background: linear-gradient(135deg, #667eea 0%, #764ba2 100%) !important;
